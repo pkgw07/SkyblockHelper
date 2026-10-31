@@ -166,6 +166,7 @@ private fun HistoryPanel(controller: AppController, state: AppState) {
                 AlertCategory.EVENT -> Sb.Aqua
                 AlertCategory.AUCTION -> Sb.Green
                 AlertCategory.PRICE -> Sb.Pink
+                AlertCategory.PATCH -> Sb.Green
                 AlertCategory.SYSTEM -> Sb.TextDim
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {

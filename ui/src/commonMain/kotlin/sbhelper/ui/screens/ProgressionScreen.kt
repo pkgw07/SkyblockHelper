@@ -81,7 +81,7 @@ fun ProgressionScreen(controller: AppController, state: AppState, wide: Boolean)
 @Composable
 fun RecommendRow(picks: List<ProgressNode>, wide: Boolean, compact: Boolean = false) {
     if (picks.isEmpty()) return
-    val cards: List<@Composable (Modifier) -> Unit> = picks.map { n -> { m: Modifier -> RecommendCard(n, m, compact) } }
+    val cards: List<@Composable (Modifier) -> Unit> = picks.map { n -> @Composable { m: Modifier -> RecommendCard(n, m, compact) } }
     if (wide) Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         cards.forEach { it(Modifier.weight(1f).fillMaxHeight()) }
     } else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { cards.forEach { it(Modifier.fillMaxWidth()) } }

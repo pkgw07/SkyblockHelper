@@ -154,7 +154,7 @@ private fun Block(b: DocBlock) {
         is DocBlock.Heading -> Text(b.text, Modifier.padding(top = if (b.level == 1) 12.dp else 6.dp),
             style = SbText.pixel(if (b.level == 1) 16 else 14, if (b.level == 1) Sb.Gold else Sb.Yellow, bold = true))
         is DocBlock.Paragraph -> Text(b.text, style = SbText.body(14, Sb.TextDim))
-        is DocBlock.Bullet -> Row(Modifier.padding(start = (b.depth - 1) * 18.dp)) {
+        is DocBlock.Bullet -> Row(Modifier.padding(start = (18 * (b.depth - 1)).dp)) {
             Text(if (b.depth == 1) "•" else "–", style = SbText.body(14, Sb.Gold), modifier = Modifier.width(16.dp))
             Text(b.text, style = SbText.body(14, Sb.Text))
         }
