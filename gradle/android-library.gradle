@@ -1,0 +1,15 @@
+// core / ui 모듈에 Android 라이브러리 설정을 적용한다.
+// Android SDK가 없는 환경에서도 데스크톱 빌드가 되도록, Android 설정은 이 파일에만 둔다.
+apply plugin: 'com.android.library'
+
+android {
+    namespace = project.ext.androidNamespace
+    compileSdk = 35
+    defaultConfig {
+        minSdk = 26
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}

@@ -1,0 +1,33 @@
+name: Wiki data
+
+# 매일 공식 Hypixel SkyBlock 위키에서 게임 데이터(제작법, 포지, 이벤트, 경험치표, 진행 조건)를 새로 만들어
+# data 브랜치에 올린다. 앱은 이 파일을 받아서 앱 업데이트 없이 최신 패치를 반영한다.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+  push:
+    branches: ["claude/skyblock-helper", "main"]
+    paths: ["tools/wiki_data.py", ".github/workflows/data.yml"]
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Generate from wiki
+        run: python3 tools/wiki_data.py out/gamedata.json
+      - name: Publish to data branch
+        shell: bash
+        run: |
+          cd out
+          git init -q && git checkout -q -b data
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add gamedata.json && git commit -q -m "Wiki data $(date -u +%Y-%m-%d)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

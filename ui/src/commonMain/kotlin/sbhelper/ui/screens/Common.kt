@@ -1,0 +1,53 @@
+package sbhelper.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+
+/** 화면 공통 스크롤 컨테이너 */
+@Composable
+fun ScreenColumn(wide: Boolean, content: @Composable ColumnScope.() -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 1280.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = if (wide) 28.dp else 14.dp)
+                .padding(bottom = 28.dp, top = if (wide) 4.dp else 8.dp),
+            verticalArrangement = Arrangement.spacedBy(if (wide) 18.dp else 12.dp),
+            content = content,
+        )
+    }
+}
+
+/** Responsive 안의 한 칸 */
+class Cell(val weight: Float, val content: @Composable (Modifier) -> Unit)
+
+fun cell(weight: Float, content: @Composable (Modifier) -> Unit) = Cell(weight, content)
+
+/** 넓은 화면에서는 가로로, 좁은 화면에서는 세로로 배치 */
+@Composable
+fun Responsive(wide: Boolean, vararg cells: Cell) {
+    if (wide) {
+        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            cells.forEach { c -> c.content(Modifier.weight(c.weight).fillMaxHeight()) }
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            cells.forEach { c -> c.content(Modifier.fillMaxWidth()) }
+        }
+    }
+}

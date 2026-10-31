@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">SkyblockHelper</string>
+    <string name="channel_alerts">스카이블럭 알림</string>
+    <string name="channel_alerts_desc">포지 완료, 경매, 이벤트, 가격 알림</string>
+</resources>

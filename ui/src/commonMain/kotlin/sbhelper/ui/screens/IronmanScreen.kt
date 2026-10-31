@@ -1,0 +1,281 @@
+package sbhelper.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.BookmarkAdd
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Inventory2
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import sbhelper.core.AppState
+import sbhelper.core.calc.CraftPlan
+import sbhelper.core.calc.CraftPlanner
+import sbhelper.core.calc.IronmanCalc
+import sbhelper.core.calc.Method
+import sbhelper.core.calc.PlanNode
+import sbhelper.core.data.CraftTarget
+import sbhelper.core.model.GameMode
+import sbhelper.core.util.fixed
+import sbhelper.core.util.formatCoins
+import sbhelper.core.util.formatDuration
+import sbhelper.core.util.formatNumber
+import sbhelper.ui.AppController
+import sbhelper.ui.components.EmptyState
+import sbhelper.ui.components.ItemGlyph
+import sbhelper.ui.components.Panel
+import sbhelper.ui.components.Pill
+import sbhelper.ui.components.RarityName
+import sbhelper.ui.components.SbButton
+import sbhelper.ui.components.SbTextField
+import sbhelper.ui.components.Segmented
+import sbhelper.ui.components.StatTile
+import sbhelper.ui.components.SwitchRow
+import sbhelper.ui.components.XpBar
+import sbhelper.ui.theme.Sb
+import sbhelper.ui.theme.SbText
+
+@Composable
+fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
+    var tab by remember { mutableStateOf(0) }
+    ScreenColumn(wide) {
+        val p = state.selectedProfile
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Segmented(listOf("제작 플래너", "자루 NPC 가치"), tab, { tab = it })
+            Spacer(Modifier.weight(1f))
+            if (p?.gameMode == GameMode.IRONMAN) Pill("♲ Ironman · ${p.cuteName}", Sb.Gray, filled = true)
+        }
+        Text(
+            "Ironman 은 거래를 할 수 없어서 직접 만들고 NPC 에게 팔아야 해요. 일반 프로필에서도 똑같이 쓸 수 있어요.",
+            style = SbText.body(13, Sb.TextFaint),
+        )
+        when (tab) {
+            0 -> Planner(controller, state, wide)
+            else -> SackValues(state, wide)
+        }
+        Text("제작법·포지 시간: 공식 Hypixel SkyBlock 위키 (${state.gameData.source.generated} 기준, 매일 자동 갱신)",
+            style = SbText.body(11, Sb.TextFaint))
+    }
+}
+
+@Composable
+private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
+    var query by remember { mutableStateOf("") }
+    var target by remember { mutableStateOf(state.synced.craftTargets.firstOrNull()?.itemId) }
+    var amountText by remember { mutableStateOf("1") }
+    var useSacks by remember { mutableStateOf(true) }
+    val planner = remember(state.gameData) { CraftPlanner(state.gameData) }
+    val sacks = state.selectedProfile?.sacks
+
+    Panel(Modifier.fillMaxWidth(), caption = "Craft Planner", title = "무엇을 만들까요?", accent = Sb.Gold) {
+        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "아이템 검색 (예: Refined Diamond, Enchanted Iron Block)", Icons.Rounded.Search)
+        val q = query.trim()
+        if (q.length >= 2) {
+            val ids = (state.gameData.crafting.keys + state.gameData.forge.keys)
+            val suggestions = ids.asSequence()
+                .filter { state.itemName(it).contains(q, true) || it.contains(q, true) }
+                .sortedBy { state.itemName(it).length }
+                .take(8).toList()
+            Spacer(Modifier.height(6.dp))
+            suggestions.forEach { id ->
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { target = id; query = "" }.padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ItemGlyph(state.itemName(id), state.itemTier(id), 24.dp)
+                    Spacer(Modifier.width(10.dp))
+                    RarityName(state.itemName(id), state.itemTier(id), Modifier.weight(1f), size = 13)
+                    if (state.gameData.forge.containsKey(id)) Pill("포지", Sb.Gold)
+                }
+            }
+            if (suggestions.isEmpty()) Text("만들 수 있는 아이템 중에 찾지 못했어요.", style = SbText.body(12, Sb.TextFaint))
+        }
+        if (state.synced.craftTargets.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("저장한 목표", style = SbText.caption())
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                state.synced.craftTargets.take(6).forEach { t ->
+                    Row(
+                        Modifier.clip(RoundedCornerShape(50)).background(if (t.itemId == target) Sb.SurfaceHover else Sb.SurfaceHigh)
+                            .clickable { target = t.itemId; amountText = t.amount.toString() }
+                            .padding(start = 12.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(state.itemName(t.itemId), style = SbText.body(12, Sb.Text))
+                        Icon(Icons.Rounded.Close, "삭제", tint = Sb.TextFaint, modifier = Modifier.padding(start = 4.dp).size(14.dp)
+                            .clickable { controller.repo.updateSynced { s -> s.copy(craftTargets = s.craftTargets - t) } })
+                    }
+                }
+            }
+        }
+    }
+
+    val id = target ?: run {
+        Panel(Modifier.fillMaxWidth()) {
+            EmptyState("목표 아이템을 골라 주세요", "기본 재료까지 분해하고, 자루에 있는 재료를 빼서 부족한 양을 알려 드려요.", icon = Icons.Rounded.Inventory2)
+        }
+        return
+    }
+    val amount = amountText.toIntOrNull()?.coerceIn(1, 100_000) ?: 1
+    val plan = remember(id, amount, useSacks, sacks, state.gameData) {
+        planner.plan(id, amount, if (useSacks) sacks.orEmpty() else emptyMap())
+    }
+
+    Panel(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ItemGlyph(state.itemName(id), state.itemTier(id), 46.dp)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                RarityName(state.itemName(id), state.itemTier(id), size = 18, bold = true)
+                Text(id, style = SbText.pixel(11, Sb.TextFaint))
+            }
+            Text("수량", style = SbText.body(13, Sb.TextDim))
+            Spacer(Modifier.width(8.dp))
+            SbTextField(amountText, { v -> amountText = v.filter { it.isDigit() }.take(6) }, Modifier.width(90.dp), "1", numeric = true)
+            Spacer(Modifier.width(10.dp))
+            SbButton("저장", {
+                controller.repo.updateSynced { s ->
+                    s.copy(craftTargets = (listOf(CraftTarget(id, amount)) + s.craftTargets.filterNot { it.itemId == id }).take(12))
+                }
+                controller.showToast("목표를 저장했어요 (기기 간 동기화)")
+            }, icon = Icons.Rounded.BookmarkAdd, outlined = true)
+        }
+        Spacer(Modifier.height(6.dp))
+        SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { useSacks = it },
+            if (sacks == null) "프로필의 인벤토리 API 가 꺼져 있거나 계정이 연결되지 않았어요." else "자루 ${sacks.size}종의 재료를 먼저 쓴다고 계산해요.",
+            enabled = sacks != null)
+    }
+
+    PlanSummary(plan, wide)
+    Responsive(
+        wide,
+        cell(1f) { m -> RawMaterials(state, plan, m) },
+        cell(1f) { m ->
+            Panel(m, caption = "Recipe Tree", title = "제작 순서", accent = Sb.Aqua) {
+                PlanTree(state, plan.root, 0)
+            }
+        },
+    )
+}
+
+@Composable
+private fun PlanSummary(plan: CraftPlan, wide: Boolean) {
+    val missing = plan.raw.count { it.missing > 0 }
+    val tiles: List<@Composable (Modifier) -> Unit> = listOf(
+        { m -> StatTile("기본 재료", "${plan.raw.size}종", m, color = Sb.Aqua) },
+        { m -> StatTile("부족한 재료", "${missing}종", m, color = if (missing == 0) Sb.Green else Sb.Red,
+            sub = if (missing == 0) "바로 만들 수 있어요!" else null) },
+        { m -> StatTile("포지 시간 합계", if (plan.totalForgeSeconds > 0) formatDuration(plan.totalForgeSeconds * 1000) else "없음", m,
+            color = Sb.Gold, sub = if (plan.forgeSteps > 0) "포지 ${plan.forgeSteps}회 · Quick Forge 미반영" else null) },
+    )
+    if (wide) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { tiles.forEach { it(Modifier.weight(1f)) } }
+    else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { tiles.forEach { it(Modifier.fillMaxWidth()) } }
+}
+
+@Composable
+private fun RawMaterials(state: AppState, plan: CraftPlan, modifier: Modifier) {
+    Panel(modifier, caption = "Materials", title = "필요한 기본 재료", accent = Sb.Green) {
+        plan.raw.forEach { r ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ItemGlyph(state.itemName(r.itemId), state.itemTier(r.itemId), 26.dp)
+                    Spacer(Modifier.width(10.dp))
+                    RarityName(state.itemName(r.itemId), state.itemTier(r.itemId), Modifier.weight(1f), size = 13)
+                    Text("${formatNumber(r.have.toLong())} / ${formatNumber(kotlin.math.ceil(r.needed).toLong())}",
+                        style = SbText.pixel(12, if (r.missing <= 0) Sb.Green else Sb.Text))
+                }
+                Spacer(Modifier.height(4.dp))
+                XpBar(if (r.needed > 0) r.have / r.needed else 1.0, Modifier.fillMaxWidth(), if (r.missing <= 0) Sb.Green else Sb.Aqua, 5.dp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlanTree(state: AppState, node: PlanNode, depth: Int) {
+    var open by remember(node.itemId, depth) { mutableStateOf(depth < 2) }
+    val (label, color) = when (node.method) {
+        Method.CRAFT -> "제작 ×${node.crafts}" to Sb.Aqua
+        Method.FORGE -> "포지 ×${node.crafts} · ${formatDuration(node.forgeSeconds * 1000)}" to Sb.Gold
+        Method.STOCK -> "보유" to Sb.Green
+        Method.BASE -> "재료" to Sb.TextDim
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = (depth * 16).dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = node.children.isNotEmpty()) { open = !open }
+            .padding(vertical = 5.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (depth > 0) Box(Modifier.width(2.dp).height(18.dp).background(Sb.Border))
+        Spacer(Modifier.width(6.dp))
+        if (node.children.isNotEmpty()) {
+            Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = Sb.TextFaint, modifier = Modifier.size(16.dp))
+        } else Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("${fixed(node.needed, if (node.needed % 1.0 == 0.0) 0 else 1)}×", style = SbText.pixel(12, Sb.TextDim))
+        Spacer(Modifier.width(6.dp))
+        RarityName(state.itemName(node.itemId), state.itemTier(node.itemId), Modifier.weight(1f), size = 13)
+        if (node.fromStock > 0 && node.method != Method.STOCK) {
+            Text("보유 ${formatNumber(node.fromStock.toLong())}  ", style = SbText.body(11, Sb.Green))
+        }
+        Pill(label, color)
+    }
+    if (open) node.children.forEach { PlanTree(state, it, depth + 1) }
+}
+
+@Composable
+private fun SackValues(state: AppState, wide: Boolean) {
+    val sacks = state.selectedProfile?.sacks
+    if (sacks == null) {
+        Panel(Modifier.fillMaxWidth()) {
+            EmptyState("자루 정보를 볼 수 없어요", "계정을 연결하고, 게임 API 설정에서 Inventory 를 켜 주세요.", icon = Icons.Rounded.Inventory2)
+        }
+        return
+    }
+    val values = IronmanCalc.sackValues(sacks, state.npcPrices)
+    val total = values.sumOf { it.total }
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        StatTile("NPC 판매 시 총 가치", formatCoins(total), Modifier.weight(1f), color = Sb.Gold)
+        StatTile("자루 아이템 종류", "${sacks.size}종", Modifier.weight(1f), color = Sb.Aqua)
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Sacks", title = "NPC 에게 팔면 많이 남는 순", accent = Sb.Gold) {
+        values.take(if (wide) 60 else 30).forEach { v ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                ItemGlyph(state.itemName(v.itemId), state.itemTier(v.itemId), 26.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    RarityName(state.itemName(v.itemId), state.itemTier(v.itemId), size = 13)
+                    Text("${formatNumber(v.count)}개 × ${formatCoins(v.npcPrice)}", style = SbText.body(11, Sb.TextFaint))
+                }
+                Text(formatCoins(v.total), style = SbText.pixel(13, Sb.Gold, bold = true))
+            }
+        }
+    }
+    Text("💡 NPC 판매가는 Hypixel 공식 아이템 정보(npc_sell_price) 기준이에요.", style = SbText.body(12, Sb.TextFaint))
+}
+

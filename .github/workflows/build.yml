@@ -1,0 +1,139 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # 테스트 + Android APK (Ubuntu 러너에는 Android SDK 가 설치되어 있음)
+  test-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"; else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
+      - name: Tests (실제 Hypixel API 확인 포함)
+        env:
+          LIVE_API: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :core:desktopTest :ui:compileKotlinDesktop :desktopApp:compileKotlin 2>&1 | tee gradle-test.log
+      - name: Screenshots (화면 미리보기 → ci-screenshots 브랜치)
+        if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
+        continue-on-error: true
+        shell: bash
+        run: |
+          ./gradlew :desktopApp:screenshots 2>&1 | tee gradle-shots.log | tail -15
+          cd desktopApp/build/screenshots
+          git init -q && git checkout -q -b ci-screenshots
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -q -m "screenshots for ${GITHUB_SHA::7}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-screenshots
+      - name: Android APK
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -o pipefail
+          if [ -n "$KEYSTORE_B64" ]; then
+            # 저장소 비밀값의 고정 키 → 휴대폰에서 업데이트 설치가 그대로 됨
+            echo "$KEYSTORE_B64" | base64 -d > androidApp/release.jks
+            export ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" ANDROID_KEY_ALIAS="$KEY_ALIAS" ANDROID_KEY_PASSWORD="$KEY_PASSWORD"
+          else
+            # 비밀값이 없으면 임시 키 (새 버전을 설치하려면 기존 앱을 지워야 할 수 있음)
+            keytool -genkeypair -keystore androidApp/release.jks -alias sbh -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass android -keypass android -dname "CN=SkyblockHelper"
+            export ANDROID_KEYSTORE_PASSWORD=android ANDROID_KEY_ALIAS=sbh ANDROID_KEY_PASSWORD=android
+          fi
+          export ANDROID_KEYSTORE_FILE=release.jks
+          ./gradlew :androidApp:assembleRelease -PappVersion=${{ steps.ver.outputs.v }} 2>&1 | tee gradle-android.log
+          mkdir -p out && cp androidApp/build/outputs/apk/release/*.apk out/SkyblockHelper-${{ steps.ver.outputs.v }}.apk
+      - name: Report build errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
+          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:" gradle-*.log 2>/dev/null \
+            | grep -vE "^> Task|^--$" | head -80)
+          msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
+          echo "::error title=Build errors::${msg}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: out/*.apk
+      - name: Test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: core/build/reports/tests
+
+  # Windows 설치 파일 (.exe)
+  windows:
+    runs-on: windows-latest
+    env:
+      SBH_ANDROID: "false"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Version
+        id: ver
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"; else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
+      - name: Package
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew :desktopApp:packageExe "-PappVersion=${{ steps.ver.outputs.v }}" 2>&1 | tee gradle-windows.log
+      - name: Report build errors as annotations
+        if: failure()
+        shell: bash
+        run: |
+          # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
+          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:" gradle-*.log 2>/dev/null \
+            | grep -vE "^> Task|^--$" | head -80)
+          msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
+          echo "::error title=Build errors::${msg}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: desktopApp/build/compose/binaries/main/exe/*.exe
+
+  # 태그(v1.0.0 등)를 올리면 GitHub Releases 에 설치 파일을 올린다
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test-android, windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/windows-installer/**/*
+            dist/android-apk/*
+          generate_release_notes: true
