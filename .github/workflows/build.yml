@@ -6,6 +6,11 @@ on:
     tags: ["v*"]
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_version:
+        description: "릴리스 버전 (예: 1.1.0). 비워 두면 빌드만 해요."
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -25,7 +30,9 @@ jobs:
         id: ver
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"; else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
+          if [ -n "${{ inputs.release_version }}" ]; then echo "v=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT";
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT";
+          else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
       - name: Tests (실제 Hypixel API 확인 포함)
         env:
           LIVE_API: "1"
@@ -102,7 +109,9 @@ jobs:
         id: ver
         shell: bash
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"; else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
+          if [ -n "${{ inputs.release_version }}" ]; then echo "v=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT";
+          elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT";
+          else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
       - name: Package
         shell: bash
         run: |
@@ -122,9 +131,9 @@ jobs:
           name: windows-installer
           path: desktopApp/build/compose/binaries/main/exe/*.exe
 
-  # 태그(v1.0.0 등)를 올리면 GitHub Releases 에 설치 파일을 올린다
+  # 태그(v1.0.0 등)를 올리거나, Actions 에서 release_version 을 넣고 실행하면 GitHub Releases 에 설치 파일을 올린다
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release_version != ''
     needs: [test-android, windows]
     runs-on: ubuntu-latest
     steps:
@@ -133,6 +142,9 @@ jobs:
           path: dist
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_version != '' && format('v{0}', inputs.release_version) || github.ref_name }}
+          name: SkyblockHelper ${{ inputs.release_version != '' && inputs.release_version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
           files: |
             dist/windows-installer/**/*
             dist/android-apk/*
