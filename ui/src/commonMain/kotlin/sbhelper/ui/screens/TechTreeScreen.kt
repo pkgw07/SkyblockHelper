@@ -142,8 +142,9 @@ private fun isCurrentStage(title: String, level: Int?): Boolean {
 
 /** 이 아이템을 만들 때 재료로 쓰는 (트리 안의) 이전 아이템 */
 private fun predecessor(data: GameData, id: String, candidates: Set<String>): String? {
-    val inputs = (data.crafting[id]?.firstOrNull()?.`in`?.keys.orEmpty() + data.forge[id]?.firstOrNull()?.`in`?.keys.orEmpty())
+    data.upgrades[id]?.let { if (it in candidates) return it }
     data.accessories.firstOrNull { it.id == id }?.from?.let { if (it in candidates) return it }
+    val inputs = (data.crafting[id]?.firstOrNull()?.`in`?.keys.orEmpty() + data.forge[id]?.firstOrNull()?.`in`?.keys.orEmpty())
     return inputs.firstOrNull { it in candidates && it != id }
 }
 
@@ -265,7 +266,11 @@ private fun ItemBox(state: AppState, id: String, selected: Boolean, onClick: () 
     HoverTip({
         LoreTooltip(name, color, buildList {
             pet?.lore?.take(14)?.forEach { add("§7$it") }
-            state.gameData.npcBuy[id]?.let { add("§7NPC 구매: §e${it.npc}" + if (it.coins > 0) " §6${sbhelper.core.util.formatCoins(it.coins)}" else "") }
+            state.gameData.npcBuy[id]?.let {
+                add("§7NPC 구매: §e${it.npc}" + if (it.coins > 0) " §6${sbhelper.core.util.formatCoins(it.coins)}" else "")
+                if (it.cost.isNotBlank()) add("§7  필요: §f${it.cost}")
+            }
+            state.gameData.upgrades[id]?.let { add("§7이전 단계: §f${state.itemName(it)}") }
             if (state.gameData.crafting.containsKey(id)) add("§a제작 가능")
             if (state.gameData.forge.containsKey(id)) add("§b포지에서 제작")
             add(""); add("§8눌러서 자세히 보기")

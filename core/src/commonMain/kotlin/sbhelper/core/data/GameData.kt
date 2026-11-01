@@ -36,6 +36,8 @@ data class GameData(
     val bestiary: Bestiary = Bestiary(),
     /** NPC 구매처 (위키 아이템 정보 상자 merchant/buy) */
     val npcBuy: Map<String, NpcBuy> = emptyMap(),
+    /** 업그레이드 이전 단계 (위키 정보 상자 upgrades_from): 아이템 → 이전 아이템 */
+    val upgrades: Map<String, String> = emptyMap(),
 ) {
     @Serializable
     data class WikiPet(val name: String, val rarity: String = "", val lore: List<String> = emptyList())
@@ -55,7 +57,7 @@ data class GameData(
     data class BestiaryFamily(val family: String, val section: String = "", val bracket: Int = 1, val maxTier: Int = 1)
 
     @Serializable
-    data class NpcBuy(val npc: String = "", val coins: Double = 0.0)
+    data class NpcBuy(val npc: String = "", val coins: Double = 0.0, val cost: String = "")
 
     @Serializable
     data class Sack(val name: String, val capacity: Long = 0, val items: List<String> = emptyList())

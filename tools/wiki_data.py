@@ -227,6 +227,11 @@ def forge(ids):
                 else:
                     k = ids.id(item)
                     mats[k] = mats.get(k, 0) + q
+            # 업그레이드 재료: {{BZC|...}} 밖의 {{Item|이전 아이템|amount=n}}
+            outside = re.sub(r"\{\{BZC\|[^}]*\}\}", "", row[5])
+            for it in re.finditer(r"\{\{Item\|([^|}]+)(?:\|amount=(\d+))?[^}]*\}\}", outside):
+                k = ids.id(it.group(1).strip())
+                mats[k] = mats.get(k, 0) + float(it.group(2) or 1)
             hotm = clean(row[4]).split(" ")[0]
             out.setdefault(ids.id(name_m.group(1)), []).append(
                 {"in": mats, "count": 1, "sec": sec, "coins": coins, "hotm": hotm})
@@ -486,15 +491,26 @@ def coins(text):
 
 
 def npc_buy(ids, names):
-    """정보 상자의 merchant/buy → NPC 구매처와 가격"""
-    out = {}
+    """정보 상자의 merchant/buy → NPC 구매처와 가격, upgrades_from → 이전 단계 아이템"""
+    out, upgrades = {}, {}
     for title, f in infoboxes(names).items():
         key = f.get("id", "").strip() or ids.by_name.get(title.lower())
-        price = coins(f.get("buy", ""))
+        if not key:
+            continue
+        raw_buy = f.get("buy", "")
+        price = coins(raw_buy)
+        # {{RL|1x Fractured Mithril Pickaxe|2x Enchanted Mithril}} 처럼 아이템으로 사는 경우
+        cost = ""
+        rl = re.search(r"\{\{RL\|([^}]*)\}\}", raw_buy)
+        if rl:
+            cost = ", ".join(clean(x) for x in rl.group(1).split("|") if clean(x))
         merchant = clean(f.get("merchant", "")).lstrip("*").replace(" *", ", ").strip()
-        if key and (price or merchant):
-            out[key] = {"npc": merchant, "coins": price or 0}
-    return out
+        if price or merchant:
+            out[key] = {"npc": merchant, "coins": price or 0, "cost": cost}
+        up = clean(f.get("upgrades_from", "")).split(",")[0].strip()
+        if up:
+            upgrades[key] = ids.id(up)
+    return out, upgrades
 
 
 PET_TYPES = ["Farming", "Mining", "Combat", "Foraging", "Fishing", "Hunting", "Alchemy", "Enchanting", "Taming"]
@@ -708,7 +724,7 @@ def main(out_path):
     for stages in data["techTrees"].values():
         item_ids.update(i for st in stages for i in st["items"])
     names = [ids.name_of(i) for i in item_ids if not i.startswith(("pet:", "name:"))]
-    data["npcBuy"] = npc_buy(ids, [n for n in names if n])
+    data["npcBuy"], data["upgrades"] = npc_buy(ids, [n for n in names if n])
     data["names"] = ids.names
     data["source"]["pages"] = PAGES_USED
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
