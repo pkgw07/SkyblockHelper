@@ -61,16 +61,12 @@ class MainActivity : ComponentActivity() {
             BackgroundScheduler.apply(this@MainActivity, enabled)
         }
         override val updateAssetSuffix: String = ".apk"
-        // 앱 안에서 바로 설치 (PackageInstaller). 안 되면 예전처럼 설치 화면을 연다
-        override fun installUpdate(bytes: ByteArray, fileName: String): Boolean =
-            SelfUpdate.install(this@MainActivity, bytes) || runCatching {
-                val dir = java.io.File(cacheDir, "updates").apply { mkdirs() }
-                val file = java.io.File(dir, fileName).apply { writeBytes(bytes) }
-                val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.updates", file)
-                startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
-                true
-            }.getOrDefault(false)
+        // 앱 안 업데이트: 받아 두고 → "지금 설치하고 다시 시작할까요?" → 설치
+        override val inAppUpdater: sbhelper.ui.InAppUpdater by lazy { AndroidUpdater(this@MainActivity) }
+        override fun installUpdate(bytes: ByteArray, fileName: String): Boolean {
+            val f = java.io.File(java.io.File(cacheDir, "updates").apply { mkdirs() }, fileName).apply { writeBytes(bytes) }
+            return SelfUpdate.install(this@MainActivity, f)
+        }
         override val scanPairingCode: ((onResult: (String) -> Unit) -> Unit) = { onResult ->
             scanCallback = onResult
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("PC 에 표시된 연동 QR 코드를 비춰 주세요").setBeepEnabled(false))
@@ -100,6 +96,10 @@ class MainActivity : ComponentActivity() {
             }
         })
         intent?.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
+        // 설치 진행·실패 안내를 화면에
+        lifecycleScope.launch { SelfUpdate.status.collect { msg -> if (msg != null) app.repo.setUpdateMessage(msg) } }
+        // 받아 둔 업데이트가 있으면 "다시 시작" 안내
+        platform.inAppUpdater.stagedVersion?.let { app.repo.setUpdateStaged(it) }
     }
 
     override fun onNewIntent(intent: Intent) {

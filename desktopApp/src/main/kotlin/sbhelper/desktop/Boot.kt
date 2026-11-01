@@ -62,7 +62,10 @@ object Patches {
     private fun currentFile() = File(dir(), "current.txt")
     private fun brokenFile() = File(dir(), "broken.txt")
 
-    /** current.txt: 첫 줄 = 버전, 나머지 = "store:<보관소 파일>" 또는 "app:<설치 폴더 jar>" (순서 = 클래스패스 순서) */
+    /**
+     * current.txt: 첫 줄 = 버전, 나머지 = "store:<보관소 파일>" 또는 "app:<설치 폴더 jar>" (순서 = 클래스패스 순서),
+     * 그리고 네이티브 파일이 바뀐 버전이면 "native:<보관소 폴더>" (그래픽 라이브러리 skiko 를 거기서 읽는다)
+     */
     fun current(): Pair<String, List<String>>? = runCatching {
         val lines = currentFile().readLines().map { it.trim() }.filter { it.isNotEmpty() }
         if (lines.size < 2) null else lines.first() to lines.drop(1)
@@ -90,10 +93,12 @@ object Patches {
         val installed = sbhelper.ui.AppInfo.VERSION
         if (!newer(version, installed) || isBroken(version)) {
             // 설치 프로그램으로 같거나 더 새 버전을 깔았으면 받아 둔 파일은 필요 없다
-            clear(); cleanup(emptySet()); return null
+            clear(); cleanup(emptySet()); cleanupNative(null); return null
         }
         val store = jarsDir()
-        val files = jars.map { e ->
+        val native = jars.firstOrNull { it.startsWith("native:") }?.removePrefix("native:")?.let { File(nativeDir(), it) }
+        if (native != null && !native.isDirectory) return null
+        val files = jars.filterNot { it.startsWith("native:") }.map { e ->
             when {
                 e.startsWith("store:") -> File(store, e.removePrefix("store:"))
                 e.startsWith("app:") -> File(bundled, e.removePrefix("app:"))
@@ -101,7 +106,16 @@ object Patches {
             }.takeIf { it.isFile } ?: return null
         }
         cleanup(jars.filter { it.startsWith("store:") }.map { it.removePrefix("store:") }.toSet())
+        cleanupNative(native?.name)
+        // 새 네이티브 파일이 있으면 그 폴더에서 읽게 한다 (설치 폴더의 옛 파일 대신)
+        if (native != null) System.setProperty("skiko.library.path", native.absolutePath)
         return URLClassLoader(files.map { it.toURI().toURL() }.toTypedArray(), ClassLoader.getPlatformClassLoader()) to version
+    }
+
+    fun nativeDir(): File = File(dir(), "native").apply { mkdirs() }
+
+    private fun cleanupNative(keep: String?) {
+        nativeDir().listFiles()?.forEach { f -> if (f.name != keep) runCatching { f.deleteRecursively() } }
     }
 
     /** 더 이상 쓰지 않는 jar 지우기 */

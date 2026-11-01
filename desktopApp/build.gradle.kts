@@ -66,3 +66,11 @@ tasks.register<JavaExec>("screenshots") {
     args(layout.buildDirectory.dir("screenshots").get().asFile.absolutePath)
     jvmArgs("-Djava.awt.headless=true")
 }
+
+// CI 에서 앱 안 업데이트를 실제 설치본에 대해 확인한다
+tasks.register<JavaExec>("updaterSelfTest") {
+    group = "verification"
+    mainClass.set("sbhelper.desktop.UpdaterSelfTestKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    args((findProperty("selfTestArgs") as String? ?: "").split(";"))
+}

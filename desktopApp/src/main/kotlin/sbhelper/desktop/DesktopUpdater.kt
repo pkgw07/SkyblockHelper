@@ -48,9 +48,34 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
             } ?: return@withContext InAppUpdater.Result.FAILED
 
             if (Patches.isBroken(version)) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
-            // 런타임(자바)이나 네이티브 파일이 다르면 jar 만 바꿔서는 안 된다
+            // 자바 런타임이 바뀐 버전만 설치 파일로 (네이티브 파일은 아래에서 따로 받는다)
             if (javaMajor != Runtime.version().feature()) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
-            if (nativeHash != nativeHash(app)) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
+            val nativeEntry: String? = if (nativeHash == nativeHash(app)) null else {
+                val files = root["native"]?.jsonArray?.map { e ->
+                    val o = e.jsonObject
+                    Triple(o["path"]!!.jsonPrimitive.content, o["sha256"]!!.jsonPrimitive.content.lowercase(), o["size"]!!.jsonPrimitive.long)
+                } ?: return@withContext InAppUpdater.Result.NEEDS_INSTALLER
+                val dirName = "native-" + (nativeHash ?: return@withContext InAppUpdater.Result.NEEDS_INSTALLER).take(16)
+                val target = File(Patches.nativeDir(), dirName)
+                val ok = files.all { (path, sha, size) -> File(target, path).let { it.isFile && it.length() == size && sha256(it) == sha } }
+                if (!ok) {
+                    val asset = release.assets.firstOrNull { it.name == "SkyblockHelper-$version-patch-native.zip" }
+                        ?: return@withContext InAppUpdater.Result.NEEDS_INSTALLER
+                    val bytes = download(asset.url) ?: return@withContext InAppUpdater.Result.FAILED
+                    target.deleteRecursively(); target.mkdirs()
+                    ZipInputStream(bytes.inputStream()).use { zin ->
+                        while (true) {
+                            val entry = zin.nextEntry ?: break
+                            if (entry.isDirectory || entry.name.contains("..")) continue
+                            val out = File(target, entry.name).apply { parentFile.mkdirs() }
+                            out.outputStream().use { zin.copyTo(it) }
+                        }
+                    }
+                    if (!files.all { (path, sha, size) -> File(target, path).let { it.isFile && it.length() == size && sha256(it) == sha } })
+                        return@withContext InAppUpdater.Result.FAILED
+                }
+                "native:$dirName"
+            }
 
             val store = Patches.jarsDir()
             val entries = ArrayList<String>()
@@ -80,7 +105,7 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
                 }
             }
             if (missing.any { !matches(File(store, storeName(it)), it) }) return@withContext InAppUpdater.Result.FAILED
-            Patches.writeCurrent(version, entries)
+            Patches.writeCurrent(version, entries + listOfNotNull(nativeEntry))
             InAppUpdater.Result.STAGED
         }
     }

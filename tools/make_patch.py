@@ -80,7 +80,15 @@ def main() -> None:
             for p in paths:
                 z.write(p, os.path.basename(p))
 
-    manifest = {"version": version, "javaMajor": java_major, "nativeHash": native.hexdigest(), "jars": entries}
+    # 네이티브 파일 묶음: 그래픽 라이브러리(skiko)가 바뀐 버전도 앱 안에서 업데이트할 수 있게
+    native_list = []
+    with zipfile.ZipFile(os.path.join(out, f"SkyblockHelper-{version}-patch-native.zip"), "w", zipfile.ZIP_DEFLATED) as z:
+        for rel, p in sorted(files):
+            z.write(p, rel)
+            native_list.append({"path": rel, "sha256": sha256(p), "size": os.path.getsize(p)})
+
+    manifest = {"version": version, "javaMajor": java_major, "nativeHash": native.hexdigest(), "jars": entries,
+                "native": native_list}
     with open(os.path.join(out, "update-manifest.json"), "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=1)
     print(f"jars: {len(entries)} (app {len(packs['app'])}, libs {len(packs['libs'])}), java {java_major}, native files {len(files)}")

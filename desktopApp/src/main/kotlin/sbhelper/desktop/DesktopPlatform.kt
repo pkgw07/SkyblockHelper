@@ -53,8 +53,11 @@ class DesktopPlatform : Platform {
         val file = java.io.File(System.getProperty("java.io.tmpdir"), fileName)
         file.writeBytes(bytes)
         // 조용히 설치하고, 설치가 끝나면 설치 프로그램이 앱을 다시 실행한다
-        ProcessBuilder(file.absolutePath, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS").start()
-        Thread { Thread.sleep(1500); onQuitForUpdate() }.start()
+        // 설치 기록(문제 확인용): %TEMP%\SkyblockHelper-update.log
+        val log = java.io.File(System.getProperty("java.io.tmpdir"), "SkyblockHelper-update.log").absolutePath
+        ProcessBuilder(file.absolutePath, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$log").start()
+        // 설치 프로그램은 이 프로그램이 완전히 꺼질 때까지 기다렸다가 설치하고, 끝나면 다시 실행한다
+        Thread { Thread.sleep(500); onQuitForUpdate() }.start()
         true
     }.getOrDefault(false)
 

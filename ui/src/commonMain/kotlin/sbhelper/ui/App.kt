@@ -251,6 +251,7 @@ fun SkyblockApp(
                         }
                     }
                     Toast(controller.toast, Modifier.align(Alignment.TopCenter).padding(top = 18.dp))
+                    UpdateReadyDialog(controller, state, platform)
                 }
             }
         }
@@ -509,10 +510,11 @@ private fun UpdateBanner(controller: AppController, state: AppState, platform: P
         Icon(Icons.Rounded.SystemUpdate, null, tint = Sb.Aqua, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(if (staged != null) "새 버전 $staged 준비 완료 — 다시 시작하면 바로 적용돼요" else "새 버전 ${release?.version} 이 나왔어요",
+            Text(if (staged != null) (if (platform.isDesktop) "새 버전 $staged 준비 완료 — 다시 시작하면 바로 적용돼요"
+                else "새 버전 $staged 을 받았어요 — 설치하면 앱이 다시 열려요") else "새 버전 ${release?.version} 이 나왔어요",
                 style = SbText.body(13, weight = FontWeight.SemiBold))
             val msg = state.updateMessage
-            if (msg != null && staged == null) Text(msg, style = SbText.body(12, if (msg.startsWith("⚠")) Sb.Negative else Sb.TextDim))
+            if (msg != null && (staged == null || !platform.isDesktop)) Text(msg, style = SbText.body(12, if (msg.startsWith("⚠")) Sb.Negative else Sb.TextDim))
             state.updateProgress?.let { p ->
                 if (staged == null) {
                     Spacer(Modifier.height(4.dp))
@@ -523,13 +525,45 @@ private fun UpdateBanner(controller: AppController, state: AppState, platform: P
         Spacer(Modifier.width(10.dp))
         val updater = platform.inAppUpdater
         if (staged != null && updater != null) {
-            sbhelper.ui.components.SbButton("지금 다시 시작", { controller.repo.stopLoops(); updater.restart() }, color = Sb.Aqua)
+            sbhelper.ui.components.SbButton(if (platform.isDesktop) "지금 다시 시작" else "설치하고 다시 시작",
+                { applyUpdate(controller, platform, updater) }, color = Sb.Aqua)
         } else {
             sbhelper.ui.components.SbButton("업데이트 받기", {
                 controller.scope.launch { UpdateFlow.run(controller, platform) }
             }, enabled = state.updateProgress == null, color = Sb.Aqua)
         }
     }
+}
+
+/** 업데이트를 다 받으면 한 번 묻는다: 지금 다시 시작할까요? */
+@Composable
+private fun UpdateReadyDialog(controller: AppController, state: AppState, platform: Platform) {
+    val staged = state.updateStaged ?: return
+    val updater = platform.inAppUpdater ?: return
+    var answered by remember { mutableStateOf<String?>(null) }
+    if (answered == staged) return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { answered = staged },
+        containerColor = Sb.SurfaceHigh,
+        title = { Text("업데이트 준비 완료", style = SbText.body(17, weight = FontWeight.Bold)) },
+        text = {
+            Text(
+                if (platform.isDesktop) "새 버전 $staged 을 받았어요.\n지금 다시 시작하면 바로 적용돼요. (나중에 하면 다음에 켤 때 적용돼요)"
+                else "새 버전 $staged 을 받았어요.\n지금 설치할까요? 설치가 끝나면 앱이 다시 열려요.",
+                style = SbText.body(14, Sb.TextDim),
+            )
+        },
+        confirmButton = {
+            sbhelper.ui.components.SbButton(if (platform.isDesktop) "지금 다시 시작" else "설치하고 다시 시작",
+                { answered = staged; applyUpdate(controller, platform, updater) }, color = Sb.Aqua)
+        },
+        dismissButton = { sbhelper.ui.components.SbButton("나중에", { answered = staged }, outlined = true) },
+    )
+}
+
+private fun applyUpdate(controller: AppController, platform: Platform, updater: InAppUpdater) {
+    if (platform.isDesktop) controller.repo.stopLoops()
+    updater.restart()
 }
 
 /** 처음 실행 시 데이터 로딩 */
