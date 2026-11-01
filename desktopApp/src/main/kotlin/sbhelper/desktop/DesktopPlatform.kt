@@ -36,8 +36,11 @@ class DesktopPlatform : Platform {
     override fun setStartWithSystem(enabled: Boolean): Boolean = Autostart.set(enabled)
 
     /** Windows 에서만 자동 업데이트(설치 파일 .exe) */
-    override val updateAssetSuffix: String? =
-        if (System.getProperty("os.name").lowercase().contains("win") && System.getProperty("jpackage.app-path") != null) ".exe" else null
+    override val updateAssetSuffix: String? = run {
+        val path = System.getProperty("jpackage.app-path") ?: return@run null
+        // 설치 프로그램으로 설치한 경우만 (압축판은 Releases 에서 직접 받기)
+        if (System.getProperty("os.name").lowercase().contains("win") && path.contains("\\Programs\\SkyblockHelper")) ".exe" else null
+    }
 
     /** 설치 파일을 임시 폴더에 저장하고 실행한 뒤, 설치가 덮어쓸 수 있도록 프로그램을 끝낸다 */
     var onQuitForUpdate: () -> Unit = {}

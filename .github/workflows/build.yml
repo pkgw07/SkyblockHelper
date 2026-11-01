@@ -136,6 +136,8 @@ jobs:
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           if [ ! -f "$ISCC" ]; then choco install innosetup -y --no-progress; fi
           MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" "$ISCC" "/DMyAppVersion=${{ steps.ver.outputs.v }}" desktopApp/installer/SkyblockHelper.iss 2>&1 | tee -a gradle-windows.log
+          # 설치 없이 쓰는 압축판
+          (cd desktopApp/build/compose/binaries/main/app && 7z a -tzip "../../../../installer/SkyblockHelper-${{ steps.ver.outputs.v }}-portable.zip" SkyblockHelper > /dev/null)
           ls -la desktopApp/build/installer
       - name: Report build errors as annotations
         if: failure()
@@ -150,7 +152,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: desktopApp/build/installer/*.exe
+          path: |
+            desktopApp/build/installer/*.exe
+            desktopApp/build/installer/*.zip
 
   # 태그(v1.0.0 등)를 올리거나, Actions 에서 release_version 을 넣고 실행하면 GitHub Releases 에 설치 파일을 올린다
   release:
