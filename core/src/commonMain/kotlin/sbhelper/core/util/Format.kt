@@ -31,6 +31,7 @@ fun formatCoins(value: Double?): String {
         v >= 1e6 -> "${fixed(v / 1e6, 2)}M"
         v >= 1e4 -> "${fixed(v / 1e3, 1)}K"
         v >= 100 -> groupThousands(v.roundToLong())
+        v % 1.0 == 0.0 -> v.roundToLong().toString()
         else -> fixed(v, 1)
     }
 }

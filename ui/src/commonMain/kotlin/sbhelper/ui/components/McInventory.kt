@@ -56,7 +56,8 @@ object WikiIcons {
                 else append('%').append(((b.toInt() and 0xFF) or 0x100).toString(16).substring(1).uppercase())
             }
         }
-        return "$BASE$enc.png"
+        // 작은 크기로 받는다 (움직이는 GIF 는 원본이 수백 KB)
+        return "$BASE$enc.png?width=64"
     }
 
     /** 아이템 → 위키 그림 이름 */
@@ -95,7 +96,11 @@ object IconResolver {
  * 그림 찾는 순서: 위키 파일(아이템 이름) → 위키 문서 대표 그림 → 머리 아이템이면 스킨의 얼굴 → 글자 아이콘
  */
 @Composable
-fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp, skinUrl: String? = null) {
+fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp, skinUrl: String? = null, id: String? = null) {
+    // 1) 아이콘 묶음 (바로) 2) 위키 3) 위키 문서 대표 그림 4) 머리 스킨 얼굴 5) 글자 아이콘
+    val packVersion = LocalIconPackVersion.current
+    val packed = remember(id, fallbackName, packVersion) { ImageCache.fromPack(id, fallbackName) }
+    if (packed != null) { PixelBitmap(packed, size); return }
     var img by remember(url) { mutableStateOf<ImageBitmap?>(null) }
     var face by remember(url) { mutableStateOf(false) }
     var failed by remember(url) { mutableStateOf(false) }
@@ -135,12 +140,27 @@ fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp, skinUr
     }
 }
 
+/** 받아 둔 아이콘 묶음 버전 (바뀌면 아이콘을 다시 찾음) */
+val LocalIconPackVersion = androidx.compose.runtime.staticCompositionLocalOf { "" }
+
+@Composable
+private fun PixelBitmap(i: ImageBitmap, size: Dp) {
+    Canvas(Modifier.size(size)) {
+        val scale = minOf(this.size.width / i.width, this.size.height / i.height)
+        val w = (i.width * scale).toInt()
+        val h = (i.height * scale).toInt()
+        drawImage(i, IntOffset.Zero, IntSize(i.width, i.height),
+            IntOffset(((this.size.width - w) / 2).toInt(), ((this.size.height - h) / 2).toInt()), IntSize(w, h),
+            filterQuality = FilterQuality.None)
+    }
+}
+
 /** 아이템 ID 로 그림 (공식 API 이름·등급·머리 스킨 사용) */
 @Composable
 fun ItemIcon(state: AppState, id: String, size: Dp) {
     val name = state.itemName(id).replace(Regex("§."), "")
     val skin = IconResolver.skinUrl(state.items[id]?.skin?.value)
-    PixelIcon(WikiIcons.url(name), name, state.itemTier(id), size, skin)
+    PixelIcon(WikiIcons.url(name), name, state.itemTier(id), size, skin, id)
 }
 
 // 마인크래프트 GUI 색
@@ -241,7 +261,8 @@ fun McSlot(state: AppState, item: SbItem?, size: Dp, onHover: (Boolean) -> Unit 
     ) {
         if (item != null) {
             PixelIcon(WikiIcons.url(WikiIcons.nameFor(state, item)), WikiIcons.nameFor(state, item), item.tier, size - 8.dp,
-                item.skinUrl ?: IconResolver.skinUrl(item.skyblockId?.let { state.items[it]?.skin?.value }))
+                item.skinUrl ?: IconResolver.skinUrl(item.skyblockId?.let { state.items[it]?.skin?.value }),
+                item.pet?.let { "pet:" + WikiIcons.nameFor(state, item).removeSuffix(" Pet") } ?: item.skyblockId)
             if (item.count > 1) {
                 Text("${item.count}", Modifier.align(Alignment.BottomEnd).padding(end = 2.dp),
                     style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 12.sp,

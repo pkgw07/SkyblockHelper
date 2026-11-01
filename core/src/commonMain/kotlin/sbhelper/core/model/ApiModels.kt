@@ -52,6 +52,21 @@ data class SkyblockItem(
     @SerialName("npc_sell_price") val npcSellPrice: Double? = null,
     val description: String? = null,
     val skin: SkinValue? = null,
+    /** 박물관 기증 정보 (공식 아이템 API) */
+    @SerialName("museum_data") val museum: MuseumData? = null,
+)
+
+@Serializable
+data class MuseumData(
+    @SerialName("donation_xp") val donationXp: Int? = null,
+    val category: String? = null,
+    /** {이 아이템: 상위 아이템} — 상위 아이템을 기증하면 이 아이템도 기증한 것으로 친다 */
+    val parent: Map<String, String> = emptyMap(),
+    /** 갑옷 세트로 기증: {세트 ID: 경험치} */
+    @SerialName("armor_set_donation_xp") val armorSet: Map<String, Int> = emptyMap(),
+    @SerialName("game_stage") val gameStage: String? = null,
+    /** 같은 칸으로 치는 다른 아이템 (예: ✪ 붙은 던전 아이템) */
+    @SerialName("mapped_item_ids") val mapped: List<String> = emptyList(),
 )
 
 @Serializable

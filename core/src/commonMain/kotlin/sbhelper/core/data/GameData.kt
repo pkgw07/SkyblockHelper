@@ -54,6 +54,8 @@ data class GameData(
         /** "America/New_York 00:00" 형식 */
         val fetchurReset: String? = null,
         val experimentBitsReset: String? = null,
+        /** 스카이블록 레벨 1 = SkyBlock XP 몇 (위키 SkyBlock Levels) */
+        val skyblockXpPerLevel: Int = 100,
     )
 
     @Serializable
@@ -150,7 +152,16 @@ data class GameData(
         @SerialName("slayer_xp") val slayerXp: Map<String, List<Long>> = emptyMap(),
         /** 단계별 필요 XP, 첫 값 0 = 1단계 (위키 Heart of the Mountain/Leveling Table) */
         @SerialName("HOTM") val hotm: List<Long> = emptyList(),
+        /** 단계별 필요 XP (위키 Heart of the Forest/Leveling Table) */
+        @SerialName("HOTF") val hotf: List<Long> = emptyList(),
+        /** 펫 레벨표 (위키 Module:Pet/LevelingData) */
+        @SerialName("PET") val pet: PetLeveling = PetLeveling(),
+        /** 가든 레벨별 Garden XP (위키 The Garden/Leveling Rewards) */
+        @SerialName("GARDEN") val garden: List<Long> = emptyList(),
     )
+
+    @Serializable
+    data class PetLeveling(val xp: List<Long> = emptyList(), val offset: Map<String, Int> = emptyMap())
 
     /** 위키 Events 페이지의 타이머. anchor 시각부터 cycle(활성, 비활성, 활성, …초)이 반복된다. */
     @Serializable

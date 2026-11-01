@@ -66,11 +66,14 @@ fun TechTreeScreen(controller: AppController, state: AppState, wide: Boolean) {
         Segmented(SKILL_TABS.map { it.second }, tab, { tab = it; selected = null })
         val (key, label) = SKILL_TABS[tab]
         val cats = remember(state.gameData, state.items, key) { TechTreeCalc.build(state.gameData, state.items, key) { state.itemName(it) } }
-        val owned = remember(state.selectedProfile) { ownedIds(state) }
+        // 가진 아이템 = 인벤토리·가방·펫 + 박물관에 기증한 아이템
+        val owned = remember(state.selectedProfile, state.museum, state.items) {
+            ownedIds(state) + sbhelper.core.calc.MuseumCalc.ownedIds(state.items, state.museum)
+        }
         val level = currentLevel(state, key)
         Text(
             "공식 위키의 $label 가이드·도구 목록에 나온 아이템을 종류별로 나누고, 등급과 업그레이드 관계에 따라 초반 → 후반 순서로 놓았어요. " +
-                "→ 는 앞 아이템을 재료로 업그레이드, › 는 다음 추천이에요. ✔ 는 내가 가진 아이템." + (level?.let { " 내 $label 레벨: $it" } ?: ""),
+                "→ 는 앞 아이템을 재료로 업그레이드, › 는 다음 추천이에요. ✔ 는 내가 가진(박물관 기증 포함) 아이템." + (level?.let { " 내 $label 레벨: $it" } ?: ""),
             style = SbText.body(13, Sb.TextFaint),
         )
         if (cats.isEmpty()) {

@@ -77,6 +77,12 @@ data class ProfileSummary(
     val powders: Map<String, Long> = emptyMap(),
     /** HotF (Heart of the Forest) 노드 레벨 (skill_tree.nodes.foraging) */
     val hotfNodes: Map<String, Int> = emptyMap(),
+    /** 이 플레이어의 원본 데이터 (SkyCrypt 수준 상세 기록용, 화면에서 필요한 것만 읽음) */
+    val member: kotlinx.serialization.json.JsonObject? = null,
+    /** 벌목 최대 레벨 추가분 (player_data.experience.SKILL_FORAGING_extra_level_cap) */
+    val foragingCapBonus: Int? = null,
+    /** HotM·HotF 에 쓴 토큰 (skill_tree.tokens_spent) */
+    val tokensSpent: Map<String, Int> = emptyMap(),
     val hotfXp: Double? = null,
     /** 초콜릿 공장 Time Tower: 현재 충전 수, 마지막 충전 시각(ms) — events.easter.time_tower */
     val timeTowerCharges: Int? = null,
@@ -92,6 +98,7 @@ data class ProfileSummary(
     fun skillCap(key: String, maxLevel: Int): Int? = when (key) {
         "FARMING" -> (50 + farmingCapBonus).coerceAtMost(maxLevel)
         "TAMING" -> tamingCapBonus?.let { (50 + it).coerceAtMost(maxLevel) }
+        "FORAGING" -> foragingCapBonus?.let { (50 + it).coerceAtMost(maxLevel) } ?: 50.coerceAtMost(maxLevel)
         else -> null
     }
     val activePet get() = pets.firstOrNull { it.active }
@@ -111,7 +118,8 @@ object ProfileParser {
 
         val experience = member.obj("player_data", "experience")
         val skillXp = experience?.entries
-            ?.filter { it.key.startsWith("SKILL_") }
+            // SKILL_FORAGING_extra_level_cap 은 스킬이 아니라 벌목 최대 레벨 보너스 (위키 Foraging: 기본 50 + 추가 해금)
+            ?.filter { it.key.startsWith("SKILL_") && !it.key.endsWith("_extra_level_cap") }
             ?.associate { it.key.removePrefix("SKILL_") to (it.value.num() ?: 0.0) }
 
         val forge = buildList {
@@ -173,6 +181,9 @@ object ProfileParser {
             inventories = inventories(member),
             hotmNodes = hotmNodes(member),
             hotfNodes = treeNodes(member.obj("skill_tree", "nodes", "foraging")),
+            member = member,
+            foragingCapBonus = member.num("player_data", "experience", "SKILL_FORAGING_extra_level_cap")?.toInt(),
+            tokensSpent = member.obj("skill_tree", "tokens_spent")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             hotfXp = member.num("skill_tree", "experience", "foraging"),
             timeTowerCharges = member.num("events", "easter", "time_tower", "charges")?.toInt(),
             timeTowerLastCharge = member.num("events", "easter", "time_tower", "last_charge_time")?.toLong(),

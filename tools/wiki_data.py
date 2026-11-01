@@ -240,6 +240,17 @@ def forge(ids):
     return out
 
 
+def module_text(title):
+    """위키 Module: 문서의 원문"""
+    d = get_json(API, {"action": "query", "prop": "revisions", "rvprop": "content", "rvslots": "main",
+                       "titles": title, "format": "json"})
+    for page in d.get("query", {}).get("pages", {}).values():
+        revs = page.get("revisions")
+        if revs:
+            return revs[0]["slots"]["main"]["*"]
+    return ""
+
+
 def leveling():
     # 카타콤: 레벨별 필요 XP
     cata = []
@@ -267,9 +278,31 @@ def leveling():
                 v = num(row[1])
                 if v is not None:
                     hotm.append(v)
+    # HotF: 같은 형식의 표 (Template:Heart of the Forest/Leveling Table)
+    hotf = []
+    for table in parse_tables(wikitext("Template:Heart of the Forest/Leveling Table")):
+        for row in table:
+            if len(row) >= 3 and clean(row[0]).isdigit():
+                v = num(row[1])
+                if v is not None:
+                    hotf.append(v)
     if len(cata) < 50 or len(slayer) < 5 or len(hotm) < 10:
         raise RuntimeError(f"leveling tables look wrong: cata={len(cata)} slayer={list(slayer)} hotm={len(hotm)}")
-    return {"catacombs": cata, "slayer_xp": slayer, "HOTM": hotm}
+    # 펫: 레벨별 경험치 + 등급별 시작 위치 (위키 Module:Pet/LevelingData)
+    pet_src = module_text("Module:Pet/LevelingData")
+    pet = {}
+    m = re.search(r"pet_levels\s*=\s*\{([^}]*)\}", pet_src)
+    o = re.search(r"pet_rarity_offset\s*=\s*\{([^}]*)\}", pet_src)
+    if m and o:
+        pet = {"xp": [int(x) for x in re.findall(r"\d+", m.group(1))],
+               "offset": {k.upper(): int(v) for k, v in re.findall(r"(\w+)\s*=\s*(\d+)", o.group(1))}}
+    # 가든: 레벨별 Garden XP (위키 The Garden/Leveling Rewards)
+    garden = []
+    for table in parse_tables(wikitext("The Garden/Leveling Rewards")):
+        for row in table:
+            if len(row) >= 3 and clean(row[0]).isdigit():
+                garden.append(num(row[1]) or 0)
+    return {"catacombs": cata, "slayer_xp": slayer, "HOTM": hotm, "HOTF": hotf, "PET": pet, "GARDEN": garden}
 
 
 def parse_routine(routine):
@@ -382,6 +415,10 @@ def timer_rules():
                           "organicPerCompost": int(m2.group(1).replace(",", "")),
                           "fuelPerCompost": int(m2.group(2).replace(",", "")),
                           "speedPerTier": int(m3.group(1)) / 100, "costReductionPerTier": int(m4.group(1)) / 100}
+    sbl = wikitext("SkyBlock Levels")
+    m = re.search(r"1 SkyBlock Level\}\} for every \{\{SkyBlock XP\|(\d+)\}\}", sbl)
+    if m:
+        r["skyblockXpPerLevel"] = int(m.group(1))
     tower = wikitext("Chocolate Factory")
     m = re.search(r"builds up to (\d+) charges, each over an (\d+) hour period", tower)
     if m:

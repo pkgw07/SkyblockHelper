@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
   push:
     branches: ["claude/skyblock-helper", "claude/wiki-rebuild", "main"]
-    paths: ["tools/wiki_data.py", ".github/workflows/data.yml"]
+    paths: ["tools/wiki_data.py", "tools/icon_pack.py", ".github/workflows/data.yml"]
 
 permissions:
   contents: write
@@ -23,11 +23,20 @@ jobs:
           python-version: "3.12"
       - name: Generate from wiki
         run: python3 tools/wiki_data.py out/gamedata.json
+      - name: Icon pack (모든 아이템 그림, 바뀐 것만 다시 받기)
+        shell: bash
+        run: |
+          pip install -q pillow
+          mkdir -p prev
+          for f in icons.json icons.bin icons-urls.json; do
+            curl -sfL -o "prev/$f" "https://raw.githubusercontent.com/${{ github.repository }}/data/$f" || rm -f "prev/$f"
+          done
+          python3 tools/icon_pack.py out prev out/gamedata.json
       - name: Publish to data branch
         shell: bash
         run: |
           cd out
           git init -q && git checkout -q -b data
           git config user.name "github-actions" && git config user.email "actions@github.com"
-          git add gamedata.json && git commit -q -m "Wiki data $(date -u +%Y-%m-%d)"
+          git add gamedata.json icons.json icons.bin icons-urls.json icons-version.txt && git commit -q -m "Wiki data $(date -u +%Y-%m-%d)"
           git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" data

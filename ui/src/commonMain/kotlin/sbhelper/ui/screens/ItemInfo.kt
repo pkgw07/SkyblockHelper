@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
@@ -102,14 +103,15 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
 @Composable
 private fun Line(label: String, value: String, color: androidx.compose.ui.graphics.Color) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-        Text(label, style = SbText.pixel(12, color), modifier = Modifier.width(76.dp))
+        // 이름 칸은 글자 길이만큼 (글자 크기·굵기를 바꿔도 줄이 넘어가지 않게)
+        Text(label, style = SbText.pixel(12, color), softWrap = false, modifier = Modifier.widthIn(min = 76.dp).padding(end = 8.dp))
         Text(value, style = SbText.pixel(12, Sb.Gray))
     }
 }
 
 @Composable
 private fun Inputs(state: AppState, inputs: Map<String, Double>) {
-    Column(Modifier.padding(start = 76.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.padding(start = 24.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         inputs.forEach { (k, q) ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${fixed(q, if (q % 1.0 == 0.0) 0 else 1)}× ", style = SbText.pixel(11, Sb.Gray))

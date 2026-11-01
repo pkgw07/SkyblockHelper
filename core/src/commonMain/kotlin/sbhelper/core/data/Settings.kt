@@ -121,4 +121,7 @@ data class NotificationRecord(
 interface KeyValueStorage {
     fun read(name: String): String?
     fun write(name: String, text: String)
+    /** 바이너리 파일 (아이콘 묶음 등). 지원하지 않으면 null */
+    fun readBytes(name: String): ByteArray? = null
+    fun writeBytes(name: String, bytes: ByteArray) {}
 }

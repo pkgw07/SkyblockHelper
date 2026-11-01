@@ -137,6 +137,10 @@ class HypixelApi(
         return root["garden"] as? JsonObject
     }
 
+    /** 박물관 (공식 museum API, 키 필요) */
+    suspend fun museum(profileId: String): JsonObject =
+        SbJson.parseToJsonElement(getText("$BASE/skyblock/museum?profile=$profileId", 5 * MINUTE, needsKey = true)).jsonObject
+
     // ----- Mojang -----
     suspend fun uuidFor(username: String): MojangProfile {
         val name = username.trim().encodeURLPathPart()

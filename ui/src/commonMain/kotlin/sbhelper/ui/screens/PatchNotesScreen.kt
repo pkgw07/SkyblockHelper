@@ -58,6 +58,9 @@ class PatchNotesState {
     val translated = mutableStateMapOf<String, List<String>>()
     /** 페이지 → 아직 번역되지 않은 줄 수 (잠시 후 자동으로 다시 시도) */
     val missing = mutableStateMapOf<String, Int>()
+    /** "다시 번역" 을 누른 페이지 */
+    var forceRetranslate by mutableStateOf<String?>(null)
+    var retranslateTick by mutableStateOf(0)
     var showOriginal by mutableStateOf(false)
 }
 
@@ -129,12 +132,14 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
     }
     val blocks = s.bodies[n.page]
     val translateOn = controller.repo.state.value.device.translatePatchNotes
-    LaunchedEffect(n.page, blocks, translateOn) {
-        if (!translateOn || blocks == null || (n.page in s.translated && (s.missing[n.page] ?: 0) == 0)) return@LaunchedEffect
+    LaunchedEffect(n.page, blocks, translateOn, s.retranslateTick) {
+        if (!translateOn || blocks == null || (n.page in s.translated && (s.missing[n.page] ?: 0) == 0 && s.forceRetranslate != n.page)) return@LaunchedEffect
         val lines = listOf(n.title) + blocks.map { it.text() }
         // 번역이 덜 되면 (Google 이 잠시 막는 경우) 기다렸다가 남은 줄만 다시 — 최대 8번
         for (attempt in 0 until 8) {
-            val t = runCatching { controller.repo.translatePatch(n.page, lines) }.getOrNull() ?: break
+            val force = s.forceRetranslate == n.page && attempt == 0
+            val t = runCatching { controller.repo.translatePatch(n.page, lines, force) }.getOrNull() ?: break
+            if (force) s.forceRetranslate = null
             s.translated[n.page] = lines.indices.map { i -> t[i] ?: lines[i] }
             val left = lines.indices.count { t[it] == null && lines[it].isNotBlank() }
             s.missing[n.page] = left
@@ -168,6 +173,9 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
                 SbButton("위키에서 보기", { platform.openUrl(WikiApi.pageUrl(n.page)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua)
                 if (translateOn && s.translated[n.page] != null) {
                     SbButton(if (s.showOriginal) "번역 보기" else "원문 보기", { s.showOriginal = !s.showOriginal }, outlined = true, color = Sb.Pink)
+                    SbButton("다시 번역", {
+                        s.showOriginal = false; s.forceRetranslate = n.page; s.retranslateTick++
+                    }, outlined = true, color = Sb.Pink)
                 }
             }
             if (translateOn) {

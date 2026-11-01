@@ -89,6 +89,13 @@ object AppDirs {
 
 class FileStorage(private val dir: File) : KeyValueStorage {
     override fun read(name: String): String? = File(dir, name).takeIf { it.exists() }?.readText()
+    override fun readBytes(name: String): ByteArray? = File(dir, name).takeIf { it.exists() }?.readBytes()
+    override fun writeBytes(name: String, bytes: ByteArray) {
+        val tmp = File(dir, "$name.tmp")
+        tmp.writeBytes(bytes)
+        val target = File(dir, name)
+        if (!tmp.renameTo(target)) { target.delete(); tmp.renameTo(target) }
+    }
     override fun write(name: String, text: String) {
         // 쓰는 도중 꺼져도 파일이 깨지지 않도록 임시 파일에 쓰고 바꿔치기
         val tmp = File(dir, "$name.tmp")

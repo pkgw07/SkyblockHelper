@@ -22,6 +22,7 @@ import sbhelper.core.calc.ForgeSlotStatus
 import sbhelper.core.calc.SkyblockCalendar
 import sbhelper.core.data.DeviceSettings
 import sbhelper.core.data.GameData
+import sbhelper.core.data.IconPack
 import sbhelper.core.data.KeyValueStorage
 import sbhelper.core.data.NotificationRecord
 import sbhelper.core.data.PriceAlert
@@ -80,6 +81,10 @@ data class AppState(
     val jacobCrops: Map<Long, List<String>> = emptyMap(),
     /** 공식 가든 API (컴포스터 타이머용) */
     val garden: kotlinx.serialization.json.JsonObject? = null,
+    /** 내 박물관 (공식 museum API) */
+    val museum: sbhelper.core.calc.MuseumState? = null,
+    /** 받아 둔 아이콘 묶음 버전 (바뀌면 화면이 아이콘을 다시 그림) */
+    val iconPackVersion: String = "",
     /** 경매장 아이템별 최저 BIN (순자산·장신구 가격용) */
     val lowestBin: Map<String, Double> = emptyMap(),
     val lowestBinAt: Long = 0,
@@ -102,6 +107,8 @@ data class AppState(
             ?: profiles.firstOrNull { it.selected } ?: profiles.firstOrNull()
 
     fun itemName(id: String): String = items[id]?.name ?: gameData.names[id] ?: when {
+        // 위키 제작법의 *Planks = 종류 상관없는 나무판자
+        id.startsWith("name:*") -> "아무 " + id.removePrefix("name:*") + " (종류 무관)"
         id.startsWith("name:") -> id.removePrefix("name:")
         id.startsWith("pet:") -> id.removePrefix("pet:") + " Pet"
         else -> prettifyId(id)
@@ -168,7 +175,22 @@ class SkyblockRepository(
         val cached = storage.read(GAMEDATA_FILE)?.let { runCatching { GameData.parse(it) }.getOrNull() }
         val data = if (cached != null && cached.source.generated > bundled.source.generated) cached else bundled
         applyGameData(data)
-        _state.update { it.copy(stored = stored) }
+        // 받아 둔 아이콘 묶음
+        IconPack.load(storage.read(ICONS_INDEX), storage.readBytes(ICONS_BIN))
+        _state.update { it.copy(stored = stored, iconPackVersion = IconPack.version) }
+    }
+
+    /** 아이콘 묶음이 새로 나왔으면 받는다 (data 브랜치, 몇 MB) */
+    suspend fun refreshIconPack() {
+        val remote = updates.latestIconPackVersion() ?: return
+        if (remote == IconPack.version) return
+        val index = updates.dataFile("icons.json")?.decodeToString() ?: return
+        val bin = updates.dataFile("icons.bin") ?: return
+        if (IconPack.load(index, bin)) {
+            storage.writeBytes(ICONS_BIN, bin)
+            storage.write(ICONS_INDEX, index)
+            _state.update { it.copy(iconPackVersion = IconPack.version) }
+        }
     }
 
     private fun applyGameData(data: GameData) {
@@ -201,14 +223,24 @@ class SkyblockRepository(
     /** 번역이 막혀 있으면 풀리는 시각(ms), 아니면 0 */
     val translationBlockedUntil get() = translator.blockedUntilMs
 
-    suspend fun translatePatch(page: String, lines: List<String>): List<String?> {
+    /**
+     * 패치노트 번역. 저장해 둔 번역은 다시 쓰되, 원문 그대로 남은 줄(예전 버전이 실패한 줄을 원문으로 저장한 경우)은 다시 번역한다.
+     * @param force true 면 저장한 번역을 버리고 처음부터
+     */
+    suspend fun translatePatch(page: String, lines: List<String>, force: Boolean = false): List<String?> {
         val ser = kotlinx.serialization.serializer<Map<String, List<String?>>>()
         val cache = storage.read(TRANSLATION_FILE)?.let { runCatching { SbJson.decodeFromString(ser, it) }.getOrNull() }.orEmpty()
-        val prev = cache[page]?.takeIf { it.size == lines.size }
-        val missing = lines.indices.filter { prev?.getOrNull(it) == null && lines[it].isNotBlank() }.toSet()
+        val prev = cache[page]?.takeIf { it.size == lines.size && !force }
+        // 영어 글자가 있는데 번역문이 원문과 같거나 한글이 하나도 없으면 덜 된 줄로 본다
+        fun done(i: Int): Boolean {
+            val t = prev?.getOrNull(i) ?: return false
+            val hasLetters = lines[i].any { it in 'a'..'z' || it in 'A'..'Z' }
+            return !hasLetters || (t != lines[i] && t.any { it in '\uAC00'..'\uD7A3' })
+        }
+        val missing = lines.indices.filter { lines[it].isNotBlank() && !done(it) }.toSet()
         if (prev != null && missing.isEmpty()) return prev
         val fresh = translator.toKorean(lines, if (prev == null) null else missing)
-        val merged = lines.indices.map { prev?.getOrNull(it) ?: fresh[it] }
+        val merged = lines.indices.map { i -> if (prev != null && i !in missing) prev[i] else fresh[i] }
         val updated = (cache + (page to merged)).entries.toList().takeLast(60).associate { it.toPair() }
         storage.write(TRANSLATION_FILE, SbJson.encodeToString(ser, updated))
         return merged
@@ -267,6 +299,7 @@ class SkyblockRepository(
             every(30 * 60_000L) { refreshContests() },
             every(30 * 60_000L) { refreshPatchNotes() },
             every(6 * 3_600_000L) { refreshGameData() },
+            every(6 * 3_600_000L) { refreshIconPack() },
             every(30 * 60_000L) { if (state.value.accountLinked) refreshLowestBins() },
         )
     }
@@ -337,12 +370,15 @@ class SkyblockRepository(
             val auctions = if (selected?.gameMode?.canTrade == true) {
                 runCatching { api.playerAuctions(uuid).filter { it.profileId.isBlank() || it.profileId == selected.profileId } }.getOrDefault(emptyList())
             } else emptyList()
-            // 가든(컴포스터)은 타이머를 켠 경우에만
-            val garden = if (selected != null && s.synced.notify.timerEnabled("composter"))
-                runCatching { api.garden(selected.profileId) }.getOrNull() else null
+            // 가든: 컴포스터 타이머·가든 기록용
+            val garden = if (selected != null) runCatching { api.garden(selected.profileId) }.getOrNull() else null
+            // 박물관 (5분 캐시)
+            val museum = if (selected != null) runCatching {
+                sbhelper.core.calc.MuseumCalc.parse(api.museum(selected.profileId), uuid)
+            }.getOrNull() else null
             _state.update {
                 it.copy(profiles = profiles, myAuctions = auctions, lastProfileSync = Clock.now(),
-                    loadingProfile = false, profileError = null, garden = garden ?: it.garden)
+                    loadingProfile = false, profileError = null, garden = garden ?: it.garden, museum = museum ?: it.museum)
             }
         } catch (e: ApiException) {
             _state.update { it.copy(loadingProfile = false, profileError = e.message) }
@@ -523,7 +559,10 @@ class SkyblockRepository(
     companion object {
         const val STATE_FILE = "state.json"
         const val GAMEDATA_FILE = "gamedata.json"
-        const val TRANSLATION_FILE = "translations.json"
+        /** v1.5 부터 새 파일 (예전 버전이 저장한 덜 된 번역은 쓰지 않음) */
+        const val ICONS_INDEX = "icons.json"
+        const val ICONS_BIN = "icons.bin"
+        const val TRANSLATION_FILE = "translations-v2.json"
         private const val MAX_KEYS = 3000
         private const val MAX_HISTORY = 200
     }

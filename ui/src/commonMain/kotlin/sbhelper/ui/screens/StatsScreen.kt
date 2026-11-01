@@ -2,6 +2,8 @@ package sbhelper.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,7 @@ import sbhelper.core.AppState
 import sbhelper.core.calc.BestiaryCalc
 import sbhelper.core.calc.CollectionCalc
 import sbhelper.core.calc.Leveling
+import sbhelper.core.calc.EventLabels
 import sbhelper.core.calc.MinionCalc
 import sbhelper.core.calc.NetworthCalc
 import sbhelper.core.data.GameData
@@ -61,7 +64,8 @@ import sbhelper.ui.theme.McColors
 import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
-private val STAT_TABS = listOf("순자산", "HotM 트리", "HotF 트리", "도감", "컬렉션", "미니언")
+private val STAT_TABS = listOf("개요", "순자산", "HotM 트리", "HotF 트리", "펫", "던전", "가든·제이콥", "크림슨·리프트·낚시",
+    "도감", "컬렉션", "미니언", "박물관", "기타 통계")
 
 /** 기록: 순자산 · HotM 트리 · 도감(Bestiary) · 컬렉션 · 미니언 */
 @Composable
@@ -73,14 +77,27 @@ fun StatsScreen(controller: AppController, state: AppState, wide: Boolean) {
             Panel { EmptyState("계정을 연결해 주세요", "기록을 보려면 계정 연결과 API 키가 필요해요.", icon = Icons.Rounded.Insights) }
             return@ScreenColumn
         }
-        Segmented(STAT_TABS, tab, { controller.statsTab = it })
+        // 탭이 많아서 옆으로 넘길 수 있게
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Segmented(STAT_TABS, tab, { controller.statsTab = it })
+        }
+        val details = remember(p.member, state.garden, state.gameData) {
+            sbhelper.core.calc.ProfileDetailsCalc.compute(p.member, state.garden, state.gameData)
+        }
         when (tab) {
-            0 -> NetworthTab(controller, state, p, wide)
-            1 -> HotmTab(state, p, wide)
-            2 -> HotfTab(state, p, wide)
-            3 -> BestiaryTab(state, p)
-            4 -> CollectionsTab(state, p)
-            else -> MinionsTab(state, p)
+            0 -> OverviewTab(state, p, details, wide)
+            1 -> NetworthTab(controller, state, p, wide)
+            2 -> HotmTab(state, p, wide)
+            3 -> HotfTab(state, p, wide)
+            4 -> PetsTab(controller, state, details)
+            5 -> DungeonsTab(state, p, details)
+            6 -> GardenTab(state, details)
+            7 -> CrimsonRiftFishingTab(details)
+            8 -> BestiaryTab(state, p)
+            9 -> CollectionsTab(state, p)
+            10 -> MinionsTab(state, p)
+            11 -> MuseumTab(controller, state, wide)
+            else -> MiscStatsTab(details)
         }
     }
 }
@@ -167,22 +184,18 @@ private fun hotmLevels(layout: List<GameData.HotmCell>, nodes: Map<String, Int>)
 private fun HotmTab(state: AppState, p: ProfileSummary, wide: Boolean) {
     val layout = state.gameData.hotmLayout
     val (levels, unmatched) = remember(layout, p.hotmNodes) { hotmLevels(layout, p.hotmNodes) }
-    val hotmTable = state.gameData.leveling.hotm
-    Panel(Modifier.fillMaxWidth(), caption = "Heart of the Mountain", title = "내 HotM 트리", accent = Sb.Aqua) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            p.hotmXp?.takeIf { hotmTable.isNotEmpty() }?.let { xp ->
-                StatTile("HotM 레벨", "${Leveling.hotm(xp, hotmTable).level}", color = Sb.Aqua)
-            }
-            StatTile("Quick Forge", if (p.quickForgeLevel > 0) "레벨 ${p.quickForgeLevel}" else "없음",
-                color = if (p.quickForgeLevel > 0) Sb.Green else Sb.TextFaint,
-                sub = if (p.quickForgeLevel > 0) "포지 시간 -${state.gameData.rules.quickForge.percent(p.quickForgeLevel).let { sbhelper.core.util.fixed(it, 1) }}%" else null)
-            p.powders.forEach { (k, v) ->
-                StatTile(when (k) { "mithril" -> "미스릴 파우더"; "gemstone" -> "젬스톤 파우더"; else -> "글라사이트 파우더" }, formatNumber(v),
-                    color = when (k) { "mithril" -> Sb.DarkGreen; "gemstone" -> Sb.Pink; else -> Sb.Aqua })
-            }
+    TreePanel(
+        caption = "Heart of the Mountain", title = "내 HotM 트리", accent = Sb.Aqua, short = "HotM",
+        xp = p.hotmXp, table = state.gameData.leveling.hotm, tokens = p.tokensSpent["mountain"],
+        layout = layout, levels = levels, unmatched = unmatched, noData = p.hotmNodes.isEmpty(), wiki = "Heart of the Mountain", wide = wide,
+    ) {
+        StatTile("Quick Forge", if (p.quickForgeLevel > 0) "레벨 ${p.quickForgeLevel}" else "없음",
+            color = if (p.quickForgeLevel > 0) Sb.Green else Sb.TextFaint,
+            sub = if (p.quickForgeLevel > 0) "포지 시간 -${sbhelper.core.util.fixed(state.gameData.rules.quickForge.percent(p.quickForgeLevel), 1)}%" else null)
+        p.powders.forEach { (k, v) ->
+            StatTile(when (k) { "mithril" -> "미스릴 파우더"; "gemstone" -> "젬스톤 파우더"; else -> "글라사이트 파우더" }, formatNumber(v),
+                color = when (k) { "mithril" -> Sb.DarkGreen; "gemstone" -> Sb.Pink; else -> Sb.Aqua })
         }
-        Spacer(Modifier.height(10.dp))
-        TreeGrid(layout, levels, unmatched, p.hotmNodes.isEmpty(), "Heart of the Mountain", wide)
     }
 }
 
@@ -190,13 +203,38 @@ private fun HotmTab(state: AppState, p: ProfileSummary, wide: Boolean) {
 private fun HotfTab(state: AppState, p: ProfileSummary, wide: Boolean) {
     val layout = state.gameData.hotfLayout
     val (levels, unmatched) = remember(layout, p.hotfNodes) { hotmLevels(layout, p.hotfNodes) }
-    Panel(Modifier.fillMaxWidth(), caption = "Heart of the Forest", title = "내 HotF 트리", accent = Sb.Green) {
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            p.hotfXp?.let { StatTile("HotF 경험치", formatNumber(it.toLong()), color = Sb.Green) }
-            StatTile("찍은 칸", "${levels.count { it.value > 0 }} / ${layout.size}", color = Sb.Green)
+    TreePanel(
+        caption = "Heart of the Forest", title = "내 HotF 트리", accent = Sb.Green, short = "HotF",
+        xp = p.hotfXp, table = state.gameData.leveling.hotf, tokens = p.tokensSpent["forest"],
+        layout = layout, levels = levels, unmatched = unmatched, noData = p.hotfNodes.isEmpty(), wiki = "Heart of the Forest", wide = wide,
+    ) {
+        levels["Center of the Forest"]?.let { StatTile("Center of the Forest", "레벨 $it", color = Sb.Green) }
+    }
+}
+
+/** HotM·HotF 같은 모양: 레벨·진행도·쓴 토큰·찍은 칸 + 트리 */
+@Composable
+private fun TreePanel(
+    caption: String, title: String, accent: Color, short: String, xp: Double?, table: List<Long>, tokens: Int?,
+    layout: List<GameData.HotmCell>, levels: Map<String, Int>, unmatched: Map<String, Int>, noData: Boolean, wiki: String, wide: Boolean,
+    extraTiles: @Composable () -> Unit,
+) {
+    Panel(Modifier.fillMaxWidth(), caption = caption, title = title, accent = accent) {
+        val info = xp?.takeIf { table.isNotEmpty() }?.let { Leveling.hotm(it, table) }
+        FlowRow2 {
+            StatTile("$short 레벨", info?.let { "${it.level}" } ?: "-", color = accent,
+                sub = info?.let { if (it.level >= it.maxLevel) "최대" else "다음까지 ${sbhelper.core.util.fixed(it.progress * 100, 0)}%" })
+            xp?.let { StatTile("$short 경험치", formatNumber(it.toLong()), color = accent) }
+            tokens?.let { StatTile("쓴 토큰", "$it", color = accent) }
+            StatTile("찍은 칸", "${levels.count { it.value > 0 }} / ${layout.size}", color = accent)
+            extraTiles()
+        }
+        info?.let {
+            Spacer(Modifier.height(8.dp))
+            XpBar(it.progress, Modifier.fillMaxWidth(), accent, 7.dp)
         }
         Spacer(Modifier.height(10.dp))
-        TreeGrid(layout, levels, unmatched, p.hotfNodes.isEmpty(), "Heart of the Forest", wide)
+        TreeGrid(layout, levels, unmatched, noData, wiki, wide)
     }
 }
 
@@ -403,6 +441,322 @@ private fun MinionsTab(state: AppState, p: ProfileSummary) {
                     }
                 }
             }
+        }
+    }
+}
+
+
+// ------------------------------------------------------------------ 박물관
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MuseumTab(controller: AppController, state: AppState, wide: Boolean) {
+    val museum = state.museum
+    var cat by remember { mutableStateOf<String?>(null) }
+    var showDonated by remember { mutableStateOf(false) }
+    val slots = remember(state.items, museum) { sbhelper.core.calc.MuseumCalc.slots(state.items, museum) }
+    if (museum == null) {
+        Panel { EmptyState("박물관 정보가 없어요", "게임에서 박물관 API 설정을 켜야 하거나, 아직 불러오는 중이에요.") }
+        return
+    }
+    val total = slots.size
+    val done = slots.count { it.donated }
+    Panel(Modifier.fillMaxWidth(), caption = "Museum", title = "박물관 — ${done}/${total}칸 기증", accent = Sb.Gold) {
+        Text("칸 목록·분야·기증 경험치는 공식 아이템 API, 내 기증은 공식 museum API 기준이에요. " +
+            "상위 아이템을 기증하면 하위 아이템도 기증한 것으로 쳐요(게임과 같음).", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(10.dp))
+        FlowRow2 {
+            museum.value?.let { StatTile("박물관 가치", formatCoins(it), color = Sb.Gold) }
+            StatTile("기증 경험치", "${slots.filter { it.donated }.sumOf { it.xp }} / ${slots.sumOf { it.xp }}", color = Sb.Gold)
+            StatTile("특별 아이템", "${museum.special}개", color = Sb.Purple)
+        }
+        Spacer(Modifier.height(10.dp))
+        // 분야별 진행
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            sbhelper.core.calc.MuseumCalc.CATEGORY_KO.forEach { (k, ko) ->
+                val list = slots.filter { it.category == k }
+                if (list.isEmpty()) return@forEach
+                val d = list.count { it.donated }
+                Column(
+                    Modifier.width(150.dp).clip(RoundedCornerShape(10.dp))
+                        .background(if (cat == k) Sb.Gold.copy(alpha = 0.15f) else Sb.SurfaceHigh)
+                        .border(1.dp, if (cat == k) Sb.Gold else Sb.Border, RoundedCornerShape(10.dp))
+                        .clickable { cat = if (cat == k) null else k }.padding(10.dp),
+                ) {
+                    Text(ko, style = SbText.body(14, Sb.Text, FontWeight.SemiBold))
+                    Text("$d / ${list.size}", style = SbText.pixel(12, if (d == list.size) Sb.Gold else Sb.TextDim))
+                    Spacer(Modifier.height(4.dp))
+                    XpBar(d.toDouble() / list.size.coerceAtLeast(1), Modifier.fillMaxWidth(), Sb.Gold, 5.dp)
+                }
+            }
+        }
+    }
+    val shown = slots.filter { (cat == null || it.category == cat) && it.donated == showDonated }
+        .sortedWith(compareBy({ sbhelper.core.calc.MuseumCalc.STAGES.indexOf(it.stage).let { i -> if (i < 0) 99 else i } }, { it.xp }))
+    Panel(Modifier.fillMaxWidth(), title = (if (showDonated) "기증한 칸" else "아직 기증 안 한 칸") + " ${shown.size}개" +
+        (cat?.let { " · " + sbhelper.core.calc.MuseumCalc.CATEGORY_KO[it] } ?: ""), accent = Sb.Gold,
+        trailing = { Segmented(listOf("빠진 것", "기증한 것"), if (showDonated) 1 else 0, { showDonated = it == 1 }) }) {
+        Text("게임 진행 단계(공식: 시작 → 마스터) 순서예요. 누르면 아이템 화면으로 가요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(8.dp))
+        var lastStage: String? = "\u0000"
+        shown.take(400).forEach { slot ->
+            if (slot.stage != lastStage) {
+                lastStage = slot.stage
+                Spacer(Modifier.height(6.dp))
+                Text(sbhelper.core.calc.MuseumCalc.STAGE_KO[slot.stage] ?: "기타", style = SbText.pixel(13, Sb.Gold, bold = true))
+            }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { controller.openItem(slot.pieces.first()) }
+                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                    slot.pieces.take(4).forEach { sbhelper.ui.components.ItemIcon(state, it, 24.dp) }
+                }
+                Spacer(Modifier.width(10.dp))
+                val name = if (slot.isSet) state.itemName(slot.pieces.first())
+                    .replace(Regex("""\s+(Helmet|Hat|Chestplate|Tunic|Leggings|Trousers|Boots|Slippers|Belt|Necklace|Cloak|Gloves)$"""), "") + " 세트"
+                    else state.itemName(slot.key)
+                Column(Modifier.weight(1f)) {
+                    Text(name, style = SbText.body(13, McColors.rarity(state.itemTier(slot.pieces.first())), FontWeight.Medium), maxLines = 1)
+                    slot.viaParent?.let { Text("상위 아이템(${state.itemName(it)}) 기증으로 인정", style = SbText.body(11, Sb.TextFaint)) }
+                }
+                Text("${sbhelper.core.calc.MuseumCalc.CATEGORY_KO[slot.category] ?: slot.category} · +${slot.xp}", style = SbText.pixel(11, Sb.TextDim))
+            }
+        }
+    }
+}
+
+
+// ------------------------------------------------------------------ SkyCrypt 수준 상세 기록 (공식 API 원본 + 위키 레벨표)
+private fun nice(key: String) = key.replace('_', ' ').lowercase().split(' ').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
+
+private fun timeText(ms: Long?): String = ms?.let { val s = it / 1000; "${s / 60}:${(s % 60).toString().padStart(2, '0')}" } ?: "-"
+
+@Composable
+private fun NoDetails() = Panel { EmptyState("정보가 없어요", "프로필을 불러오는 중이거나, 게임 API 설정이 꺼져 있어요.") }
+
+@Composable
+private fun OverviewTab(state: AppState, p: ProfileSummary, d: sbhelper.core.calc.ProfileDetails?, wide: Boolean) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Overview", title = "개요", accent = Sb.Gold) {
+        FlowRow2 {
+            d.skyblockLevel?.let { StatTile("스카이블록 레벨", sbhelper.core.util.fixed(it, 2), color = Sb.Aqua) }
+            d.magicalPower?.let { StatTile("매지컬 파워", formatNumber(it.toLong()), color = Sb.Gold, sub = d.selectedPower?.let { s -> "파워: ${nice(s)}" }) }
+            d.fairySouls?.let { StatTile("요정 영혼", "$it", color = Sb.Pink) }
+            d.petScore?.let { StatTile("펫 점수", "$it", color = Sb.Green) }
+            StatTile("지갑", formatCoins(p.purse), color = Sb.Gold)
+            p.bank?.let { StatTile("은행", formatCoins(it), color = Sb.Gold) }
+            d.motes?.let { StatTile("리프트 모트", formatNumber(it.toLong()), color = Sb.Pink) }
+            d.cookieActive?.let { StatTile("부스터 쿠키", if (it) "사용 중" else "없음", color = if (it) Sb.Green else Sb.TextFaint) }
+            d.firstJoin?.let { StatTile("처음 시작", localTime(it, true).substringBefore(' '), color = Sb.TextDim) }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("스카이블록 레벨 = SkyBlock XP ÷ ${state.gameData.timerRules.skyblockXpPerLevel} (위키 SkyBlock Levels). 나머지는 공식 프로필 API 값이에요.",
+            style = SbText.body(12, Sb.TextFaint))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PetsTab(controller: AppController, state: AppState, d: sbhelper.core.calc.ProfileDetails?) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Pets", title = "펫 ${d.pets.size}마리" + (d.petScore?.let { " · 펫 점수 $it" } ?: ""), accent = Sb.Green) {
+        Text("레벨은 위키 펫 레벨표(Module:Pet/LevelingData)로 계산해요. 펫을 누르면 위키 정보로 가요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            d.pets.forEach { pet ->
+                val color = McColors.rarity(pet.tier)
+                HoverTip({
+                    LoreTooltip("[Lvl ${pet.level}] ${pet.name}", color, buildList {
+                        add("§8${McColors.rarityLabel(pet.tier)}")
+                        add("§7경험치: §a${formatNumber(pet.exp.toLong())}")
+                        if (pet.level < pet.maxLevel) add("§7다음 레벨까지 §e${sbhelper.core.util.fixed(pet.progress * 100, 1)}%")
+                        pet.heldItem?.let { add("§7들고 있는 아이템: §f${state.itemName(it)}") }
+                        if (pet.candyUsed > 0) add("§7사탕: §a${pet.candyUsed}")
+                        if (pet.active) add("§a지금 데리고 다니는 펫")
+                    })
+                }) {
+                    Column(
+                        Modifier.width(150.dp).clip(RoundedCornerShape(10.dp))
+                            .background(if (pet.active) Sb.Green.copy(alpha = 0.12f) else Sb.SurfaceHigh)
+                            .border(1.dp, if (pet.active) Sb.Green else Sb.Border, RoundedCornerShape(10.dp))
+                            .clickable { controller.openItem("pet:" + pet.name) }.padding(8.dp),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            PixelIcon(WikiIcons.url(pet.name + " Pet"), pet.name + " Pet", pet.tier, 28.dp, id = "pet:" + pet.name)
+                            Spacer(Modifier.width(6.dp))
+                            Column {
+                                Text("Lvl ${pet.level}", style = SbText.pixel(11, Sb.TextDim))
+                                Text(pet.name, style = SbText.pixel(12, color, bold = true), maxLines = 1)
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        XpBar(if (pet.level >= pet.maxLevel) 1.0 else pet.progress, Modifier.fillMaxWidth(), color, 4.dp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DungeonsTab(state: AppState, p: ProfileSummary, d: sbhelper.core.calc.ProfileDetails?) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Dungeons", title = "던전", accent = Sb.Red) {
+        FlowRow2 {
+            p.catacombsXp?.takeIf { state.gameData.leveling.catacombs.isNotEmpty() }?.let { xp ->
+                StatTile("카타콤 레벨", "${Leveling.catacombs(xp, state.gameData.leveling.catacombs).level}", color = Sb.Red)
+            }
+            d.secrets?.let { StatTile("찾은 시크릿", formatNumber(it), color = Sb.Aqua) }
+            d.selectedClass?.let { StatTile("선택한 클래스", nice(it), color = Sb.Gold) }
+            d.highestFloor?.let { StatTile("최고 층", "F$it", color = Sb.Red) }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            listOf("층" to 70, "클리어" to 80, "S+ 최고 기록" to 110, "S 최고 기록" to 110, "최고 점수" to 80).forEach { (h, w) ->
+                Text(h, style = SbText.caption(Sb.TextDim), modifier = Modifier.width(w.dp))
+            }
+        }
+        d.floors.forEach { f ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Text((if (f.master) "M" else if (f.floor == 0) "입구" else "F") + (if (f.floor == 0 && !f.master) "" else "${f.floor}"),
+                    style = SbText.pixel(12, if (f.master) Sb.Red else Sb.Text, bold = true), modifier = Modifier.width(70.dp))
+                Text(formatNumber(f.completions.toLong()), style = SbText.body(13), modifier = Modifier.width(80.dp))
+                Text(timeText(f.fastestSPlusMs), style = SbText.body(13, Sb.Gold), modifier = Modifier.width(110.dp))
+                Text(timeText(f.fastestSMs), style = SbText.body(13, Sb.TextDim), modifier = Modifier.width(110.dp))
+                Text(f.bestScore?.toString() ?: "-", style = SbText.body(13, Sb.TextDim), modifier = Modifier.width(80.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GardenTab(state: AppState, d: sbhelper.core.calc.ProfileDetails?) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Garden", title = "가든", accent = Sb.Green) {
+        if (d.gardenXp == null) { Text("가든 정보가 없어요 (가든을 연 적이 없거나 불러오는 중).", style = SbText.body(13, Sb.TextFaint)); return@Panel }
+        FlowRow2 {
+            d.gardenLevel?.let { StatTile("가든 레벨", "$it", color = Sb.Green, sub = "Garden XP ${formatNumber(d.gardenXp.toLong())}") }
+            d.visitorsServed?.let { StatTile("방문자 요청 완료", formatNumber(it.toLong()), color = Sb.Aqua) }
+            d.visitorsUnique?.let { StatTile("만난 방문자", "$it 명", color = Sb.Aqua) }
+            d.plots?.let { StatTile("연 구역", "$it 칸", color = Sb.Green) }
+        }
+        if (d.cropUpgrades.isNotEmpty()) {
+            Spacer(Modifier.height(10.dp))
+            Text("작물 업그레이드", style = SbText.caption(Sb.TextDim))
+            d.cropUpgrades.forEach { (crop, lv) -> InfoRow(EventLabels.crop(cropName(crop)) + " (" + cropName(crop) + ")", "Lv $lv") }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("가든 레벨은 위키 The Garden 레벨표로 계산해요.", style = SbText.body(12, Sb.TextFaint))
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Jacob's Contest", title = "제이콥 농사대회", accent = Sb.Gold) {
+        FlowRow2 {
+            listOf("bronze" to "동", "silver" to "은", "gold" to "금", "platinum" to "백금", "diamond" to "다이아").forEach { (k, ko) ->
+                d.jacobMedals[k]?.let { StatTile("$ko 메달", "$it", color = Sb.Gold) }
+            }
+            StatTile("고유 금메달 작물", "${d.jacobUniqueGolds}", color = Sb.Gold)
+        }
+        if (d.jacobPerks.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            d.jacobPerks.forEach { (k, v) -> InfoRow(when (k) { "double_drops" -> "2배 드롭"; "farming_level_cap" -> "농사 최대 레벨 +"; else -> nice(k) }, "$v") }
+        }
+        if (d.jacobPersonalBests.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("작물별 개인 최고 기록", style = SbText.caption(Sb.TextDim))
+            d.jacobPersonalBests.entries.sortedByDescending { it.value }.forEach { (crop, n) ->
+                InfoRow(EventLabels.crop(cropName(crop)) + " (" + cropName(crop) + ")", formatNumber(n))
+            }
+        }
+    }
+}
+
+private fun cropName(id: String) = when (id) {
+    "CARROT_ITEM" -> "Carrot"; "POTATO_ITEM" -> "Potato"; "NETHER_STALK" -> "Nether Wart"; "INK_SACK:3" -> "Cocoa Beans"
+    "MUSHROOM_COLLECTION" -> "Mushroom"; "SUGAR_CANE" -> "Sugar Cane"; else -> nice(id)
+}
+
+@Composable
+private fun InfoRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(1f))
+        Text(value, style = SbText.pixel(13, Sb.Text))
+    }
+}
+
+@Composable
+private fun CrimsonRiftFishingTab(d: sbhelper.core.calc.ProfileDetails?) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Crimson Isle", title = "크림슨 아일", accent = Sb.Red) {
+        FlowRow2 {
+            d.faction?.let { StatTile("세력", if (it == "mages") "마법사 (Mages)" else if (it == "barbarians") "바바리안 (Barbarians)" else nice(it), color = Sb.Red) }
+            d.reputation["mages"]?.let { StatTile("마법사 평판", formatNumber(it), color = Sb.Purple) }
+            d.reputation["barbarians"]?.let { StatTile("바바리안 평판", formatNumber(it), color = Sb.Red) }
+        }
+        if (d.kuudra.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("쿠드라 클리어", style = SbText.caption(Sb.TextDim))
+            d.kuudra.forEach { (tier, n) -> InfoRow(when (tier) { "none" -> "Basic"; else -> nice(tier) }, "${n}회") }
+        }
+        if (d.dojo.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("도조 시험 점수 (합 ${d.dojo.values.sum()})", style = SbText.caption(Sb.TextDim))
+            d.dojo.forEach { (test, pts) -> InfoRow(nice(test), "$pts") }
+        }
+        if (d.faction == null && d.kuudra.isEmpty() && d.dojo.isEmpty()) Text("크림슨 아일 기록이 없어요.", style = SbText.body(13, Sb.TextFaint))
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Trophy Fish", title = "트로피 피시" + (d.trophyTotal?.let { " · 총 ${formatNumber(it.toLong())}마리" } ?: ""), accent = Sb.Gold) {
+        if (d.trophyFish.isEmpty()) { Text("트로피 피시 기록이 없어요.", style = SbText.body(13, Sb.TextFaint)); return@Panel }
+        Row(Modifier.fillMaxWidth()) {
+            Text("물고기", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(1f))
+            listOf("동", "은", "금", "다이아").forEach { Text(it, style = SbText.caption(Sb.TextDim), modifier = Modifier.width(52.dp)) }
+        }
+        d.trophyFish.entries.sortedBy { it.key }.forEach { (fish, tiers) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Text(nice(fish), style = SbText.body(13), modifier = Modifier.weight(1f))
+                listOf("bronze", "silver", "gold", "diamond").forEach { t ->
+                    Text(tiers[t]?.toString() ?: "-", style = SbText.pixel(12, if ((tiers[t] ?: 0) > 0) Sb.Text else Sb.TextFaint), modifier = Modifier.width(52.dp))
+                }
+            }
+        }
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Rift · Mining", title = "리프트 · 채광", accent = Sb.Pink) {
+        FlowRow2 {
+            d.motes?.let { StatTile("모트 (지금)", formatNumber(it.toLong()), color = Sb.Pink) }
+            d.powderTotals.forEach { (k, v) -> StatTile("${when (k) { "mithril" -> "미스릴"; "gemstone" -> "젬스톤"; else -> "글라사이트" }} 파우더 (누적)", formatNumber(v), color = Sb.Aqua) }
+            d.skyMall?.let { StatTile("오늘의 Sky Mall", nice(it), color = Sb.Gold) }
+        }
+        if (d.crystals.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("크리스탈 할로우 크리스탈", style = SbText.caption(Sb.TextDim))
+            d.crystals.forEach { (k, st) -> InfoRow(nice(k.removeSuffix("_crystal")), if (st == "PLACED") "설치함" else if (st == "FOUND") "찾음" else nice(st)) }
+        }
+    }
+}
+
+@Composable
+private fun MiscStatsTab(d: sbhelper.core.calc.ProfileDetails?) {
+    if (d == null) { NoDetails(); return }
+    Panel(Modifier.fillMaxWidth(), caption = "Kills · Deaths", title = "처치 ${formatNumber(d.totalKills)} · 사망 ${formatNumber(d.totalDeaths)}", accent = Sb.Red) {
+        Text("가장 많이 잡은 몹", style = SbText.caption(Sb.TextDim))
+        d.kills.take(15).forEach { (k, n) -> InfoRow(nice(k), formatNumber(n)) }
+        Spacer(Modifier.height(8.dp))
+        Text("가장 많이 죽은 원인", style = SbText.caption(Sb.TextDim))
+        d.deaths.take(10).forEach { (k, n) -> InfoRow(nice(k), formatNumber(n)) }
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Other", title = "그 밖의 기록", accent = Sb.TextDim) {
+        d.itemsFished?.let { InfoRow("낚은 아이템", formatNumber(it)) }
+        d.seaCreatureKills?.let { InfoRow("잡은 바다 생물", formatNumber(it)) }
+        d.candy?.let { InfoRow("모은 사탕 (스푸키 축제)", formatNumber(it)) }
+        val a = d.auctions
+        if (a.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            Text("경매장", style = SbText.caption(Sb.TextDim))
+            a["created"]?.let { InfoRow("올린 경매", formatNumber(it.toLong())) }
+            a["completed"]?.let { InfoRow("끝난 경매", formatNumber(it.toLong())) }
+            a["gold_earned"]?.let { InfoRow("번 코인", formatCoins(it)) }
+            a["gold_spent"]?.let { InfoRow("쓴 코인", formatCoins(it)) }
+            a["fees"]?.let { InfoRow("수수료", formatCoins(it)) }
+            a["highest_bid"]?.let { InfoRow("가장 높은 입찰", formatCoins(it)) }
         }
     }
 }

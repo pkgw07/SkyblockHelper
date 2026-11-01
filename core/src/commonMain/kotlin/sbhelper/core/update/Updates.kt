@@ -89,6 +89,17 @@ class Updates(
         return if (res.status.isSuccess()) res.bodyAsText() else null
     }
 
+    /** data 브랜치의 아이콘 묶음 버전 (작은 텍스트) */
+    suspend fun latestIconPackVersion(): String? = runCatching {
+        val res = client.get("https://raw.githubusercontent.com/$repo/data/icons-version.txt") { header("User-Agent", "SkyblockHelper") }
+        if (res.status.isSuccess()) res.bodyAsText().trim().takeIf { it.isNotEmpty() && it.length <= 64 } else null
+    }.getOrNull()
+
+    /** data 브랜치 파일 (바이너리) */
+    suspend fun dataFile(name: String): ByteArray? = runCatching {
+        download("https://raw.githubusercontent.com/$repo/data/$name")
+    }.getOrNull()
+
     companion object {
         const val REPO = "pkgw07/SkyblockHelper"
 
