@@ -241,7 +241,7 @@ class SkyblockRepository(
         if (prev != null && missing.isEmpty()) return prev
         val fresh = translator.toKorean(lines, if (prev == null) null else missing)
         val merged = lines.indices.map { i -> if (prev != null && i !in missing) prev[i] else fresh[i] }
-        val updated = (cache + (page to merged)).entries.toList().takeLast(60).associate { it.toPair() }
+        val updated = (cache + (page to merged)).entries.toList().takeLast(200).associate { it.toPair() }
         storage.write(TRANSLATION_FILE, SbJson.encodeToString(ser, updated))
         return merged
     }

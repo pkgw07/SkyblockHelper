@@ -390,4 +390,19 @@ class CoreTest {
         assertEquals(10, f7.completions); assertEquals(12, f7.timesPlayed)
         assertEquals(0, d.floors.first { it.floor == 6 }.completions)
     }
+
+    @Test
+    fun wikiTemplatesAndRequirements() {
+        val (t1, l1) = sbhelper.core.api.WikiText.inlineLinks("hits {{MobSprite|Enderman;Endermen}} with {{stat|fuel|3,000}} and {{Item|Rough Onyx Gemstone|text=Onyx}} {{DRL|/Divan's Drill/}}")
+        assertEquals("hits Endermen with 3,000 Fuel and Onyx", t1)
+        assertEquals(listOf("Enderman", "Rough Onyx Gemstone"), l1.map { it.page })
+        // 문장 중간에서 시작하는 여러 줄 틀의 안쪽(|A1 = …)은 본문에 섞이지 않는다
+        val blocks = sbhelper.core.api.WikiText.blocks("Made here {{Crafting Recipe Table\n|A1 = Diamond, 32\n|Output = X\n}}\nAfter.")
+        assertEquals(listOf("Made here", "After."), blocks.map { (it as sbhelper.core.api.DocBlock.Paragraph).text })
+        val st = AppState()
+        assertEquals("Diamond 컬렉션 IV 단계", sbhelper.core.calc.Requirements.recipe(st, "[[Diamond#IV|Diamond IV (4)]]")?.text)
+        assertEquals("Zombie Slayer 5레벨", sbhelper.core.calc.Requirements.recipe(st, "[[Zombie Slayer#V|Zombie Slayer V (5)]]")?.text)
+        val r = sbhelper.core.calc.Requirements.item(st, SbJson.parseToJsonElement("""{"type":"DUNGEON_TIER","dungeon_type":"CATACOMBS","tier":7}""").jsonObject)
+        assertEquals("카타콤 F7 클리어", r.text)
+    }
 }

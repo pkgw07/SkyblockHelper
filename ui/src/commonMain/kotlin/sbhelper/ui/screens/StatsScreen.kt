@@ -615,7 +615,7 @@ private fun OverviewTab(state: AppState, p: ProfileSummary, d: sbhelper.core.cal
         FlowRow2 {
             d.skyblockLevel?.let { StatTile("스카이블록 레벨", sbhelper.core.util.fixed(it, 2), color = Sb.Aqua) }
             d.magicalPower?.let { StatTile("매지컬 파워", formatNumber(it.toLong()), color = Sb.Gold, sub = d.selectedPower?.let { s -> "파워: ${nice(s)}" }) }
-            d.fairySouls?.let { StatTile("요정 영혼", "$it", color = Sb.Pink) }
+            d.fairySouls?.let { StatTile("Fairy Souls", "$it", color = Sb.Pink) }
             d.petScore?.let { StatTile("펫 점수", "$it", color = Sb.Green) }
             StatTile("지갑", formatCoins(p.purse), color = Sb.Gold)
             p.bank?.let { StatTile("은행", formatCoins(it), color = Sb.Gold) }

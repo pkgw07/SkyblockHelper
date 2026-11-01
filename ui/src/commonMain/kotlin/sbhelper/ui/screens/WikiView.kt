@@ -9,6 +9,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.material.icons.rounded.Translate
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
@@ -28,6 +30,47 @@ import sbhelper.ui.theme.SbText
 object WikiPages {
     val bodies = mutableStateMapOf<String, List<DocBlock>>()
     val errors = mutableStateMapOf<String, String>()
+    /** 문서별 번역 (블록 순서와 같음) */
+    val translated = mutableStateMapOf<String, List<String>>()
+    /** 번역을 보여 주는 중인 문서 */
+    val showTranslated = mutableStateMapOf<String, Boolean>()
+    val translating = mutableStateMapOf<String, Boolean>()
+}
+
+private fun DocBlock.plain(): String = when (this) {
+    is DocBlock.Heading -> text
+    is DocBlock.Paragraph -> text
+    is DocBlock.Bullet -> text
+    is DocBlock.Image -> ""
+}
+
+/** "번역 / 원문" 버튼. 처음 누르면 번역을 받아 온다 (패치노트와 같은 번역기, 결과는 저장) */
+@Composable
+fun TranslateButton(controller: AppController, page: String, blocks: List<DocBlock>?) {
+    if (blocks == null) return
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val on = WikiPages.showTranslated[page] == true
+    val busy = WikiPages.translating[page] == true
+    sbhelper.ui.components.SbButton(
+        when { busy -> "번역 중…"; on -> "원문 보기"; else -> "한국어로 번역" },
+        {
+            if (on) WikiPages.showTranslated[page] = false
+            else if (page in WikiPages.translated) WikiPages.showTranslated[page] = true
+            else if (!busy) {
+                WikiPages.translating[page] = true
+                scope.launch {
+                    val lines = blocks.map { it.plain() }
+                    val t = runCatching { controller.repo.translatePatch("wiki:$page", lines) }.getOrNull()
+                    if (t != null) {
+                        WikiPages.translated[page] = lines.indices.map { i -> t[i] ?: lines[i] }
+                        WikiPages.showTranslated[page] = true
+                    } else controller.toast = "번역하지 못했어요. 잠시 뒤 다시 눌러 주세요."
+                    WikiPages.translating[page] = false
+                }
+            }
+        },
+        icon = androidx.compose.material.icons.Icons.Rounded.Translate, outlined = true, color = Sb.Gold,
+    )
 }
 
 /** 위키 문서를 받아 온다 (이미 받았으면 그대로) */
@@ -77,9 +120,12 @@ fun hasSections(blocks: List<DocBlock>, sections: Set<String>): Boolean {
  */
 @Composable
 fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<String>? = null, max: Int = 200,
-               exclude: Set<String> = emptySet()) {
-    val onLink: (String) -> Unit = { page -> controller.openWikiLink(page) }
+               exclude: Set<String> = emptySet(), skipSubsections: Set<String> = emptySet(), page: String? = null) {
+    val onLink: (String) -> Unit = { p -> controller.openWikiLink(p) }
+    // 번역을 켠 문서면 번역문 (링크 없이)
+    val tr = page?.let { p -> WikiPages.translated[p]?.takeIf { WikiPages.showTranslated[p] == true && it.size == blocks.size } }
     var current: String? = null
+    var sub: String? = null
     var shown = 0
     // 제목만 있고 내용이 없는 절은 숨긴다
     val nonEmpty = blocks.indices.filter { i ->
@@ -88,6 +134,10 @@ fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<
     }.toSet()
     Column {
         blocks.forEachIndexed { i, b ->
+            if (b is DocBlock.Heading && b.level <= 1) sub = null
+            if (b is DocBlock.Heading && b.level == 2) sub = b.text
+            // 앱이 따로 그리는 절(조합법·제작 트리 등)은 뺀다
+            if (sub != null && skipSubsections.any { it.equals(sub, true) }) return@forEachIndexed
             if (b is DocBlock.Heading && b.level <= 1) {
                 current = b.text
                 // 고른 절의 제목은 위에 칸 이름으로 이미 보이므로 숨긴다
@@ -99,16 +149,17 @@ fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<
             if (b is DocBlock.Heading && b.text in SKIP_SECTIONS) return@forEachIndexed
             if (current in SKIP_SECTIONS) return@forEachIndexed
             shown++
+            val t = tr?.getOrNull(i)
             when (b) {
-                is DocBlock.Heading -> Text(linkedText(b.text, b.links, onLink),
+                is DocBlock.Heading -> Text(if (t != null) AnnotatedString(t) else linkedText(b.text, b.links, onLink),
                     Modifier.padding(top = if (b.level == 1) 12.dp else 6.dp, bottom = 2.dp),
                     style = SbText.body(if (b.level == 1) 16 else 14, Sb.Gold, FontWeight.Bold))
-                is DocBlock.Paragraph -> Text(linkedText(b.text, b.links, onLink), Modifier.padding(vertical = 3.dp),
+                is DocBlock.Paragraph -> Text(if (t != null) AnnotatedString(t) else linkedText(b.text, b.links, onLink), Modifier.padding(vertical = 3.dp),
                     style = SbText.body(14, Sb.TextDim))
                 is DocBlock.Bullet -> Row(Modifier.padding(start = ((b.depth - 1) * 16).dp, top = 2.dp, bottom = 2.dp)) {
                     Text("•", style = SbText.body(14, Sb.Gold))
                     Spacer(Modifier.width(8.dp))
-                    Text(linkedText(b.text, b.links, onLink), style = SbText.body(14, Sb.Text))
+                    Text(if (t != null) AnnotatedString(t) else linkedText(b.text, b.links, onLink), style = SbText.body(14, Sb.Text))
                 }
                 is DocBlock.Image -> Unit
             }

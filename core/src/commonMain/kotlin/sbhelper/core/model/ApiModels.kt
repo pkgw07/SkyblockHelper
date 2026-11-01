@@ -54,6 +54,10 @@ data class SkyblockItem(
     val skin: SkinValue? = null,
     /** 박물관 기증 정보 (공식 아이템 API) */
     @SerialName("museum_data") val museum: MuseumData? = null,
+    /** 쓰려면 필요한 조건 (공식 아이템 API: SKILL, SLAYER, DUNGEON_TIER, HEART_OF_THE_MOUNTAIN …) */
+    val requirements: List<kotlinx.serialization.json.JsonObject> = emptyList(),
+    /** 던전 안에서 쓰려면 필요한 조건 */
+    @SerialName("catacombs_requirements") val catacombsRequirements: List<kotlinx.serialization.json.JsonObject> = emptyList(),
 )
 
 @Serializable

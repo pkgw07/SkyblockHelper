@@ -25,8 +25,18 @@ class DesktopPlatform : Platform {
     override val isDesktop = true
     override val versionName = AppInfo.VERSION
 
+    /**
+     * 브라우저로 열기. 화면이 멈추지 않게 백그라운드에서, Windows 는 셸로 바로 연다
+     * (Desktop.browse 는 처음 부를 때 몇 초씩 걸리는 경우가 있음)
+     */
     override fun openUrl(url: String) {
-        runCatching { Desktop.getDesktop().browse(URI(url)) }
+        Thread({
+            val win = System.getProperty("os.name").lowercase().contains("win")
+            // 웹 주소만 (파일 경로 등이 셸로 실행되지 않게)
+            if (!url.startsWith("https://") && !url.startsWith("http://")) return@Thread
+            val ok = win && runCatching { ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start() }.isSuccess
+            if (!ok) runCatching { Desktop.getDesktop().browse(URI(url)) }
+        }, "open-url").apply { isDaemon = true }.start()
     }
 
     override fun copyToClipboard(text: String) {

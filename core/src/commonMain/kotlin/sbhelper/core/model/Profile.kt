@@ -62,6 +62,7 @@ data class ProfileSummary(
     val pets: List<PetInfo>,
     /** 카타콤 층별 클리어 횟수 (0 = Entrance, 1 = Floor I …). 없으면 비어 있음 */
     val floorCompletions: Map<Int, Int> = emptyMap(),
+    val masterFloorCompletions: Map<Int, Int> = emptyMap(),
     val masterCompletions: Map<Int, Int> = emptyMap(),
     /** 슬레이어 보스별, 단계(1~5)별 처치 수 */
     val slayerBossKills: Map<String, Map<Int, Int>> = emptyMap(),
@@ -190,6 +191,7 @@ object ProfileParser {
             }?.toMap().orEmpty(),
             pets = pets,
             floorCompletions = completions(member, "catacombs"),
+            masterFloorCompletions = completions(member, "master_catacombs"),
             masterCompletions = completions(member, "master_catacombs"),
             inventories = inventories(member),
             hotmNodes = hotmNodes(member),

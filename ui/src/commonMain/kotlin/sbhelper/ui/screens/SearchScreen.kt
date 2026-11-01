@@ -65,8 +65,21 @@ private class UsageIndex(data: GameData) {
         data.crafting.forEach { (out, recipes) -> recipes.firstOrNull()?.`in`?.keys?.forEach { getOrPut(it) { mutableListOf() } += out } }
         data.forge.forEach { (out, recipes) -> recipes.firstOrNull()?.`in`?.keys?.forEach { getOrPut(it) { mutableListOf() } += out } }
     }.mapValues { it.value.distinct() }
+    /** 재료 → 그 재료가 들어가는 조합대 (결과, 배치) */
+    val gridUses: Map<String, List<Pair<String, GameData.CraftGrid>>> = buildMap<String, MutableList<Pair<String, GameData.CraftGrid>>> {
+        data.craftGrids.forEach { (out, grids) ->
+            grids.forEach { g -> g.g.flatten().map { it.i }.distinct().forEach { getOrPut(it) { mutableListOf() } += out to g } }
+        }
+    }
+    /** 재료 → 그 재료로 포지에서 만드는 아이템 */
+    val forgeUses: Map<String, List<String>> = buildMap<String, MutableList<String>> {
+        data.forge.forEach { (out, recipes) -> recipes.firstOrNull()?.`in`?.keys?.forEach { getOrPut(it) { mutableListOf() } += out } }
+    }
     val nextUpgrades: Map<String, List<String>> = data.upgrades.entries.groupBy({ it.value }, { it.key })
 }
+
+/** 앱이 칸·목록으로 따로 그리는 위키 절 (본문에서 뺌) */
+private val DRAWN_SUBSECTIONS = setOf("Crafting", "Crafting Recipe", "Recipe", "Recipes", "Forging", "Forging Tree", "Forge", "Upgrading")
 
 /** 위키 검색: 모든 아이템(공식 API 목록) + NPC·지역·이벤트 등 위키 문서 */
 @Composable
@@ -165,7 +178,7 @@ fun ItemLink(controller: AppController, state: AppState, id: String, prefix: Str
 
 /** 마우스를 올렸을 때 뜨는 요약 */
 @Composable
-private fun ItemQuickTip(state: AppState, id: String) {
+internal fun ItemQuickTip(state: AppState, id: String) {
     val d = state.gameData
     LoreTooltip(state.itemName(id), McColors.rarity(state.itemTier(id)), buildList {
         state.itemTier(id)?.let { add("§8${McColors.rarityLabel(it)}") }
@@ -234,13 +247,61 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
         }
     }
 
+    val slot = if (wide) 40.dp else 34.dp
+    val grids = d.craftGrids[id].orEmpty()
+    val forgeRecipe = d.forge[id]?.firstOrNull()
+
+    // 필요 조건: 만들 때(위키 조합법) · 쓸 때(공식 아이템 API) · 포지(HotM)
+    val craftReqs = grids.mapNotNull { sbhelper.core.calc.Requirements.recipe(state, it.r) }.distinctBy { it.text }
+    val useReqs = useRequirements(state, id)
+    val forgeReq = forgeRecipe?.hotm?.let { h -> Regex("""\d+""").find(h)?.value?.toIntOrNull() }?.let { tier ->
+        sbhelper.core.calc.Requirements.item(state, kotlinx.serialization.json.buildJsonObject {
+            put("type", kotlinx.serialization.json.JsonPrimitive("HEART_OF_THE_MOUNTAIN")); put("tier", kotlinx.serialization.json.JsonPrimitive(tier))
+        })
+    }
+    if (craftReqs.isNotEmpty() || useReqs.isNotEmpty() || forgeReq != null) {
+        Panel(Modifier.fillMaxWidth(), caption = "Requirements", title = "필요 조건", accent = Sb.Red) {
+            if (craftReqs.isNotEmpty()) {
+                Label("만들려면 (조합법 잠금 해제)")
+                craftReqs.forEach { RequirementRow(controller, it) }
+            }
+            if (forgeReq != null) {
+                Label("포지에서 만들려면")
+                RequirementRow(controller, forgeReq)
+            }
+            if (useReqs.isNotEmpty()) {
+                Label("쓰려면 (착용·사용 조건)")
+                useReqs.forEach { (label, r) -> RequirementRow(controller, r, label) }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text("✔ 달성 · ✘ 아직 · • 프로필로 확인할 수 없는 조건. 조합법 조건은 공식 위키, 사용 조건은 공식 아이템 API 기준이에요.",
+                style = SbText.body(12, Sb.TextFaint))
+        }
+    }
+
     // 얻는 법
     Panel(Modifier.fillMaxWidth(), caption = "Obtaining", title = "얻는 법", accent = Sb.Green) {
         var any = false
-        d.upgrades[id]?.let { prev ->
+        if (grids.isNotEmpty()) {
             any = true
-            Label("이전 단계에서 업그레이드")
-            ItemLink(controller, state, prev)
+            Label(if (grids.size > 1) "조합법 ${grids.size}가지" else "조합법")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                grids.forEach { g -> CraftGridView(controller, state, g, id, slot) }
+            }
+        } else d.crafting[id]?.firstOrNull()?.let { r ->
+            // 위키에 칸 배치가 없는 조합법: 재료만
+            any = true
+            Label("제작 재료" + if (r.count > 1) " (한 번에 ${r.count}개)" else "")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                r.`in`.forEach { (k, q) -> ItemLink(controller, state, k, "${fixed(q, if (q % 1.0 == 0.0) 0 else 1)}×") }
+            }
+        }
+        forgeRecipe?.let { f ->
+            any = true
+            Label("포지 (The Forge) · ${formatDuration(f.sec * 1000)}" + if (f.coins > 0) " · ${formatCoins(f.coins)} 코인" else "")
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                f.`in`.forEach { (k, q) -> ItemLink(controller, state, k, "${fixed(q, if (q % 1.0 == 0.0) 0 else 1)}×") }
+            }
         }
         d.npcBuy[id]?.let { b ->
             any = true
@@ -252,19 +313,10 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
             }
             if (b.cost.isNotBlank()) Text("필요: ${b.cost}", style = SbText.body(13, Sb.TextDim))
         }
-        d.crafting[id]?.firstOrNull()?.let { r ->
+        d.upgrades[id]?.let { prev ->
             any = true
-            Label("제작" + if (r.count > 1) " (한 번에 ${r.count}개)" else "")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                r.`in`.forEach { (k, q) -> ItemLink(controller, state, k, "${fixed(q, if (q % 1.0 == 0.0) 0 else 1)}×") }
-            }
-        }
-        d.forge[id]?.firstOrNull()?.let { f ->
-            any = true
-            Label("포지 · ${formatDuration(f.sec * 1000)} · HotM ${f.hotm}" + if (f.coins > 0) " · ${formatCoins(f.coins)} 코인" else "")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                f.`in`.forEach { (k, q) -> ItemLink(controller, state, k, "${fixed(q, if (q % 1.0 == 0.0) 0 else 1)}×") }
-            }
+            Label("이전 단계에서 업그레이드")
+            ItemLink(controller, state, prev)
         }
         d.sources.drops[id]?.let { mobs ->
             any = true
@@ -281,19 +333,23 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
         d.accessories.firstOrNull { it.id == id }?.let { a ->
             if (a.source.isNotBlank()) { any = true; Label("장신구 · ${a.category}"); Text(a.source, style = SbText.body(13, Sb.TextDim)) }
         }
+        // 위키 본문의 얻는 법 (조합법·제작 트리처럼 위에서 그린 절은 뺀다)
         val wikiObtain = blocks != null && hasSections(blocks, OBTAINING_SECTIONS)
         if (wikiObtain) {
-            Label("위키 설명")
-            WikiBlocks(controller, blocks!!, sections = OBTAINING_SECTIONS, max = 60)
+            Spacer(Modifier.height(6.dp))
+            WikiBlocks(controller, blocks!!, sections = OBTAINING_SECTIONS, max = 60, skipSubsections = DRAWN_SUBSECTIONS, page = page)
         }
         if (!any && !wikiObtain) Text("위키에 얻는 법 정보가 없어요.", style = SbText.body(13, Sb.TextFaint))
     }
 
-    // 쓰이는 곳 + 다음 단계
-    val used = index.usedIn[id].orEmpty()
+    // 쓰이는 곳: 다음 단계 → 이 아이템이 들어가는 조합대 → 포지 → 위키 본문
+    val gridUses = index.gridUses[id].orEmpty()
+    val forgeUses = index.forgeUses[id].orEmpty()
+    val gridOutputs = gridUses.map { it.first }.toSet()
+    val otherUses = index.usedIn[id].orEmpty().filter { it !in gridOutputs && it !in forgeUses }
     val next = index.nextUpgrades[id].orEmpty()
     val wikiUsage = blocks != null && hasSections(blocks, USAGE_SECTIONS)
-    if (used.isNotEmpty() || next.isNotEmpty() || wikiUsage) {
+    if (gridUses.isNotEmpty() || forgeUses.isNotEmpty() || otherUses.isNotEmpty() || next.isNotEmpty() || wikiUsage) {
         Panel(Modifier.fillMaxWidth(), caption = "Usage", title = "쓰이는 곳", accent = Sb.Aqua) {
             if (next.isNotEmpty()) {
                 Label("다음 단계로 업그레이드")
@@ -301,24 +357,45 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
                     next.forEach { ItemLink(controller, state, it) }
                 }
             }
-            if (used.isNotEmpty()) {
-                Label("재료로 쓰여요 (${used.size}개)")
+            if (gridUses.isNotEmpty()) {
+                var all by remember(id) { mutableStateOf(false) }
+                val limit = if (wide) 12 else 6
+                Label("이 아이템이 들어가는 조합법 ${gridUses.size}개 (금색 칸이 이 아이템)")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    (if (all) gridUses.take(120) else gridUses.take(limit)).forEach { (out, g) ->
+                        CraftGridView(controller, state, g, out, if (wide) 34.dp else 30.dp, highlight = id, showOutputName = true)
+                    }
+                }
+                if (gridUses.size > limit) {
+                    Spacer(Modifier.height(6.dp))
+                    SbButton(if (all) "접기" else "${gridUses.size - limit}개 더 보기", { all = !all }, outlined = true)
+                }
+            }
+            if (forgeUses.isNotEmpty()) {
+                Label("포지 재료로 (${forgeUses.size}개)")
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    used.take(80).forEach { ItemLink(controller, state, it) }
+                    forgeUses.take(60).forEach { ItemLink(controller, state, it) }
+                }
+            }
+            if (otherUses.isNotEmpty()) {
+                Label("그 밖의 재료로 (${otherUses.size}개)")
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    otherUses.take(60).forEach { ItemLink(controller, state, it) }
                 }
             }
             if (wikiUsage) {
-                Label("위키 설명")
-                WikiBlocks(controller, blocks!!, sections = USAGE_SECTIONS, max = 60)
+                Spacer(Modifier.height(6.dp))
+                WikiBlocks(controller, blocks!!, sections = USAGE_SECTIONS, max = 60, skipSubsections = DRAWN_SUBSECTIONS, page = page)
             }
         }
     }
 
     // 위키 설명 (링크를 누르면 그 문서/아이템으로)
-    Panel(Modifier.fillMaxWidth().widthIn(max = 1100.dp), caption = "Wiki", title = "위키 설명", accent = Sb.TextDim) {
+    Panel(Modifier.fillMaxWidth().widthIn(max = 1100.dp), caption = "Wiki", title = "위키 설명", accent = Sb.TextDim,
+        trailing = { TranslateButton(controller, page, blocks) }) {
         when {
             // 얻는 법·쓰이는 곳은 위 칸에 나눠 넣었으므로 여기서는 뺀다
-            blocks != null -> WikiBlocks(controller, blocks, max = 120, exclude = OBTAINING_SECTIONS + USAGE_SECTIONS)
+            blocks != null -> WikiBlocks(controller, blocks, max = 120, exclude = OBTAINING_SECTIONS + USAGE_SECTIONS, page = page)
             WikiPages.errors[page] != null -> Text("위키 문서가 없거나 불러오지 못했어요.", style = SbText.body(13, Sb.TextFaint))
             else -> Text("공식 위키에서 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }
@@ -338,13 +415,18 @@ private fun PagePanel(controller: AppController, title: String) {
     val platform = LocalPlatform.current
     val blocks = rememberWikiPage(controller, title)
     Panel(Modifier.fillMaxWidth(), caption = "Wiki", title = title, accent = Sb.Aqua,
-        trailing = { SbButton("위키에서 보기", { platform.openUrl(WikiApi.pageUrl(title)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua) }) {
+        trailing = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TranslateButton(controller, title, blocks)
+                SbButton("위키에서 보기", { platform.openUrl(WikiApi.pageUrl(title)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua)
+            }
+        }) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             PixelIcon(WikiIcons.url(title), title, null, 48.dp)
         }
         Spacer(Modifier.height(8.dp))
         when {
-            blocks != null -> WikiBlocks(controller, blocks, max = 160)
+            blocks != null -> WikiBlocks(controller, blocks, max = 160, page = title)
             WikiPages.errors[title] != null -> Text("⚠ ${WikiPages.errors[title]}", style = SbText.body(13, Sb.Negative))
             else -> Text("공식 위키에서 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }

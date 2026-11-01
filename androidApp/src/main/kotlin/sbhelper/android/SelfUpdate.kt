@@ -53,20 +53,63 @@ class AndroidUpdater(private val context: Context) : InAppUpdater {
     /** 받아 둔 APK 설치. 설치가 끝나면 Android 가 앱을 닫고, 새 버전이 다시 열린다 */
     override fun restart() {
         val v = stagedVersion ?: return
-        val f = File(dir, "$v.apk")
-        SelfUpdate.status.value = "새 버전 $v 을 설치하는 중이에요. 잠시 후 앱이 다시 열려요."
-        if (!SelfUpdate.install(context, f)) SelfUpdate.status.value = "⚠ 설치를 시작하지 못했어요. Releases 페이지에서 직접 받아 주세요."
+        SelfUpdate.start(context, File(dir, "$v.apk"), v)
     }
 }
 
 object SelfUpdate {
     private const val ACTION_STATUS = "sbhelper.android.UPDATE_STATUS"
+    private const val PREFS = "self_update"
 
     /** 화면에 보여 줄 설치 진행·실패 안내 */
     val status = MutableStateFlow<String?>(null)
 
+    /** Android 확인 화면 (앱 화면이 떠 있으면 거기서 연다. 백그라운드에서 띄우면 일부 휴대폰이 '취소'로 처리함) */
+    val confirm = MutableStateFlow<Intent?>(null)
+
+    /** "알 수 없는 앱 설치" 허용을 받으러 설정에 다녀오는 중인 APK (돌아오면 이어서 설치) */
+    var waitingForPermission: File? = null
+
+    /** 지난번 세션 설치가 취소됐으면 이번엔 Android 기본 설치 화면으로 */
+    private fun useIntentInstaller(context: Context) = context.getSharedPreferences(PREFS, 0).getBoolean("intent_installer", false)
+    fun setIntentInstaller(context: Context, on: Boolean) = context.getSharedPreferences(PREFS, 0).edit().putBoolean("intent_installer", on).apply()
+
+    /**
+     * 설치 시작: ① 설치 권한(알 수 없는 앱 설치)이 없으면 먼저 설정 화면으로 — 설치 도중에 허용하면 세션이 취소되기 때문
+     * ② 세션 설치(PackageInstaller) ③ 지난번에 취소됐으면 Android 기본 설치 화면(파일 열기)
+     */
+    fun start(context: Context, apk: File, version: String = apk.name.removeSuffix(".apk")) {
+        if (!apk.exists()) { status.value = "⚠ 받아 둔 파일이 없어요. 업데이트를 다시 받아 주세요."; return }
+        if (Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
+            waitingForPermission = apk
+            status.value = "설치하려면 이 앱의 '알 수 없는 앱 설치'를 허용해 주세요. 허용하고 돌아오면 바로 설치해요."
+            runCatching {
+                context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    android.net.Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            return
+        }
+        status.value = "새 버전 $version 을 설치하는 중이에요. 잠시 후 앱이 다시 열려요."
+        val ok = if (useIntentInstaller(context)) installWithIntent(context, apk) else install(context, apk)
+        if (!ok && !installWithIntent(context, apk)) status.value = "⚠ 설치를 시작하지 못했어요. Releases 페이지에서 직접 받아 주세요."
+    }
+
+    /** Android 기본 설치 화면으로 APK 열기 (세션 방식이 막히는 휴대폰용) */
+    fun installWithIntent(context: Context, apk: File): Boolean = runCatching {
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".updates", apk)
+        @Suppress("DEPRECATION")
+        val i = Intent(Intent.ACTION_INSTALL_PACKAGE).setDataAndType(uri, "application/vnd.android.package-archive")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+        context.startActivity(i)
+        status.value = "Android 설치 화면에서 '업데이트'를 눌러 주세요. 설치가 끝나면 앱이 다시 열려요."
+        true
+    }.getOrDefault(false)
+
     fun install(context: Context, apk: File): Boolean = runCatching {
         val installer = context.packageManager.packageInstaller
+        // 지난번에 끝나지 않은 설치 세션은 정리 (여러 개가 겹치면 서로 취소될 수 있음)
+        installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
             setAppPackageName(context.packageName)
             setSize(apk.length())
@@ -130,14 +173,18 @@ class UpdateStatusReceiver : BroadcastReceiver() {
         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
-                // Android 가 한 번 확인을 묻는 경우 (처음 업데이트, Android 11 이하 등)
+                // Android 가 한 번 확인을 묻는 경우 (처음 업데이트, 다른 앱으로 설치했던 경우 등)
                 @Suppress("DEPRECATION")
                 val confirm = if (Build.VERSION.SDK_INT >= 33) intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java)
                 else intent.getParcelableExtra(Intent.EXTRA_INTENT)
                 SelfUpdate.status.value = "설치 확인 화면에서 '업데이트'를 눌러 주세요."
-                confirm?.let { runCatching { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                if (confirm != null) {
+                    // 앱 화면이 떠 있으면 화면이 연다 (같은 작업 안에서). 화면이 없으면 여기서 새 작업으로
+                    if (MainActivity.resumed) SelfUpdate.confirm.value = confirm
+                    else runCatching { context.startActivity(confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
             }
-            PackageInstaller.STATUS_SUCCESS -> SelfUpdate.status.value = "설치 완료! 앱을 다시 여는 중이에요."
+            PackageInstaller.STATUS_SUCCESS -> { SelfUpdate.setIntentInstaller(context, false); SelfUpdate.status.value = "설치 완료! 앱을 다시 여는 중이에요." }
             PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE -> {
                 val apk = intent.getStringExtra("apk")?.let(::File)
                 val saved = apk != null && apk.exists() && SelfUpdate.saveToDownloads(context, apk)
@@ -146,7 +193,12 @@ class UpdateStatusReceiver : BroadcastReceiver() {
                 SelfUpdate.status.value = "⚠ $text"
                 SelfUpdate.notify(context, "업데이트를 설치하지 못했어요", text)
             }
-            PackageInstaller.STATUS_FAILURE_ABORTED -> SelfUpdate.status.value = "업데이트 설치를 취소했어요. 다시 시작 버튼으로 언제든 설치할 수 있어요."
+            PackageInstaller.STATUS_FAILURE_ABORTED -> {
+                // '업데이트'를 눌렀는데도 취소로 오는 휴대폰이 있다 → 다음 번엔 Android 기본 설치 화면으로
+                SelfUpdate.setIntentInstaller(context, true)
+                SelfUpdate.status.value = "설치가 취소됐어요" + (if (msg.isNotBlank()) " ($msg)" else "") +
+                    ". 다시 시작 버튼을 한 번 더 누르면 Android 기본 설치 화면으로 설치해요."
+            }
             PackageInstaller.STATUS_FAILURE_STORAGE -> SelfUpdate.status.value = "⚠ 저장 공간이 부족해서 설치하지 못했어요."
             else -> SelfUpdate.status.value = "⚠ 설치하지 못했어요 ($status${if (msg.isNotBlank()) ": $msg" else ""})"
         }

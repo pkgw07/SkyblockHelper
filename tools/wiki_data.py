@@ -199,6 +199,63 @@ def crafting(ids):
     return out
 
 
+def craft_grids(ids):
+    """위키 조합대 칸 배치 (Bucket:Crafting recipes): 결과 ID → [{g: 9칸(칸마다 대체 재료 목록), c: 결과 개수, r: 제작 조건, e: 강화 조합}]"""
+    slots = ["A1", "B1", "C1", "A2", "B2", "C2", "A3", "B3", "C3"]
+
+    def name_amount(text):
+        parts = [p.strip() for p in text.split(",")]
+        name = clean(parts[0]) if parts else ""
+        amount = 1
+        for p in parts[1:]:
+            if re.fullmatch(r"\d+", p):
+                amount = int(p)
+                break
+        return name, amount
+
+    out = {}
+    for row in bucket("bucket('crafting_recipes').select('page_name','json').limit(10000).run()"):
+        try:
+            j = json.loads(row["json"])
+        except ValueError:
+            continue
+        if j.get("legacy"):
+            continue
+        output = j.get("Output") or j.get("output") or ""
+        if not isinstance(output, str) or not output.strip():
+            continue
+        enchanted = bool(j.get("enchantedRecipe"))
+        out_name, out_count = name_amount(output.split(";")[0])
+        if not out_name:
+            continue
+        grid = []
+        for k in slots:
+            v = j.get(k)
+            cell = []
+            if isinstance(v, str) and v.strip():
+                # 강화 조합: ';' 는 번갈아 보이는 배치 → 첫 배치만. 일반: ';' 는 대체 재료
+                choices = [v.split(";")[0]] if enchanted else v.split(";")
+                for c in choices:
+                    if c.strip():
+                        n, a = name_amount(c)
+                        if n:
+                            cell.append({"i": ids.id(n), "n": a})
+            grid.append(cell)
+        if not any(grid):
+            continue
+        req = j.get("requirement")
+        req = req if isinstance(req, str) else ""
+        req = re.sub(r"</?code>", "", req.replace("&nbsp;", " ")).strip()
+        entry = {"g": grid, "c": out_count, "r": req, "e": enchanted}
+        lst = out.setdefault(ids.id(out_name), [])
+        if entry not in lst:
+            lst.append(entry)
+    PAGES_USED.append({"page": "Bucket:Crafting recipes", "revid": None})
+    if len(out) < 500:
+        raise RuntimeError(f"crafting grids look wrong ({len(out)} items)")
+    return out
+
+
 def duration_seconds(text):
     t = clean(text).lower()
     total = 0
@@ -821,6 +878,7 @@ def main(out_path):
             "generated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         },
         "crafting": crafting(ids),
+        "craftGrids": craft_grids(ids),
         "forge": forge(ids),
         "leveling": leveling(),
         "events": events(),

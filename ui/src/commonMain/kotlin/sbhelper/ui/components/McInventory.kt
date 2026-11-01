@@ -2,6 +2,7 @@ package sbhelper.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -267,6 +268,41 @@ fun McSlot(state: AppState, item: SbItem?, size: Dp, onHover: (Boolean) -> Unit 
                 Text("${item.count}", Modifier.align(Alignment.BottomEnd).padding(end = 2.dp),
                     style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 12.sp,
                         color = Color.White, fontWeight = FontWeight.Bold))
+            }
+        }
+    }
+}
+
+/**
+ * 아이템 ID 로 그리는 칸 (조합대 등). [ids] 가 여러 개면 "이 중 하나" — 위키처럼 번갈아 보여 준다.
+ * @param highlight 금색 테두리 (지금 보고 있는 아이템이 들어간 칸)
+ */
+@Composable
+fun McIdSlot(state: AppState, ids: List<String>, count: Int, size: Dp, highlight: Boolean = false, onClick: ((String) -> Unit)? = null) {
+    var index by remember(ids) { mutableStateOf(0) }
+    if (ids.size > 1) {
+        androidx.compose.runtime.LaunchedEffect(ids) {
+            while (true) { kotlinx.coroutines.delay(1_400); index = (index + 1) % ids.size }
+        }
+    }
+    val id = ids.getOrNull(index)
+    Box(
+        Modifier.size(size).background(SlotBg).bevel(SlotDark, GuiLight, 2.dp)
+            .let { if (highlight) it.border(2.dp, Color(0xFFFFAA00)) else it }
+            .let { m -> if (onClick != null && id != null) m.clickable { onClick(id) } else m },
+        contentAlignment = Alignment.Center,
+    ) {
+        if (id != null) {
+            ItemIcon(state, id, size - 8.dp)
+            if (count > 1) {
+                Text("$count", Modifier.align(Alignment.BottomEnd).padding(end = 2.dp),
+                    style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 12.sp,
+                        color = Color.White, fontWeight = FontWeight.Bold,
+                        shadow = androidx.compose.ui.graphics.Shadow(Color(0xFF3F3F3F), Offset(2f, 2f))))
+            }
+            if (ids.size > 1) {
+                Text("${index + 1}/${ids.size}", Modifier.align(Alignment.TopStart).padding(start = 2.dp),
+                    style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 9.sp, color = Color(0xFFFFFF55)))
             }
         }
     }

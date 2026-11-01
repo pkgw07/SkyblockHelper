@@ -27,7 +27,11 @@ import sbhelper.ui.SkyblockApp
 import sbhelper.ui.UpdateFlow
 
 class MainActivity : ComponentActivity() {
-    companion object { const val EXTRA_TARGET = "sbhelper.target" }
+    companion object {
+        const val EXTRA_TARGET = "sbhelper.target"
+        /** 앱 화면이 지금 앞에 떠 있는지 (설치 확인 화면을 어디서 띄울지 정할 때) */
+        @Volatile var resumed = false
+    }
 
     private val app get() = application as SbApplication
     private lateinit var controller: AppController
@@ -65,7 +69,8 @@ class MainActivity : ComponentActivity() {
         override val inAppUpdater: sbhelper.ui.InAppUpdater by lazy { AndroidUpdater(this@MainActivity) }
         override fun installUpdate(bytes: ByteArray, fileName: String): Boolean {
             val f = java.io.File(java.io.File(cacheDir, "updates").apply { mkdirs() }, fileName).apply { writeBytes(bytes) }
-            return SelfUpdate.install(this@MainActivity, f)
+            SelfUpdate.start(this@MainActivity, f)
+            return true
         }
         override val scanPairingCode: ((onResult: (String) -> Unit) -> Unit) = { onResult ->
             scanCallback = onResult
@@ -99,8 +104,33 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
         // 설치 진행·실패 안내를 화면에
         lifecycleScope.launch { SelfUpdate.status.collect { msg -> if (msg != null) app.repo.setUpdateMessage(msg) } }
+        // Android 설치 확인 화면은 앱 화면에서 직접 연다 (백그라운드에서 띄우면 '취소'로 끝나는 휴대폰이 있음)
+        lifecycleScope.launch {
+            SelfUpdate.confirm.collect { i ->
+                if (i != null) {
+                    SelfUpdate.confirm.value = null
+                    runCatching { startActivity(i) }.onFailure { runCatching { startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                }
+            }
+        }
         // 받아 둔 업데이트가 있으면 "다시 시작" 안내
         platform.inAppUpdater.stagedVersion?.let { app.repo.setUpdateStaged(it) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        resumed = true
+        // '알 수 없는 앱 설치'를 허용하고 돌아왔으면 이어서 설치
+        val apk = SelfUpdate.waitingForPermission
+        if (apk != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
+            SelfUpdate.waitingForPermission = null
+            SelfUpdate.start(this, apk)
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        resumed = false
     }
 
     override fun onNewIntent(intent: Intent) {

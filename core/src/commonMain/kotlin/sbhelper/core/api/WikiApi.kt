@@ -175,7 +175,18 @@ object WikiText {
     private const val L3 = '\u0003'
     private val pageLink = Regex("""\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|([^\]]*))?]]""")
     /** {{Item|이름|amount=2}}, {{NPCSprite|이름}}, {{Zone|이름}} 처럼 문서로 이어지는 틀 */
-    private val linkTemplate = Regex("""\{\{(Item|NPCSprite|NPC|Zone|Mob|Pet|Skl|Skill|Coll)\|([^{}|]+)((?:\|[^{}]*)?)}}""", RegexOption.IGNORE_CASE)
+    private val linkTemplate = Regex("""\{\{(Item|ItemSprite|NPCSprite|NPC|Zone|ZoneSprite|Mob|MobSprite|Pet|PetSprite|Skl|Skill|Coll)\|([^{}|]+)((?:\|[^{}]*)?)}}""", RegexOption.IGNORE_CASE)
+    /** {{stat|fuel|3,000}} → "3,000 Fuel", {{Stat|ms}} → "Mining Speed" */
+    private val statTemplate = Regex("""\{\{stat\|([^{}|]+)(?:\|([^{}|]*))?(?:\|[^{}]*)?}}""", RegexOption.IGNORE_CASE)
+    /** 앱에서 따로 보여 주거나 의미 없는 틀 (제작 트리, 조합법 표 등) */
+    private val dropTemplate = Regex("""\{\{(DRL|RL|Crafting Usage|Recipe Tree|Forging Tree)(\|[^{}]*)?}}""", RegexOption.IGNORE_CASE)
+    private val STAT_NAMES = mapOf(
+        "ms" to "Mining Speed", "mnf" to "Mining Fortune", "mf" to "Magic Find", "cc" to "Crit Chance", "cd" to "Crit Damage",
+        "str" to "Strength", "def" to "Defense", "hp" to "Health", "int" to "Intelligence", "spd" to "Speed", "fer" to "Ferocity",
+        "as" to "Bonus Attack Speed", "bp" to "Breaking Power", "ff" to "Farming Fortune", "fof" to "Foraging Fortune",
+        "scc" to "Sea Creature Chance", "fs" to "Fishing Speed", "pp" to "Pristine", "hpr" to "Health Regen", "vit" to "Vitality",
+        "td" to "True Defense", "mend" to "Mending", "pet luck" to "Pet Luck", "abs" to "Ability Damage",
+    )
 
     /** 한 줄 정리: [[A|B]]→B, {{Green|10%}}→10%, 굵게 표시 제거 */
     fun inline(src: String): String = inlineLinks(src).first
@@ -184,12 +195,24 @@ object WikiText {
     fun inlineLinks(src: String): Pair<String, List<WikiLink>> {
         var t = ref.replace(src, "")
         t = file.replace(t, "")
+        t = dropTemplate.replace(t, "")
+        t = statTemplate.replace(t) { m ->
+            val key = m.groupValues[1].trim()
+            val stat = STAT_NAMES[key.lowercase()] ?: key.split(' ', '_').joinToString(" ") { it.replaceFirstChar(Char::uppercase) }
+            val value = m.groupValues[2].trim()
+            if (value.isEmpty()) stat else "$value $stat"
+        }
         t = linkTemplate.replace(t) { m ->
             val kind = m.groupValues[1].lowercase()
-            val target = m.groupValues[2].trim()
-            val amount = Regex("""amount=([\d,]+)""").find(m.groupValues[3])?.groupValues?.get(1)
+            // {{Mob|Enderman;Endermen}}: ';' 앞은 문서, 뒤는 보이는 글
+            val raw = m.groupValues[2].trim()
+            val target = raw.substringBefore(';').trim()
+            val params = m.groupValues[3]
+            val amount = Regex("""amount=([\d,]+)""").find(params)?.groupValues?.get(1)
+            val text = Regex("""\|\s*text\s*=\s*([^|]+)""").find(params)?.groupValues?.get(1)?.trim()
             val page = when (kind) { "skl", "skill" -> target.replace(Regex("""\s+\d+$"""), ""); "coll" -> target.replace(Regex("""\s+\d+$"""), ""); else -> target }
-            val shown = (if (amount != null) "$amount× " else "") + target
+            val label = text ?: raw.substringAfter(';', target).trim().ifBlank { target }
+            val shown = (if (amount != null) "$amount× " else "") + label
             "$L1$page$L2$shown$L3"
         }
         t = pageLink.replace(t) { m ->
@@ -236,6 +259,18 @@ object WikiText {
         return sb.toString() to links
     }
 
+    /** 줄 끝까지 닫히지 않는 첫 번째 "{{" 의 위치 (없으면 -1) */
+    private fun unclosedTemplateStart(line: String): Int {
+        val stack = ArrayDeque<Int>()
+        var i = 0
+        while (i < line.length - 1) {
+            if (line[i] == '{' && line[i + 1] == '{') { stack.addLast(i); i += 2; continue }
+            if (line[i] == '}' && line[i + 1] == '}') { if (stack.isNotEmpty()) stack.removeLast(); i += 2; continue }
+            i++
+        }
+        return stack.firstOrNull() ?: -1
+    }
+
     fun blocks(src: String): List<DocBlock> {
         val out = mutableListOf<DocBlock>()
         val paragraph = StringBuilder()
@@ -264,6 +299,16 @@ object WikiText {
             if (line.startsWith("{{") && !line.startsWith("{|")) {
                 val depth = Regex("""\{\{""").findAll(line).count() - Regex("""}}""").findAll(line).count()
                 if (depth > 0) { flush(); skipDepth = depth; continue }
+            }
+            // 문장 중간에서 시작해 다음 줄로 이어지는 틀: 앞부분 글만 쓰고 틀 안(|A1 = … 같은 줄)은 건너뛴다
+            if (!line.startsWith("{|") && !line.startsWith("|") && !line.startsWith("!")) {
+                val open = unclosedTemplateStart(line)
+                if (open > 0) {
+                    paragraph.append(line.substring(0, open)).append(' ')
+                    flush()
+                    skipDepth = Regex("""\{\{""").findAll(line.substring(open)).count() - Regex("""}}""").findAll(line.substring(open)).count()
+                    continue
+                }
             }
             when {
                 line.isEmpty() -> flush()

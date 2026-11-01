@@ -175,7 +175,7 @@ private fun ProfileHeader(controller: AppController, state: AppState, p: Profile
                 Text("활성 펫", style = SbText.caption())
                 Text(prettifyId(pet.type), style = SbText.body(14, McColors.rarity(pet.tier), FontWeight.SemiBold))
             }
-            p.fairySouls?.let { Text("요정 영혼 $it", style = SbText.pixel(12, Sb.Pink)) }
+            p.fairySouls?.let { Text("Fairy Souls $it", style = SbText.pixel(12, Sb.Pink)) }
         }
     }
 }

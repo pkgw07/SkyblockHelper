@@ -16,6 +16,8 @@ data class GameData(
     val source: Source = Source(),
     val names: Map<String, String> = emptyMap(),
     val crafting: Map<String, List<CraftRecipe>> = emptyMap(),
+    /** 위키와 같은 조합대 칸 배치 (결과 ID → 조합법들) */
+    val craftGrids: Map<String, List<CraftGrid>> = emptyMap(),
     val forge: Map<String, List<ForgeRecipe>> = emptyMap(),
     val leveling: Leveling = Leveling(),
     val events: List<WikiEvent> = emptyList(),
@@ -138,6 +140,13 @@ data class GameData(
 
     @Serializable
     data class CraftRecipe(val `in`: Map<String, Double>, val count: Int = 1)
+
+    /** 위키 조합대 배치 (Bucket:Crafting recipes). g = 칸 9개(A1..C3, 칸마다 '이 중 하나' 재료), c = 결과 개수, r = 제작 조건(위키 링크), e = 강화 조합 */
+    @Serializable
+    data class CraftGrid(val g: List<List<GridSlot>> = emptyList(), val c: Int = 1, val r: String = "", val e: Boolean = false)
+
+    @Serializable
+    data class GridSlot(val i: String, val n: Int = 1)
 
     @Serializable
     data class ForgeRecipe(
