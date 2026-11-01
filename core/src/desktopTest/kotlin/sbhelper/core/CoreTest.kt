@@ -231,7 +231,7 @@ class CoreTest {
         val blocks = sbhelper.core.api.WikiText.blocks("== ► New Bag ==\n* one\n** two\nhello [[A|b]]")
         assertEquals(sbhelper.core.api.DocBlock.Heading("New Bag", 1), blocks[0])
         assertEquals(sbhelper.core.api.DocBlock.Bullet("two", 2), blocks[2])
-        assertEquals(sbhelper.core.api.DocBlock.Paragraph("hello b"), blocks[3])
+        assertEquals(sbhelper.core.api.DocBlock.Paragraph("hello b", listOf(sbhelper.core.api.WikiLink(6, 7, "A"))), blocks[3])
     }
 
     @Test

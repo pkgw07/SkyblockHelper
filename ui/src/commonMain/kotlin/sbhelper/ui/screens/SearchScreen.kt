@@ -18,7 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Handyman
-import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -96,7 +96,7 @@ private fun SearchResults(controller: AppController, state: AppState, wide: Bool
     if (q.length < 2) {
         Panel(Modifier.fillMaxWidth()) {
             EmptyState("무엇이든 찾아보세요", "아이템을 고르면 얻는 법·쓰이는 곳·제작법을 보여 주고, 재료를 누르면 그 아이템으로 이어져요. " +
-                "마우스 뒤로 버튼(휴대폰은 뒤로 버튼)으로 돌아갈 수 있어요.", icon = Icons.Rounded.MenuBook)
+                "마우스 뒤로 버튼(휴대폰은 뒤로 버튼)으로 돌아갈 수 있어요.", icon = Icons.AutoMirrored.Rounded.MenuBook)
         }
         return
     }
