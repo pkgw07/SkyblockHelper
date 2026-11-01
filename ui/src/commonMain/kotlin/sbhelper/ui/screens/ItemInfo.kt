@@ -66,8 +66,8 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
             Line("NPC 구매", npc.npc + if (npc.coins > 0) " · ${formatCoins(npc.coins)}" else "", Sb.Yellow)
             if (npc.cost.isNotBlank()) Line("", npc.cost, Sb.Yellow)
         }
-        data.upgrades[id]?.let { Line("이전 단계", state.itemName(it), Sb.Aqua) }
         else if (acc?.npc != null) Line("NPC 구매", acc.npc + (acc.coins?.let { " · ${formatCoins(it)}" } ?: ""), Sb.Yellow)
+        data.upgrades[id]?.let { Line("이전 단계", state.itemName(it), Sb.Aqua) }
         if (acc != null && acc.source.isNotBlank() && acc.npc == null) Line("얻는 법", acc.source, Sb.Purple)
         data.forge[id]?.firstOrNull()?.let { f ->
             Line("포지", "${formatDuration(f.sec * 1000)} · HotM ${f.hotm}", Sb.Aqua)
