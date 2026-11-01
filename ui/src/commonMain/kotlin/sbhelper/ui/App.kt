@@ -573,7 +573,7 @@ private fun UpdateBanner(controller: AppController, state: AppState, platform: P
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(if (staged != null) (if (platform.isDesktop) "새 버전 $staged 준비 완료 — 다시 시작하면 바로 적용돼요"
-                else "새 버전 $staged 을 받았어요 — 설치하면 앱이 다시 열려요") else "새 버전 ${release?.version} 이 나왔어요",
+                else "새 버전 $staged 을 받았어요 — 설치하면 앱이 닫혔다가 알림으로 다시 열어요") else "새 버전 ${release?.version} 이 나왔어요",
                 style = SbText.body(13, weight = FontWeight.SemiBold))
             val msg = state.updateMessage
             if (msg != null && (staged == null || !platform.isDesktop)) Text(msg, style = SbText.body(12, if (msg.startsWith("⚠")) Sb.Negative else Sb.TextDim))
@@ -641,7 +641,7 @@ private fun UpdateReadyDialog(controller: AppController, state: AppState, platfo
         text = {
             Text(
                 if (platform.isDesktop) "새 버전 $staged 을 받았어요.\n지금 다시 시작하면 바로 적용돼요. (나중에 하면 다음에 켤 때 적용돼요)"
-                else "새 버전 $staged 을 받았어요.\n지금 설치할까요? 설치가 끝나면 앱이 다시 열려요.",
+                else "새 버전 $staged 을 받았어요.\n지금 설치할까요?\n\n• 처음 한 번은 '알 수 없는 앱 설치' 허용 화면이 떠요 → 허용하고 뒤로\n• Android 가 '업데이트할까요?' 물으면 '업데이트'\n• 설치하는 동안 앱이 닫혀요 → '업데이트 완료' 알림을 눌러 다시 열기",
                 style = SbText.body(14, Sb.TextDim),
             )
         },

@@ -109,7 +109,7 @@ object SelfUpdate {
             }
             return
         }
-        status.value = "새 버전 $version 을 설치하는 중이에요. 설치하는 동안 앱이 잠깐 닫혔다가 다시 열려요."
+        status.value = "새 버전 $version 을 설치하는 중이에요. 설치하는 동안 앱이 닫혀요 — 끝나면 '업데이트 완료' 알림을 눌러 다시 열어 주세요."
         val ok = if (useIntentInstaller(context)) installWithIntent(context, apk) else install(context, apk)
         if (!ok && !installWithIntent(context, apk)) status.value = "⚠ 설치를 시작하지 못했어요. Releases 페이지에서 직접 받아 주세요."
     }
@@ -151,7 +151,9 @@ object SelfUpdate {
     private fun channel(context: Context): NotificationManager {
         val nm = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= 26) {
-            nm.createNotificationChannel(NotificationChannel("updates", "앱 업데이트", NotificationManager.IMPORTANCE_DEFAULT))
+            // 완료 알림이 화면 위에 바로 뜨도록 높은 중요도 (예전 'updates' 채널은 중요도를 바꿀 수 없어 새 채널)
+            nm.createNotificationChannel(NotificationChannel("updates_high", "앱 업데이트", NotificationManager.IMPORTANCE_HIGH))
+            runCatching { nm.deleteNotificationChannel("updates") }
         }
         return nm
     }
@@ -160,7 +162,7 @@ object SelfUpdate {
         val open = PendingIntent.getActivity(context, 0,
             Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val n = NotificationCompat.Builder(context, "updates")
+        val n = NotificationCompat.Builder(context, "updates_high")
             .setSmallIcon(R.drawable.ic_stat_sb)
             .setContentTitle(title)
             .setContentText(text)
@@ -232,19 +234,9 @@ class PackageReplacedReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
         SelfUpdate.log("replaced -> v${AppInfo.VERSION}")
         val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        // 1) 바로 열기 (Android 10+ 는 백그라운드에서 막힐 수 있음)
+        // 1) 바로 열기 시도 (Android 10+ 는 백그라운드 화면 열기를 막음 — 에뮬레이터로 확인, 알람 방식도 막힘)
         runCatching { context.startActivity(open) }
-        // 2) 알람 시계 방식으로 1초 뒤 다시 열기 (백그라운드 화면 열기 제한의 예외)
-        runCatching {
-            val am = context.getSystemService(android.app.AlarmManager::class.java)
-            // Android 14+: 예약한 화면 열기에 '백그라운드에서 열어도 됨' 허락을 붙인다
-            val opts = if (Build.VERSION.SDK_INT >= 34) android.app.ActivityOptions.makeBasic()
-                .setPendingIntentCreatorBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle() else null
-            val pi = PendingIntent.getActivity(context, 9100, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT, opts)
-            if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms())
-                am.setAlarmClock(android.app.AlarmManager.AlarmClockInfo(System.currentTimeMillis() + 1_000, pi), pi)
-        }.onFailure { SelfUpdate.log("reopen alarm failed: ${it.message}") }
-        // 3) 그래도 안 열리면 알림을 눌러서
-        SelfUpdate.notify(context, "업데이트 완료 · v${AppInfo.VERSION}", "새 버전이 적용됐어요. 앱이 열리지 않았다면 눌러서 열어 주세요.")
+        // 2) 화면 위에 바로 뜨는 완료 알림 → 누르면 새 버전으로 열림
+        SelfUpdate.notify(context, "업데이트 완료 · v${AppInfo.VERSION}", "눌러서 새 버전을 열어요.")
     }
 }
