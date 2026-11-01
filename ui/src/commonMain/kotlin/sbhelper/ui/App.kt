@@ -144,6 +144,17 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     /** 테크트리: 고른 스킬 탭, 넓은 화면에서 정보창에 띄운 아이템 */
     var gearTab by mutableStateOf(0)
     var gearSelected by mutableStateOf<String?>(null)
+    /** 이스터에그: 화면에서 터지는 중인 Implosion */
+    val implosions = androidx.compose.runtime.mutableStateListOf<sbhelper.ui.components.Implosion>()
+    private var lastImplode = 0L
+    /** @return 터뜨렸으면 true (0.7초 안에 다시 누르면 무시) */
+    fun implode(at: androidx.compose.ui.geometry.Offset): Boolean {
+        val now = sbhelper.core.util.Clock.now()
+        if (now - lastImplode < 700) return false
+        lastImplode = now
+        implosions += sbhelper.ui.components.Implosion(now, at, (now % Int.MAX_VALUE).toInt())
+        return true
+    }
     /** 다른 플레이어 보기 (null = 내 프로필) */
     var viewing by mutableStateOf<sbhelper.core.ViewedPlayer?>(null)
     var viewingBusy by mutableStateOf(false)
@@ -255,9 +266,13 @@ fun SkyblockApp(
 ) {
     val state by controller.repo.state.collectAsState()
     SkyblockTheme(textScale = state.device.textScale, textWeight = state.device.fontWeight) {
+        val implode: (androidx.compose.ui.geometry.Offset) -> Unit = { p -> if (controller.implode(p) && state.device.alertSound) platform.playExplosion() }
         CompositionLocalProvider(LocalPlatform provides platform, LocalController provides controller,
+            sbhelper.ui.components.LocalImplode provides implode,
             sbhelper.ui.components.LocalIconPackVersion provides state.iconPackVersion,
             sbhelper.ui.screens.LocalContentWidth provides state.device.contentWidth) {
+            // 이스터에그 폭발이 화면 전체 위에 그려지도록 맨 바깥에서 감싼다
+            sbhelper.ui.components.ImplosionLayer(controller.implosions) {
             Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)
                 // 마우스 뒤로 버튼(MB4)으로 이전 화면
                 .pointerInput(Unit) {
@@ -294,6 +309,7 @@ fun SkyblockApp(
                     UpdateAvailableDialog(controller, state, platform)
                     UpdateReadyDialog(controller, state, platform)
                 }
+            }
             }
         }
     }

@@ -98,6 +98,14 @@ object IconResolver {
  */
 @Composable
 fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp, skinUrl: String? = null, id: String? = null) {
+    // 이스터에그: Hyperion 류 그림을 클릭하면 화면 전체 Implosion
+    if (id != null && id.uppercase() in IMPLODE_IDS) {
+        Box(Modifier.implodeOnClick(id)) { PixelIconInner(url, fallbackName, tier, size, skinUrl, id) }
+    } else PixelIconInner(url, fallbackName, tier, size, skinUrl, id)
+}
+
+@Composable
+private fun PixelIconInner(url: String, fallbackName: String, tier: String?, size: Dp, skinUrl: String?, id: String?) {
     // 1) 아이콘 묶음 (바로) 2) 위키 3) 위키 문서 대표 그림 4) 머리 스킨 얼굴 5) 글자 아이콘
     val packVersion = LocalIconPackVersion.current
     val packed = remember(id, fallbackName, packVersion) { ImageCache.fromPack(id, fallbackName) }

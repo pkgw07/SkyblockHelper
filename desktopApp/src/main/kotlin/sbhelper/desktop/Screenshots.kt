@@ -131,6 +131,19 @@ fun main(args: Array<String>) {
     shot("53-mobile-view-other-player", Screen.STATS, 412, 900)
     controller.viewing = null
     shot("54-profile-lookup-row", Screen.PROFILE)
+    // 이스터에그: Hyperion 그림 클릭 → 화면 전체 Implosion (터지는 중간 장면)
+    run {
+        repo.updateSynced { it.copy(selectedProfileId = "main") }
+        controller.go(Screen.SEARCH); controller.openItem("HYPERION")
+        val scene = ImageComposeScene(1320, 860, Density(1f)) { SkyblockApp(controller, platform) }
+        var t = 0L
+        repeat(10) { scene.render(t); t += 400_000_000L; Thread.sleep(200) }
+        controller.implode(androidx.compose.ui.geometry.Offset(160f, 180f))
+        repeat(3) { Thread.sleep(110); scene.render(t); t += 16_000_000L }
+        File(out, "55-easter-implosion.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+        println("saved 55-easter-implosion")
+    }
     repo.updateDevice { it.copy(contentWidth = 2) }
     controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
     repo.updateDevice { it.copy(contentWidth = 0) }

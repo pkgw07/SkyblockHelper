@@ -402,7 +402,7 @@ class SkyblockRepository(
     }
 
     /**
-     * 다른 플레이어 보기 (SkyCrypt 처럼): 닉네임 → 프로필·가든·박물관. 내 설정·알림은 바꾸지 않는다.
+     * 다른 플레이어 보기: 닉네임 → 프로필·가든·박물관. 내 설정·알림은 바꾸지 않는다.
      * @param profileId 그 사람의 프로필 중 볼 것 (null 이면 그 사람이 지금 쓰는 프로필)
      */
     suspend fun lookupPlayer(name: String, profileId: String? = null): ViewedPlayer {

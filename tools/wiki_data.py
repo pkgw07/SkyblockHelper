@@ -175,6 +175,16 @@ class Ids:
         found = self.by_name.get(name.lower())
         if found:
             return found
+        # 위키가 옛 이름을 쓰는 경우: 이름을 ID 모양으로 (예: "Fuel Tank" → FUEL_TANK = 지금 이름 "Fuel Canister")
+        guess = re.sub(r"[^A-Z0-9]+", "_", name.upper().replace("'", "")).strip("_")
+        if guess in self.names_by_id:
+            return guess
+        # 괄호로 구분한 변형 (예: "Bluetooth Ring (Outside)") → 괄호 앞 이름. 옛 아이템 "(Old)" 은 제외
+        m = re.match(r"^(.*?)\s*\((?!Old\))[^)]*\)$", name)
+        if m:
+            found = self.by_name.get(m.group(1).strip().lower())
+            if found:
+                return found
         key = "name:" + name
         self.names[key] = name
         return key
@@ -269,7 +279,7 @@ def forge(ids):
     out = {}
     for table in parse_tables(text):
         for row in table:
-            if len(row) < 6 or "{{BZC" not in row[5]:
+            if len(row) < 6 or not re.search(r"\{\{(BZC|Item|c)\|", row[5], re.I):
                 continue
             name_m = re.search(r"\[\[([^\]|]+)", row[1])
             if not name_m:
@@ -284,6 +294,16 @@ def forge(ids):
                 else:
                     k = ids.id(item)
                     mats[k] = mats.get(k, 0) + q
+            # 다른 형식: {{bzc|코인|1 재료}} (소문자), {{c|50m}} (코인)
+            for c, rest in re.findall(r"\{\{bzc\|([\d,]+)\|([^}]*)\}\}", row[5]):
+                coins += float(c.replace(",", ""))
+                for qty, item in re.findall(r"([\d,]+)\s+([^*}|]+)", rest):
+                    k = ids.id(item.strip())
+                    mats[k] = mats.get(k, 0) + float(qty.replace(",", ""))
+            for c in re.findall(r"\{\{c\|([\d.,]+\s*[kmb]?)\}\}", row[5], re.I):
+                v = c.replace(",", "").strip().lower()
+                mult = {"k": 1e3, "m": 1e6, "b": 1e9}.get(v[-1:], 1)
+                coins += float(v.rstrip("kmb")) * mult
             # 업그레이드 재료: {{BZC|...}} 밖의 {{Item|이전 아이템|amount=n}}
             outside = re.sub(r"\{\{BZC\|[^}]*\}\}", "", row[5])
             for it in re.finditer(r"\{\{Item\|([^|}]+)(?:\|amount=(\d+))?[^}]*\}\}", outside):

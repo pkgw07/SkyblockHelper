@@ -50,6 +50,8 @@ class DesktopPlatform : Platform {
         }, "open-url").apply { isDaemon = true }.start()
     }
 
+    override fun playExplosion() = Boom.play()
+
     override fun copyToClipboard(text: String) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)
     }

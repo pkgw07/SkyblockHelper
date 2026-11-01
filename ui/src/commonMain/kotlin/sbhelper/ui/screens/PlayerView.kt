@@ -59,7 +59,7 @@ private fun LookupRow(controller: AppController) {
     var name by remember { mutableStateOf("") }
     Row(verticalAlignment = Alignment.CenterVertically) {
         SbTextField(name, { name = it.filter { c -> c.isLetterOrDigit() || c == '_' }.take(16) }, Modifier.weight(1f),
-            "다른 플레이어 닉네임 (SkyCrypt 처럼 보기)", Icons.Rounded.PersonSearch)
+            "다른 플레이어 닉네임", Icons.Rounded.PersonSearch)
         Spacer(Modifier.width(8.dp))
         SbButton(if (controller.viewingBusy) "찾는 중…" else "보기", { controller.viewPlayer(name) }, outlined = true, color = Sb.Aqua)
     }
@@ -89,6 +89,5 @@ private fun ViewingBanner(controller: AppController, v: sbhelper.core.ViewedPlay
                 )
             }
         }
-        Text("읽기 전용이에요. 내 설정·알림·동기화는 바뀌지 않아요. ★ = 그 사람이 지금 쓰는 프로필.", style = SbText.body(11, Sb.TextFaint), modifier = Modifier.padding(top = 4.dp))
     }
 }
