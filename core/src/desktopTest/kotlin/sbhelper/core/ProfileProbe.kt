@@ -97,6 +97,11 @@ class ProfileProbe {
             val wk = mutableListOf<String>(); wardrobeKeys(p.mapKeys { it.key }.let { JsonObject(it) }, "profile", wk)
             report.appendLine("  아이템 위치(#$i): " + spots.joinToString(" | "))
             report.appendLine("  wardrobe 항목(#$i): " + wk.joinToString(" | ").ifEmpty { "없음" })
+            // loadout 안의 숫자가 아닌 항목 이름 (지금 입은 세트 위치 찾기)
+            val lo = me?.get("loadout") as? JsonObject
+            report.appendLine("  loadout 항목(#$i): " + (lo?.entries?.joinToString(" | ") { (k, v) ->
+                k + ((v as? JsonObject)?.keys?.filter { it.toIntOrNull() == null }?.let { if (it.isEmpty()) "" else "{" + it.joinToString(",") + "}" } ?: "=" + (if (v is JsonPrimitive) "값" else "?"))
+            } ?: "없음") + " · inventory.wardrobe_equipped_slot=" + ((me?.get("inventory") as? JsonObject)?.containsKey("wardrobe_equipped_slot") ?: false))
             report.appendLine("프로필 #$i selected=$selected 멤버 ${members?.size} 내 데이터 ${lines.size}줄 game_mode=${(p["game_mode"] as? JsonPrimitive)?.content ?: "normal"}")
             // 앱 파서가 찾은 것 (값 대신 개수·있음/없음)
             val parsed = sbhelper.core.model.ProfileParser.parse(p, uuid)

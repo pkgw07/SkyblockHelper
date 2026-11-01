@@ -252,7 +252,11 @@ object ProfileParser {
                 (o["armor_set_id"] as? JsonPrimitive)?.content?.toIntOrNull(), (o["equipment_set_id"] as? JsonPrimitive)?.content?.toIntOrNull())
         }?.sortedBy { it.id }.orEmpty()
         if (armor.isEmpty() && equipment.isEmpty()) return null
-        return Wardrobe(armor, equipment, lo.num("armor", "equipped_set")?.toInt(), lo.num("equipment", "equipped_set")?.toInt(), loadouts)
+        // 지금 입은 세트: 위치가 바뀌어 온 항목이라 여러 곳을 차례로 본다 (-1/0 = 안 입음)
+        val equippedArmor = (lo.num("armor", "equipped_set") ?: lo.num("equipped_armor_set") ?: lo.num("equipped_set")
+            ?: member.num("inventory", "wardrobe_equipped_slot"))?.toInt()?.takeIf { it > 0 }
+        val equippedEquipment = (lo.num("equipment", "equipped_set") ?: lo.num("equipped_equipment_set"))?.toInt()?.takeIf { it > 0 }
+        return Wardrobe(armor, equipment, equippedArmor, equippedEquipment, loadouts)
     }
 
     /** 스킬 트리 노드 (toggle_ 키 제외) */
