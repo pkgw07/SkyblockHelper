@@ -50,6 +50,9 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
             if (Patches.isBroken(version)) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
             // 자바 런타임이 바뀐 버전만 설치 파일로 (네이티브 파일은 아래에서 따로 받는다)
             if (javaMajor != Runtime.version().feature()) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
+            // 네이티브 파일 교체는 설치본의 시작 코드(Boot)가 지원할 때만 (1.4.1 이하 설치본은 설치 파일로)
+            val bootNative = System.getProperty(Patches.PROP_BOOT_FEATURES).orEmpty().split(',').contains("native")
+            if (nativeHash != nativeHash(app) && !bootNative) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
             val nativeEntry: String? = if (nativeHash == nativeHash(app)) null else {
                 val files = root["native"]?.jsonArray?.map { e ->
                     val o = e.jsonObject

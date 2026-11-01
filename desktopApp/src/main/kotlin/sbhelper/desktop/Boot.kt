@@ -23,6 +23,8 @@ object Boot {
 
         val bundled = bundledDir()
         if (bundled != null) System.setProperty(Patches.PROP_BUNDLED, bundled.absolutePath)
+        // 설치본의 시작 코드가 무엇을 지원하는지 (받아 둔 새 코드가 확인한다)
+        System.setProperty(Patches.PROP_BOOT_FEATURES, "native")
         val loader = if (bundled != null) runCatching { Patches.loader(bundled) }.getOrNull() else null
         if (loader != null) {
             val started = System.currentTimeMillis()
@@ -56,6 +58,8 @@ object Boot {
 object Patches {
     const val PROP_BUNDLED = "sbhelper.bundled.dir"
     const val PROP_RUNNING = "sbhelper.patch.version"
+    /** 설치본 Boot 가 지원하는 기능 (예: "native" = 네이티브 파일 교체). 1.4.1 이하는 없음 */
+    const val PROP_BOOT_FEATURES = "sbhelper.boot.features"
 
     fun dir(): File = File(AppDirs.dataDir(), "patch").apply { mkdirs() }
     fun jarsDir(): File = File(dir(), "jars").apply { mkdirs() }

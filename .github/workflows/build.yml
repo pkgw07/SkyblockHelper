@@ -196,37 +196,42 @@ jobs:
           INSTU="$(cygpath -u "$LOCALAPPDATA")/Programs/SkyblockHelper"
           INSTW="$(cygpath -w "$INSTU")"
           PATCH="$(cygpath -u "$APPDATA")/SkyblockHelper/patch"
-          # ---- 테스트 1: v1.4.1 설치본 → 이번 빌드를 앱 안 업데이트로 받고 다시 실행 (네이티브 파일 교체 포함)
-          curl -sfL -o old141.exe https://github.com/pkgw07/SkyblockHelper/releases/download/v1.4.1/SkyblockHelper-1.4.1.exe
-          ./old141.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART "/LOG=$(cygpath -w "$PWD/inst141.log")"; echo "install 1.4.1 rc=$?"
-          sleep 10; taskkill /F /IM SkyblockHelper.exe >/dev/null 2>&1; sleep 2
-          rm -rf "$PATCH"; mkdir -p up
-          cp desktopApp/build/installer/update-manifest.json desktopApp/build/installer/*-patch-*.zip up/
-          python - <<'PY'
-          import json, os, glob
+          stage() {  # $1 = 가짜 버전, $2 = 네이티브도 바뀐 것처럼(1/0), $3 = 설치본 Boot 기능
+            rm -rf "$PATCH" up; mkdir -p up
+            cp desktopApp/build/installer/update-manifest.json desktopApp/build/installer/*-patch-*.zip up/
+            python - "$1" "$2" <<'PY'
+          import json, os, glob, sys
           m = json.load(open("up/update-manifest.json")); old = m["version"]
-          m["version"] = "99.0.0"; m["nativeHash"] = "0" * 64   # 네이티브 파일도 바뀐 것처럼
+          m["version"] = sys.argv[1]
+          if sys.argv[2] == "1": m["nativeHash"] = "0" * 64
           json.dump(m, open("up/update-manifest.json", "w"))
-          for f in glob.glob("up/*-patch-*.zip"): os.rename(f, f.replace("-" + old + "-", "-99.0.0-"))
+          for f in glob.glob("up/*-patch-*.zip"): os.rename(f, f.replace("-" + old + "-", "-" + sys.argv[1] + "-"))
           PY
-          ./gradlew -q :desktopApp:updaterSelfTest "-PselfTestArgs=$INSTW\\app;$(cygpath -w "$PWD/up");$(cygpath -w "$PWD/selftest.txt")"
-          timeout 180 "$INSTU/SkyblockHelper.exe" "--smoke-test=$(cygpath -w "$PWD/t1.txt")"
-          r0=$(cat selftest.txt 2>/dev/null || echo "self-test 실패"); r1=$(cat t1.txt 2>/dev/null || echo "실행 안 됨")
-          echo "::notice title=Update test 1 (in-app)::$r0 → 실행 결과: $r1"
-          # ---- 테스트 2: 1.3.0 설치·실행 중 → 예전 앱처럼 새 설치 파일을 조용히 실행 (앱은 일부러 안 끔)
+            ./gradlew -q :desktopApp:updaterSelfTest "-PselfTestArgs=$INSTW\app;$(cygpath -w "$PWD/up");$(cygpath -w "$PWD/selftest.txt");$3"
+          }
+          smoke() { rm -f "$1"; timeout 180 "$INSTU/SkyblockHelper.exe" "--smoke-test=$(cygpath -w "$PWD/$1")"; cat "$1" 2>/dev/null || echo "실행 안 됨"; }
+          # ---- 테스트 1: v1.4.1 설치본 → 이번 빌드를 앱 안 업데이트로 (jar 만)
+          curl -sfL -o old141.exe https://github.com/pkgw07/SkyblockHelper/releases/download/v1.4.1/SkyblockHelper-1.4.1.exe
+          ./old141.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; sleep 10; taskkill /F /IM SkyblockHelper.exe >/dev/null 2>&1; sleep 2
+          stage 99.0.0 0 ""; r0=$(cat selftest.txt); r1=$(smoke t1.txt)
+          echo "::notice title=Update test 1 (1.4.1 설치본, 앱 안 업데이트)::$r0 → 실행: $r1"
+          # ---- 테스트 2: 1.3.0 을 켜 둔 채로, 예전 앱처럼 새 설치 파일을 조용히 실행 (앱은 일부러 안 끔)
           rm -rf "$PATCH"
           curl -sfL -o old130.exe https://github.com/pkgw07/SkyblockHelper/releases/download/v1.3.0/SkyblockHelper-1.3.0.exe
-          ./old130.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; echo "install 1.3.0 rc=$?"
-          sleep 25
+          ./old130.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; sleep 5; taskkill /F /IM SkyblockHelper.exe >/dev/null 2>&1; sleep 2
+          "$INSTU/SkyblockHelper.exe" & sleep 25
           running=$(tasklist | grep -ci skyblockhelper)
           "$NEW" /SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS "/LOG=$(cygpath -w "$PWD/up130.log")"; rc=$?
           rollback=$(grep -ci "rolling back\|rollback" up130.log)
-          sleep 10; taskkill /F /IM SkyblockHelper.exe >/dev/null 2>&1; sleep 2
-          timeout 180 "$INSTU/SkyblockHelper.exe" "--smoke-test=$(cygpath -w "$PWD/t2.txt")"
-          r2=$(cat t2.txt 2>/dev/null || echo "실행 안 됨")
-          echo "::notice title=Update test 2 (installer over running 1.3.0)::실행 중이던 앱 ${running}개, 설치 rc=$rc, 롤백 ${rollback}회, 설치 후 실행: $r2"
-          lt=$(tail -n 30 up130.log | tr '\r\n' '  |' | sed 's/%/%25/g'); echo "::notice title=Installer log tail::$lt"
-          echo "$r1" | grep -q "patch=99.0.0" && echo "$r2" | grep -q "^$V patch=none"
+          sleep 15; relaunched=$(tasklist | grep -ci skyblockhelper); taskkill /F /IM SkyblockHelper.exe >/dev/null 2>&1; sleep 2
+          r2=$(smoke t2.txt)
+          echo "::notice title=Update test 2 (켜져 있는 1.3.0 위에 설치)::실행 중이던 앱 ${running}개, 설치 rc=$rc, 롤백 ${rollback}회, 설치 후 자동 재실행 ${relaunched}개, 실행: $r2"
+          lt=$(grep -iE "PrepareToInstall|taskkill|Rolling|error|Exit code|Need to restart" up130.log | tail -n 15 | tr '\r\n' '  |' | sed 's/%/%25/g'); echo "::notice title=Installer log::$lt"
+          # ---- 테스트 3: 이번 설치본 → 네이티브 파일까지 바뀐 업데이트를 앱 안에서
+          stage 99.0.1 1 native; r3s=$(cat selftest.txt); r3=$(smoke t3.txt)
+          echo "::notice title=Update test 3 (네이티브 파일 교체)::$r3s → 실행: $r3"
+          rm -rf "$PATCH"
+          echo "$r1" | grep -q "patch=99.0.0" && echo "$r2" | grep -q "^$V patch=none" && echo "$r3" | grep -q "patch=99.0.1"
       - name: Report build errors as annotations
         if: failure()
         shell: bash

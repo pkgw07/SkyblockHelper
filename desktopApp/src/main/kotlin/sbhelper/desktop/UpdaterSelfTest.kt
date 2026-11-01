@@ -13,6 +13,8 @@ import java.io.File
 fun main(args: Array<String>) = runBlocking {
     val (installedApp, distDir, resultFile) = args
     System.setProperty(Patches.PROP_BUNDLED, installedApp)
+    // 설치본 Boot 의 기능 (CI 가 4번째 인자로 알려 줌: 1.4.1 설치본이면 빈 값)
+    System.setProperty(Patches.PROP_BOOT_FEATURES, args.getOrElse(3) { "" })
     val files = File(distDir).listFiles().orEmpty().filter { it.isFile }
     val manifest = sbhelper.core.api.SbJson.parseToJsonElement(File(distDir, DesktopUpdater.MANIFEST).readText())
     val version = (manifest as kotlinx.serialization.json.JsonObject)["version"].toString().trim('"')
