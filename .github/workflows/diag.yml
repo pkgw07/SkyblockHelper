@@ -1,0 +1,19 @@
+name: Diagnostics
+
+# 진단용 (수동 실행): 패치노트 번역을 실제로 해 보고 결과를 주석으로 남긴다
+on:
+  workflow_dispatch:
+
+jobs:
+  translate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Translate latest patch notes
+        shell: bash
+        run: |
+          LIVE_TRANSLATE=1 ./gradlew -q :core:desktopTest --tests '*TranslateDiag*' || true
+          while IFS= read -r line; do echo "::notice title=Translate diag::${line//%/%25}"; done < core/translate-diag.txt
