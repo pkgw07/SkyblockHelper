@@ -177,10 +177,10 @@ def main():
         if ok2 and d2 > 0:
             r.note(f"  참고: 두 번째 업데이트에서도 확인 창 {d2}개를 눌렀어요")
 
-    log = adb("logcat", "-d", "-s", "SbhUpdate:I", "SbhSelfTest:I", "PackageInstaller:*", "InstallStart:*", "AndroidRuntime:E").stdout
+    log = adb("logcat", "-d", "-s", "SbhUpdate:I", "SbhSelfTest:I", "PackageInstaller:*", "InstallStart:*", "AndroidRuntime:E", "ActivityTaskManager:W").stdout
     open(os.path.join(out, "logcat.txt"), "w").write(log)
     open(os.path.join(out, "result.txt"), "w").write(("성공" if ok_all else "실패") + "\n" + "\n".join(r.notes))
-    print("\n".join(l for l in log.splitlines() if "SbhUpdate" in l or "SbhSelfTest" in l or "FATAL" in l)[-4000:])
+    print("\n".join(l for l in log.splitlines() if "SbhUpdate" in l or "SbhSelfTest" in l or "FATAL" in l or "Background activity" in l or "BAL" in l)[-4000:])
     sys.exit(0 if ok_all else 1)
 
 

@@ -237,7 +237,10 @@ class PackageReplacedReceiver : BroadcastReceiver() {
         // 2) 알람 시계 방식으로 1초 뒤 다시 열기 (백그라운드 화면 열기 제한의 예외)
         runCatching {
             val am = context.getSystemService(android.app.AlarmManager::class.java)
-            val pi = PendingIntent.getActivity(context, 9100, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            // Android 14+: 예약한 화면 열기에 '백그라운드에서 열어도 됨' 허락을 붙인다
+            val opts = if (Build.VERSION.SDK_INT >= 34) android.app.ActivityOptions.makeBasic()
+                .setPendingIntentCreatorBackgroundActivityStartMode(android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle() else null
+            val pi = PendingIntent.getActivity(context, 9100, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT, opts)
             if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms())
                 am.setAlarmClock(android.app.AlarmManager.AlarmClockInfo(System.currentTimeMillis() + 1_000, pi), pi)
         }.onFailure { SelfUpdate.log("reopen alarm failed: ${it.message}") }
