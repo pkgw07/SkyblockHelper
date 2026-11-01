@@ -103,12 +103,13 @@ object SelfUpdate {
             setWaiting(context, apk)
             status.value = "설치하려면 이 앱의 '알 수 없는 앱 설치'를 허용해 주세요. 허용하고 돌아오면 바로 설치해요."
             runCatching {
-                context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                    android.net.Uri.parse("package:" + context.packageName)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                // 앱 화면 위에 연다 → 허용하고 '뒤로' 를 누르면 바로 앱으로 돌아와서 이어서 설치
+                val i = Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, android.net.Uri.parse("package:" + context.packageName))
+                if (context is android.app.Activity) context.startActivity(i) else context.startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             return
         }
-        status.value = "새 버전 $version 을 설치하는 중이에요. 잠시 후 앱이 다시 열려요."
+        status.value = "새 버전 $version 을 설치하는 중이에요. 설치하는 동안 앱이 잠깐 닫혔다가 다시 열려요."
         val ok = if (useIntentInstaller(context)) installWithIntent(context, apk) else install(context, apk)
         if (!ok && !installWithIntent(context, apk)) status.value = "⚠ 설치를 시작하지 못했어요. Releases 페이지에서 직접 받아 주세요."
     }
@@ -229,8 +230,18 @@ class UpdateStatusReceiver : BroadcastReceiver() {
 class PackageReplacedReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_MY_PACKAGE_REPLACED) return
-        // Android 10 이상은 백그라운드에서 화면을 여는 것을 막을 수 있어서, 알림도 함께 보낸다
-        runCatching { context.startActivity(Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        SelfUpdate.log("replaced -> v${AppInfo.VERSION}")
+        val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        // 1) 바로 열기 (Android 10+ 는 백그라운드에서 막힐 수 있음)
+        runCatching { context.startActivity(open) }
+        // 2) 알람 시계 방식으로 1초 뒤 다시 열기 (백그라운드 화면 열기 제한의 예외)
+        runCatching {
+            val am = context.getSystemService(android.app.AlarmManager::class.java)
+            val pi = PendingIntent.getActivity(context, 9100, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            if (Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms())
+                am.setAlarmClock(android.app.AlarmManager.AlarmClockInfo(System.currentTimeMillis() + 1_000, pi), pi)
+        }.onFailure { SelfUpdate.log("reopen alarm failed: ${it.message}") }
+        // 3) 그래도 안 열리면 알림을 눌러서
         SelfUpdate.notify(context, "업데이트 완료 · v${AppInfo.VERSION}", "새 버전이 적용됐어요. 앱이 열리지 않았다면 눌러서 열어 주세요.")
     }
 }

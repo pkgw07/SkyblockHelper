@@ -88,8 +88,15 @@ class Run:
             time.sleep(2)
             v = self.version()
             if v == expect:
-                self.shot(f"{label}-done")
                 self.note(f"  ✔ 버전 {v} 설치됨 ({int(time.time() - start)}초, 누른 확인 창 {dialogs}개)")
+                # 설치 뒤 앱이 다시 열렸는지, 완료 알림이 떴는지
+                time.sleep(6)
+                self.shot(f"{label}-done")
+                top = adb("shell", "dumpsys", "activity", "activities").stdout
+                resumed = re.search(r"(topResumedActivity|mResumedActivity|ResumedActivity)[^\n]*", top)
+                reopened = bool(resumed and PKG in resumed.group(0))
+                notif = PKG in adb("shell", "dumpsys", "notification", "--noredact").stdout
+                self.note(f"  {'✔' if reopened else '✘'} 설치 뒤 앱이 다시 열림  ·  {'✔' if notif else '✘'} 완료 알림")
                 return True, dialogs
             xml = self.ui()
             nodes = self.nodes(xml)
