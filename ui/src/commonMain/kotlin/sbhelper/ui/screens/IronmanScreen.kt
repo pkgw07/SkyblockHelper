@@ -80,8 +80,6 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
             2 -> MaterialSources(controller, state, wide)
             else -> SackValues(state, wide)
         }
-        Text("제작법·포지 시간: 공식 Hypixel SkyBlock 위키 (${state.gameData.source.generated} 기준, 매일 자동 갱신)",
-            style = SbText.body(11, Sb.TextFaint))
     }
 }
 
@@ -313,7 +311,7 @@ private fun CookieBanner(state: AppState) {
     ) {
         Text("🍪", style = SbText.body(18))
         Spacer(Modifier.width(10.dp))
-        Text("아이언맨도 바자에서 Booster Cookie 는 즉시 구매할 수 있어요 (공식 위키)", style = SbText.body(13, Sb.Text), modifier = Modifier.weight(1f))
+        Text("아이언맨도 바자에서 Booster Cookie 는 즉시 구매할 수 있어요", style = SbText.body(13, Sb.Text), modifier = Modifier.weight(1f))
         Text("현재 ${formatCoins(q.buyPrice)}", style = SbText.pixel(13, Sb.Gold, bold = true))
     }
 }
@@ -335,7 +333,7 @@ private fun IronmanGuide(controller: AppController, state: AppState, wide: Boole
         trailing = { Pill("$done / $total", Sb.Green) }) {
         XpBar(if (total == 0) 0.0 else done.toDouble() / total, Modifier.fillMaxWidth(), Sb.Green, 7.dp)
         Spacer(Modifier.height(6.dp))
-        Text("공식 위키 Ironman Guide 의 순서예요. ☐ 를 눌러 끝낸 항목을 표시하고, 이름을 누르면 제작법·드롭을 볼 수 있어요.",
+        Text("Ironman Guide 순서예요. ☐ 를 눌러 끝낸 항목을 표시하고, 이름을 누르면 제작법·드롭을 볼 수 있어요.",
             style = SbText.body(12, Sb.TextFaint))
     }
     stages.forEach { st ->

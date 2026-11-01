@@ -68,7 +68,7 @@ fun ProgressionScreen(controller: AppController, state: AppState, wide: Boolean)
         }
         val nodes = ProgressionPlanner.build(state.gameData, profile, state.skills)
         val picks = ProgressionPlanner.recommend(nodes)
-        Text("해금 조건은 모두 공식 위키 기준이에요. 내 프로필에서 거의 다 온 목표부터 추천해요.", style = SbText.body(13, Sb.TextFaint))
+        Text("내 프로필에서 거의 다 온 목표부터 추천해요.", style = SbText.body(13, Sb.TextFaint))
         RecommendRow(picks, wide)
         val tracks = Track.entries.map { t -> t to nodes.filter { it.track == t } }.filter { it.second.isNotEmpty() }
         tracks.chunked(if (wide) 2 else 1).forEach { row ->

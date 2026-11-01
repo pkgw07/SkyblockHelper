@@ -156,7 +156,7 @@ private fun EventDetail(controller: AppController, state: AppState, name: String
         when {
             blocks != null -> WikiBlocks(controller, blocks, max = 60)
             WikiPages.errors[page] != null -> Text("⚠ ${WikiPages.errors[page]}", style = SbText.body(13, Sb.Negative))
-            else -> Text("공식 위키에서 설명을 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
+            else -> Text("설명을 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }
     }
 }
@@ -170,7 +170,7 @@ private fun JacobPage(controller: AppController, state: AppState, now: Long, wid
     val contests = state.jacobCrops.entries.filter { it.key + 20 * 60_000L > now }.sortedBy { it.key }
     val allCrops = contests.flatMap { it.value }.distinct().sorted()
     Panel(Modifier.fillMaxWidth(), caption = "Jacob's Farming Contest", title = "예정 작물", accent = Sb.Green) {
-        Text("대회 시각은 공식 위키 일정, 작물은 비공식 출처(EliteBot, 농사 커뮤니티)예요. 작물을 누르면 그 작물이 나오는 대회만 보여요.",
+        Text("작물은 비공식 출처(EliteBot, 농사 커뮤니티)예요. 작물을 누르면 그 작물이 나오는 대회만 보여요.",
             style = SbText.body(12, Sb.TextFaint))
         if (!state.device.showContestCrops) {
             Spacer(Modifier.height(6.dp))

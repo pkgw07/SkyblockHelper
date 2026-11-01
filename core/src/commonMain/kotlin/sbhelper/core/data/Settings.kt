@@ -71,6 +71,10 @@ data class DeviceSettings(
     val notificationsOnThisDevice: Boolean = true,
     /** 알림이 뜰 때 소리 (PC: 차임 소리, 휴대폰: 소리 있는 알림) */
     val alertSound: Boolean = true,
+    /** 알림 소리 크기 0~100 */
+    val alertVolume: Int = 70,
+    /** 알림 소리 종류 (Synth.TONES 순서) */
+    val alertTone: Int = 0,
     /** 휴대폰: 앱이 꺼져 있어도 정해진 시각에 정확히 알림 (정확한 알람) */
     val phoneExactAlerts: Boolean = true,
     val pollMinutes: Int = 1,

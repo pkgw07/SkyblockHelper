@@ -65,6 +65,13 @@ class MainActivity : ComponentActivity() {
             BackgroundScheduler.apply(this@MainActivity, enabled)
         }
         override fun onAlertSettingsChanged() = AlertAlarm.reschedule(this@MainActivity)
+        override fun playSound(samples: ShortArray) = AndroidSound.play(samples)
+        override val canUninstall = true
+        /** Android 기본 '앱 삭제' 확인 창 (데이터도 함께 지워짐) */
+        override fun uninstall(removeData: Boolean): String? = runCatching {
+            startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")))
+            null
+        }.getOrElse { "삭제 화면을 열지 못했어요. 휴대폰 설정 → 애플리케이션에서 SkyblockHelper 를 지워 주세요." }
         override val updateAssetSuffix: String = ".apk"
         // 앱 안 업데이트: 받아 두고 → "지금 설치하고 다시 시작할까요?" → 설치
         override val inAppUpdater: sbhelper.ui.InAppUpdater by lazy { AndroidUpdater(this@MainActivity) }

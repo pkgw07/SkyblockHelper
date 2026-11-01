@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -239,7 +240,7 @@ private fun TreePanel(
 @Composable
 private fun TreeGrid(layout: List<GameData.HotmCell>, levels: Map<String, Int>, unmatched: Map<String, Int>, noData: Boolean,
                      wikiName: String, wide: Boolean) {
-    Text("칸 배치와 설명은 공식 위키($wikiName) 기준이에요. 칸에 마우스를 올리면(휴대폰은 누르면) 설명이 떠요.",
+    Text("칸에 마우스를 올리면(휴대폰은 누르면) 설명이 떠요.",
         style = SbText.body(12, Sb.TextFaint))
     Spacer(Modifier.height(12.dp))
     if (layout.isEmpty()) {
@@ -383,7 +384,7 @@ private fun BestiaryTab(state: AppState, p: ProfileSummary) {
     val q = query.trim()
     Panel(Modifier.fillMaxWidth(), caption = "Bestiary · Wiki",
         title = "도감 — 최대 ${entries.count { it.maxed }}/${entries.size} · 단계 합 ${entries.sumOf { it.tier }}", accent = Sb.Red) {
-        Text("지역을 누르면 그 지역 몹이 펼쳐져요. 몹 목록과 단계는 공식 위키, 처치 수는 공식 API 기준이에요.", style = SbText.body(12, Sb.TextFaint))
+        Text("지역을 누르면 그 지역 몹이 펼쳐져요.", style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(8.dp))
         SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "몹·지역 검색", Icons.Rounded.Search)
         Spacer(Modifier.height(10.dp))
@@ -405,7 +406,7 @@ private fun BestiaryTab(state: AppState, p: ProfileSummary) {
     areas.forEach { (area, list) ->
         val hits = if (q.isEmpty()) list else list.filter { it.family.contains(q, true) || area.contains(q, true) }
         if (hits.isEmpty() || (q.isEmpty() && open != area)) return@forEach
-        Panel(Modifier.fillMaxWidth(), title = area, accent = Sb.Red) {
+        Panel(Modifier.fillMaxWidth().scrollHereWhen(open == area && q.isEmpty(), area), title = area, accent = Sb.Red) {
             TileFlow(165.dp, 8.dp) {
                 hits.forEach { e ->
                     ItemTile(e.family, if (e.maxed) "MAX" else "${e.tier}/${e.maxTier}",
@@ -455,7 +456,7 @@ private fun CollectionsTab(state: AppState, p: ProfileSummary) {
     cats.forEach { (cat, items) ->
         val hits = if (q.isEmpty()) items else items.filter { it.name.contains(q, true) || cat.contains(q, true) }
         if (hits.isEmpty() || (q.isEmpty() && open != cat)) return@forEach
-        Panel(Modifier.fillMaxWidth(), title = nice(cat), accent = Sb.Yellow) {
+        Panel(Modifier.fillMaxWidth().scrollHereWhen(open == cat && q.isEmpty(), cat), title = nice(cat), accent = Sb.Yellow) {
             TileFlow(165.dp, 8.dp) {
                 hits.forEach { c ->
                     ItemTile(c.name, if (c.maxed) "MAX" else toRomanStats(c.tier),
@@ -492,7 +493,7 @@ private fun MinionsTab(state: AppState, p: ProfileSummary) {
     }
     val slotsTiers = list.sumOf { it.tiers.size }
     Panel(Modifier.fillMaxWidth(), caption = "Crafted minions", title = "만든 미니언 — ${list.count { it.highest > 0 }}종 · 단계 합 $slotsTiers", accent = Sb.Yellow) {
-        Text("만든 미니언 단계 수가 많을수록 미니언 칸이 늘어나요. 흐린 것은 아직 안 만든 미니언이에요 (목록: 공식 위키).",
+        Text("만든 미니언 단계 수가 많을수록 미니언 칸이 늘어나요. 흐린 것은 아직 안 만든 미니언이에요.",
             style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(10.dp))
         TileFlow(190.dp, 8.dp) {
@@ -624,8 +625,6 @@ private fun OverviewTab(state: AppState, p: ProfileSummary, d: sbhelper.core.cal
             d.firstJoin?.let { StatTile("처음 시작", localTime(it, true).substringBefore(' '), color = Sb.TextDim) }
         }
         Spacer(Modifier.height(8.dp))
-        Text("스카이블록 레벨 = SkyBlock XP ÷ ${state.gameData.timerRules.skyblockXpPerLevel} (위키 SkyBlock Levels). 나머지는 공식 프로필 API 값이에요.",
-            style = SbText.body(12, Sb.TextFaint))
     }
 }
 
@@ -634,7 +633,7 @@ private fun OverviewTab(state: AppState, p: ProfileSummary, d: sbhelper.core.cal
 private fun PetsTab(controller: AppController, state: AppState, d: sbhelper.core.calc.ProfileDetails?) {
     if (d == null) { NoDetails(); return }
     Panel(Modifier.fillMaxWidth(), caption = "Pets", title = "펫 ${d.pets.size}마리" + (d.petScore?.let { " · 펫 점수 $it" } ?: ""), accent = Sb.Green) {
-        Text("레벨은 위키 펫 레벨표(Module:Pet/LevelingData)로 계산해요. 펫을 누르면 위키 정보로 가요.", style = SbText.body(12, Sb.TextFaint))
+        Text("펫을 누르면 위키 정보로 가요.", style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(10.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             d.pets.forEach { pet ->
@@ -757,8 +756,6 @@ private fun GardenTab(state: AppState, d: sbhelper.core.calc.ProfileDetails?) {
             Text("작물 업그레이드", style = SbText.caption(Sb.TextDim))
             d.cropUpgrades.forEach { (crop, lv) -> InfoRow(EventLabels.crop(cropName(crop)) + " (" + cropName(crop) + ")", "Lv $lv") }
         }
-        Spacer(Modifier.height(6.dp))
-        Text("가든 레벨은 위키 The Garden 레벨표로 계산해요.", style = SbText.body(12, Sb.TextFaint))
     }
     Panel(Modifier.fillMaxWidth(), caption = "Jacob's Contest", title = "제이콥 농사대회", accent = Sb.Gold) {
         FlowRow2 {
@@ -871,3 +868,18 @@ private fun MiscStatsTab(d: sbhelper.core.calc.ProfileDetails?) {
         }
     }
 }
+
+/** 카테고리를 눌러 아래에 펼쳤을 때: 펼친 패널이 보이도록 부드럽게 스크롤 (순간이동 아님) */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.scrollHereWhen(active: Boolean, key: String): Modifier {
+    val requester = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    LaunchedEffect(active, key) {
+        if (active) {
+            kotlinx.coroutines.delay(60) // 펼친 내용이 자리를 잡은 다음
+            requester.bringIntoView()
+        }
+    }
+    return this.then(androidx.compose.foundation.relocation.bringIntoViewRequester(requester))
+}
+

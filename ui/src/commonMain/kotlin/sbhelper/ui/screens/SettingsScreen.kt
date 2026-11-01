@@ -73,6 +73,7 @@ fun SettingsScreen(controller: AppController, state: AppState, wide: Boolean) {
                     BackgroundPanel(controller, state)
                     NotificationPanel(controller, state)
                     AboutPanel(state)
+                    RemoveAppPanel(controller)
                 }
             },
         )
@@ -336,6 +337,34 @@ private fun NotificationPanel(controller: AppController, state: AppState) {
             { on -> controller.repo.updateDevice { it.copy(alertSound = on) }; platform.onAlertSettingsChanged() },
             if (platform.isDesktop) "알림이 뜰 때 짧은 소리를 내요. 게임을 전체화면으로 해서 알림 창이 가려질 때도 들려요."
             else "끄면 알림이 소리 없이 와요.")
+        if (state.device.alertSound) {
+            val dev = state.device
+            Column(Modifier.padding(start = 4.dp, bottom = 6.dp)) {
+                Text("소리 종류", style = SbText.caption(Sb.TextDim))
+                Spacer(Modifier.height(4.dp))
+                Segmented(sbhelper.core.util.Synth.TONES, dev.alertTone.coerceIn(0, sbhelper.core.util.Synth.TONES.lastIndex), { i ->
+                    controller.repo.updateDevice { it.copy(alertTone = i) }
+                    platform.playSound(sbhelper.core.util.Synth.alert(i, dev.alertVolume / 100f))
+                })
+                Spacer(Modifier.height(8.dp))
+                var vol by remember(dev.alertVolume) { mutableStateOf(dev.alertVolume.toFloat()) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("소리 크기", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(1f))
+                    Text("${vol.toInt()}%", style = SbText.pixel(12, Sb.Gold))
+                }
+                androidx.compose.material3.Slider(
+                    value = vol, onValueChange = { vol = (kotlin.math.round(it / 5) * 5) },
+                    onValueChangeFinished = {
+                        controller.repo.updateDevice { it.copy(alertVolume = vol.toInt()) }
+                        platform.playSound(sbhelper.core.util.Synth.alert(dev.alertTone, vol / 100f))
+                    },
+                    valueRange = 0f..100f, steps = 19,
+                    colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Sb.Gold, activeTrackColor = Sb.Gold, inactiveTrackColor = Sb.Border),
+                )
+                SbButton("미리 듣기", { platform.playSound(sbhelper.core.util.Synth.alert(dev.alertTone, vol / 100f)) },
+                    icon = Icons.Rounded.NotificationsActive, outlined = true, color = Sb.Gold)
+            }
+        }
         if (!platform.isDesktop) {
             SwitchRow("📱 정시 알림", state.device.phoneExactAlerts,
                 { on -> controller.repo.updateDevice { it.copy(phoneExactAlerts = on) }; platform.onAlertSettingsChanged() },
@@ -347,14 +376,14 @@ private fun NotificationPanel(controller: AppController, state: AppState) {
         SwitchRow("⚒ 포지 완료", n.forge, { on -> update { it.copy(forge = on) } })
         SwitchRow("💰 내 경매 판매/종료", n.auctions, { on -> update { it.copy(auctions = on) } }, "일반 프로필만 해당")
         SwitchRow("📈 바자 가격 알림", n.priceAlerts, { on -> update { it.copy(priceAlerts = on) } })
-        SwitchRow("📰 새 패치노트", n.patchNotes, { on -> update { it.copy(patchNotes = on) } }, "공식 위키 Changelog 에 새 패치가 올라오면")
+        SwitchRow("📰 새 패치노트", n.patchNotes, { on -> update { it.copy(patchNotes = on) } }, "새 패치가 올라오면")
         Divider(Modifier.padding(vertical = 6.dp))
         Text("이벤트 (시작 ${n.eventLeadMinutes}분 전)", style = SbText.caption(Sb.TextDim))
         val leads = listOf(1, 3, 5, 10, 15)
         Spacer(Modifier.height(6.dp))
         Segmented(leads.map { "${it}분" }, leads.indexOf(n.eventLeadMinutes).coerceAtLeast(0), { i -> update { it.copy(eventLeadMinutes = leads[i]) } })
         Spacer(Modifier.height(4.dp))
-        Text("일정은 공식 위키 Events 페이지 기준이에요. 시장 전용 이벤트는 그 시장일 때만 열려요.", style = SbText.body(12, Sb.TextFaint))
+        Text("시장 전용 이벤트는 그 시장일 때만 열려요.", style = SbText.body(12, Sb.TextFaint))
         val names = state.gameData.events.map { it.name }.distinct()
         Foldable("이벤트별 알림", "${names.count { n.eventEnabled(it) }} / ${names.size}개 켜짐") {
             names.forEach { name ->
@@ -424,3 +453,43 @@ private fun Foldable(title: String, summary: String, content: @Composable () -> 
     }
     if (open) Column(Modifier.padding(start = 8.dp, top = 4.dp)) { content() }
 }
+
+/** 앱 삭제: 확인 창 → 기기의 삭제 화면 */
+@Composable
+private fun RemoveAppPanel(controller: AppController) {
+    val platform = LocalPlatform.current
+    if (!platform.canUninstall) return
+    var ask by remember { mutableStateOf(false) }
+    var removeData by remember { mutableStateOf(true) }
+    Panel(Modifier.fillMaxWidth(), caption = "Uninstall", title = "앱 삭제", accent = Sb.Red) {
+        Text(if (platform.isDesktop) "이 PC 에서 SkyblockHelper 를 지워요. Windows 삭제 화면이 뜨고 앱은 꺼져요."
+            else "이 휴대폰에서 SkyblockHelper 를 지워요. 설정·기록도 함께 지워져요.", style = SbText.body(13, Sb.TextDim))
+        Spacer(Modifier.height(8.dp))
+        SbButton("앱 삭제", { ask = true }, outlined = true, color = Sb.Red)
+    }
+    if (ask) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { ask = false },
+            containerColor = Sb.Surface,
+            title = { Text("정말 지울까요?", style = SbText.body(17, Sb.Text, FontWeight.Bold)) },
+            text = {
+                Column {
+                    Text("다른 기기와 연동해 두었다면 그쪽 설정(GitHub Gist)은 그대로 남아요.", style = SbText.body(13, Sb.TextDim))
+                    if (platform.isDesktop) {
+                        Spacer(Modifier.height(8.dp))
+                        SwitchRow("설정·기록·알림 기록도 지우기", removeData, { removeData = it },
+                            "끄면 다시 설치했을 때 그대로 이어서 쓸 수 있어요.")
+                    }
+                }
+            },
+            confirmButton = {
+                SbButton("삭제", {
+                    ask = false
+                    platform.uninstall(removeData)?.let { controller.toast = it }
+                }, color = Sb.Red)
+            },
+            dismissButton = { SbButton("취소", { ask = false }, outlined = true) },
+        )
+    }
+}
+

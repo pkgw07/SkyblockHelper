@@ -82,10 +82,10 @@ fun PatchNotesScreen(controller: AppController, state: AppState, wide: Boolean) 
     Row(Modifier.fillMaxSize().padding(horizontal = if (wide) 28.dp else 14.dp).padding(bottom = 20.dp, top = if (wide) 4.dp else 10.dp)) {
         if (wide || selected == null) {
             Column(Modifier.let { if (wide) it.width(360.dp) else it.fillMaxWidth() }.fillMaxHeight()) {
-                Text("공식 Hypixel SkyBlock 위키 Changelog 기준 · 새 패치가 올라오면 알림을 보내요", style = SbText.body(12, Sb.TextFaint))
+                Text("새 패치가 올라오면 알림을 보내요", style = SbText.body(12, Sb.TextFaint))
                 Spacer(Modifier.height(10.dp))
                 if (notes.isEmpty()) {
-                    EmptyState("패치노트를 불러오는 중이에요", "공식 위키에서 가져오고 있어요.", icon = Icons.Rounded.Newspaper)
+                    EmptyState("패치노트를 불러오는 중이에요", "", icon = Icons.Rounded.Newspaper)
                 } else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(notes, key = { it.page }) { n -> NoteCard(n, n.page == s.selected) { s.selected = n.page } }
                 }

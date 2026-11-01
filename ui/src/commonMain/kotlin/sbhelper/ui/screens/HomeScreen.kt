@@ -324,7 +324,7 @@ private fun PatchPanel(controller: AppController, state: AppState, modifier: Mod
     Panel(modifier, caption = "Patch Notes · Wiki", title = "최신 패치노트", accent = Sb.Green,
         trailing = { Text("전체 보기", style = SbText.body(12, Sb.Green), modifier = Modifier.clickable { controller.go(Screen.PATCH) }) }) {
         if (state.patchNotes.isEmpty()) {
-            EmptyState("불러오는 중", "공식 위키 Changelog 에서 가져오고 있어요.")
+            EmptyState("불러오는 중", "")
             return@Panel
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {

@@ -186,7 +186,7 @@ private fun MissingAccessories(controller: AppController, state: AppState, p: Pr
     }
     Panel(Modifier.fillMaxWidth(), caption = "Missing Accessories · Wiki", title = "빠진 장신구 ${list.size}개", accent = Sb.Gold,
         trailing = { Segmented(listOf("싼 순", "얻기 쉬운 순"), sort, { sort = it }) }) {
-        Text("공식 위키 Accessories 목록과 업그레이드 단계 기준이에요. 하위 단계를 가지고 있으면 다음 단계를 보여 줘요. " +
+        Text("하위 단계를 가지고 있으면 다음 단계를 보여 줘요. " +
             "가격: NPC 가격 → 바자 즉시 구매가 → 경매장 최저 BIN.", style = SbText.body(12, Sb.TextFaint))
         if (state.lowestBin.isEmpty()) {
             Spacer(Modifier.height(8.dp))

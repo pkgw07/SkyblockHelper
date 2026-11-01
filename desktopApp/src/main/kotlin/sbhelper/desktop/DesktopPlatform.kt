@@ -50,7 +50,51 @@ class DesktopPlatform : Platform {
         }, "open-url").apply { isDaemon = true }.start()
     }
 
-    override fun playExplosion() = Boom.play()
+    override fun playSound(samples: ShortArray) = Sound.play(samples)
+
+    override val canUninstall: Boolean get() = System.getProperty("os.name").lowercase().contains("win") && System.getProperty("jpackage.app-path") != null
+
+    /**
+     * Windows 앱 삭제:
+     * - 설치본: 자동 실행 등록을 지우고 Windows 삭제 화면(unins000.exe)을 띄운 뒤 앱을 끈다.
+     *   데이터도 지우기를 골랐으면, 작은 정리 스크립트가 삭제가 끝난 것(앱 실행 파일이 사라짐)을 확인한 뒤 데이터 폴더를 지운다.
+     *   삭제 화면에서 취소하면 데이터는 그대로 둔다.
+     * - 압축판: 데이터만 정리하고, 앱 폴더를 열어 직접 지우도록 안내한다.
+     */
+    override fun uninstall(removeData: Boolean): String? {
+        val exe = System.getProperty("jpackage.app-path")?.let(::File) ?: return "개발 실행에서는 지울 수 없어요."
+        val appDir = exe.parentFile
+        val uninstaller = File(appDir, "unins000.exe")
+        runCatching { Autostart.set(false) }
+        if (removeData) cleanupScript(exe, AppDirs.dataDir(), installed = uninstaller.isFile)
+        return if (uninstaller.isFile) {
+            runCatching { ProcessBuilder(uninstaller.absolutePath).start() }
+                .onFailure { return "삭제 프로그램을 실행하지 못했어요. Windows 설정 → 앱에서 SkyblockHelper 를 지워 주세요." }
+            Thread({ Thread.sleep(600); onQuitForUpdate(); kotlin.system.exitProcess(0) }, "quit-for-uninstall").start()
+            null
+        } else {
+            runCatching { Desktop.getDesktop().open(appDir) }
+            Thread({ Thread.sleep(1500); onQuitForUpdate(); kotlin.system.exitProcess(0) }, "quit-for-uninstall").start()
+            "압축판이에요. 앱이 꺼지면 열린 폴더(${appDir.name})를 직접 지워 주세요." + if (removeData) " 설정·기록은 앱이 꺼진 뒤 지워져요." else ""
+        }
+    }
+
+    /** 앱이 꺼지고(설치본은 삭제가 끝나) 나면 데이터 폴더를 지우는 스크립트 (최대 10분 기다림) */
+    private fun cleanupScript(exe: File, data: File, installed: Boolean) {
+        val bat = File(System.getProperty("java.io.tmpdir"), "skyblockhelper-cleanup.bat")
+        // 설치본: 실행 파일이 없어지면(삭제 완료) 지움. 압축판: 앱 프로세스가 끝나면 지움
+        val wait = if (installed) "if not exist \"${exe.absolutePath}\" goto clean"
+            else "tasklist /FI \"IMAGENAME eq ${exe.name}\" | find /I \"${exe.name}\" >nul || goto clean"
+        val script = listOf(
+            "@echo off", "set n=0", ":loop", "timeout /t 3 /nobreak >nul", wait,
+            "set /a n+=1", "if %n% lss 200 goto loop", "goto end",
+            ":clean", "rmdir /s /q \"${data.absolutePath}\"", ":end", "del \"%~f0\"",
+        ).joinToString("\r\n")
+        // 사용자 이름에 한글이 있어도 되도록 시스템 기본 문자 집합으로
+        val cs = runCatching { java.nio.charset.Charset.forName(System.getProperty("sun.jnu.encoding")) }.getOrDefault(Charsets.UTF_8)
+        bat.writeText(script, cs)
+        runCatching { ProcessBuilder("cmd", "/c", "start", "\"\"", "/min", bat.absolutePath).start() }
+    }
 
     override fun copyToClipboard(text: String) {
         Toolkit.getDefaultToolkit().systemClipboard.setContents(StringSelection(text), null)

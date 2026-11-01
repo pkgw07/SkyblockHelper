@@ -44,7 +44,7 @@ class SbApplication : Application() {
             api = HypixelApi(http) { ref?.state?.value?.synced?.apiKey },
             gistSync = GistSync(http),
             storage = AndroidStorage(filesDir),
-            notifier = AndroidNotifier(this) { ref?.state?.value?.device?.alertSound != false },
+            notifier = AndroidNotifier(this) { ref?.state?.value?.device },
             scope = scope,
             loadGameData = { Res.readBytes("files/gamedata.json").decodeToString() },
             appVersion = sbhelper.ui.AppInfo.VERSION,
@@ -90,7 +90,7 @@ class AndroidStorage(private val dir: File) : KeyValueStorage {
     }
 }
 
-class AndroidNotifier(private val context: Context, private val sound: () -> Boolean = { true }) : Notifier {
+class AndroidNotifier(private val context: Context, private val device: () -> sbhelper.core.data.DeviceSettings? = { null }) : Notifier {
     override fun show(notification: AppNotification) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -102,7 +102,8 @@ class AndroidNotifier(private val context: Context, private val sound: () -> Boo
                 .putExtra(MainActivity.EXTRA_TARGET, notification.target),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val n = NotificationCompat.Builder(context, if (sound()) SbApplication.CHANNEL_ID else SbApplication.CHANNEL_SILENT)
+        // 소리는 앱이 직접 낸다 (설정의 소리 종류·음량). 알림 자체는 무음 채널로
+        val n = NotificationCompat.Builder(context, SbApplication.CHANNEL_SILENT)
             .setSmallIcon(R.drawable.ic_stat_sb)
             .setColor(0xFFFFAA00.toInt())
             .setContentTitle(notification.title)
@@ -113,5 +114,6 @@ class AndroidNotifier(private val context: Context, private val sound: () -> Boo
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(notification.key.hashCode(), n) }
+        device()?.let { d -> if (d.alertSound) AndroidSound.alert(d.alertTone, d.alertVolume) }
     }
 }

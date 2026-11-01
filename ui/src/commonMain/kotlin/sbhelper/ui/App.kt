@@ -266,7 +266,10 @@ fun SkyblockApp(
 ) {
     val state by controller.repo.state.collectAsState()
     SkyblockTheme(textScale = state.device.textScale, textWeight = state.device.fontWeight) {
-        val implode: (androidx.compose.ui.geometry.Offset) -> Unit = { p -> if (controller.implode(p) && state.device.alertSound) platform.playExplosion() }
+        val implode: (androidx.compose.ui.geometry.Offset) -> Unit = { p ->
+            if (controller.implode(p) && state.device.alertSound)
+                platform.playSound(sbhelper.core.util.Synth.witherImpact(state.device.alertVolume / 100f, (p.x + p.y).toInt() + controller.implosions.size))
+        }
         CompositionLocalProvider(LocalPlatform provides platform, LocalController provides controller,
             sbhelper.ui.components.LocalImplode provides implode,
             sbhelper.ui.components.LocalIconPackVersion provides state.iconPackVersion,

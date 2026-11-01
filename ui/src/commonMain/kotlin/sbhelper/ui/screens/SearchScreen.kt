@@ -134,7 +134,7 @@ private fun SearchResults(controller: AppController, state: AppState, wide: Bool
     Panel(Modifier.fillMaxWidth(), caption = "Wiki pages", title = "위키 문서 (NPC·지역·이벤트 등)", accent = Sb.Aqua) {
         val list = hits?.filter { it.title.lowercase() !in itemNames }
         when {
-            list == null -> Text("공식 위키에서 찾는 중…", style = SbText.body(13, Sb.TextFaint))
+            list == null -> Text("찾는 중…", style = SbText.body(13, Sb.TextFaint))
             list.isEmpty() -> Text("위키 문서를 찾지 못했어요.", style = SbText.body(13, Sb.TextFaint))
             else -> list.forEach { h ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { controller.openWikiLink(h.title) }
@@ -261,7 +261,7 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
                 }
             }
             Spacer(Modifier.height(6.dp))
-            Text(if (tooltip != null) "기본 아이템 기준 (공식 위키). 내 아이템의 별·리포지·인챈트 수치는 인벤토리에서 마우스를 올려 보세요."
+            Text(if (tooltip != null) "기본 아이템 기준이에요. 내 아이템의 별·리포지·인챈트 수치는 인벤토리에서 마우스를 올려 보세요."
                 else "공식 아이템 API 의 기본 스탯이에요.", style = SbText.body(12, Sb.TextFaint))
         }
     }
@@ -299,7 +299,7 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
                 useReqs.forEach { (label, r) -> RequirementRow(controller, r, label) }
             }
             Spacer(Modifier.height(6.dp))
-            Text("✔ 달성 · ✘ 아직 · • 프로필로 확인할 수 없는 조건. 조합법 조건은 공식 위키, 사용 조건은 공식 아이템 API 기준이에요.",
+            Text("✔ 달성 · ✘ 아직 · • 프로필로 확인할 수 없는 조건",
                 style = SbText.body(12, Sb.TextFaint))
         }
     }
@@ -422,7 +422,7 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
             // 얻는 법·쓰이는 곳은 위 칸에 나눠 넣었으므로 여기서는 뺀다
             blocks != null -> WikiBlocks(controller, blocks, max = 120, exclude = OBTAINING_SECTIONS + USAGE_SECTIONS, page = page)
             WikiPages.errors[page] != null -> Text("위키 문서가 없거나 불러오지 못했어요.", style = SbText.body(13, Sb.TextFaint))
-            else -> Text("공식 위키에서 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
+            else -> Text("불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }
     }
 }
@@ -453,7 +453,7 @@ private fun PagePanel(controller: AppController, title: String) {
         when {
             blocks != null -> WikiBlocks(controller, blocks, max = 160, page = title)
             WikiPages.errors[title] != null -> Text("⚠ ${WikiPages.errors[title]}", style = SbText.body(13, Sb.Negative))
-            else -> Text("공식 위키에서 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
+            else -> Text("불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }
     }
 }

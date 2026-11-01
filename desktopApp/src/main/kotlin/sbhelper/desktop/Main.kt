@@ -122,7 +122,7 @@ fun main(args: Array<String>) {
                     else -> Notification.Type.None
                 }))
                 // 전체화면 게임 중에는 알림 창이 가려질 수 있어서 소리로도
-                if (repo.state.value.device.alertSound) Chime.play()
+                repo.state.value.device.let { d -> if (d.alertSound) Sound.alert(d.alertTone, d.alertVolume) }
             }
             SingleInstance.onShowRequest = { visible = true; bringToFront() }
         }

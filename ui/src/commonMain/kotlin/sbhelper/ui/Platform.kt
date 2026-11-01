@@ -19,8 +19,16 @@ interface Platform {
     fun onBackgroundSettingChanged(enabled: Boolean) {}
     /** 알림 설정이 바뀌었을 때 (휴대폰: 정시 알람 다시 예약/취소) */
     fun onAlertSettingsChanged() {}
-    /** 이스터에그 폭발음 (지원하지 않으면 무시) */
-    fun playExplosion() {}
+    /** 이 기기에서 앱을 지울 수 있는가 */
+    val canUninstall: Boolean get() = false
+    /**
+     * 앱 삭제를 시작한다 (기기의 삭제 화면을 띄움).
+     * @param removeData 설정·기록도 지우기 (휴대폰은 항상 같이 지워짐)
+     * @return 화면에 보여 줄 안내 (없으면 null)
+     */
+    fun uninstall(removeData: Boolean): String? = null
+    /** 소리 재생 (core Synth 로 만든 PCM). 지원하지 않으면 무시 */
+    fun playSound(samples: ShortArray) {}
     /** 이 플랫폼용 업데이트 파일 이름 끝 (예: ".exe", ".apk"). null 이면 자동 업데이트 미지원 */
     val updateAssetSuffix: String? get() = null
     /** 내려받은 업데이트 설치를 시작한다. 성공하면 true */

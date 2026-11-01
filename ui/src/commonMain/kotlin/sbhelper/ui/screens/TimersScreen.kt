@@ -104,7 +104,7 @@ private fun ForgeDetail(state: AppState, now: Long, modifier: Modifier) {
             }
             if (p != null) {
                 Text(
-                    "Quick Forge 레벨 ${p.quickForgeLevel} · 시장 퍼크 반영 (위키 The Forge 기준, 감소 효과는 더해서 계산)",
+                    "Quick Forge 레벨 ${p.quickForgeLevel} · 시장 퍼크 반영",
                     style = SbText.body(11, Sb.TextFaint),
                 )
             }
@@ -118,7 +118,7 @@ private fun ExtraTimersPanel(controller: AppController, state: AppState, now: Lo
     val timers = state.extraTimers(now)
     val prefs = state.synced.notify
     Panel(modifier, caption = "Other timers", title = "다른 타이머", accent = Sb.Green) {
-        Text("공식 위키 규칙과 공식 API 값으로 계산해요. 🔔 으로 알림을 켜고 끌 수 있어요 (설정에서도 가능).",
+        Text("🔔 으로 알림을 켜고 끌 수 있어요 (설정에서도 가능).",
             style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(8.dp))
         if (timers.isEmpty()) Text("지금 보여 줄 타이머가 없어요.", style = SbText.body(13, Sb.TextFaint))
@@ -130,8 +130,8 @@ private fun ExtraTimersPanel(controller: AppController, state: AppState, now: Lo
                 Column(Modifier.weight(1f)) {
                     Text(t.title, style = SbText.body(14, weight = FontWeight.Medium))
                     Text(t.detail, style = SbText.body(12, Sb.TextDim))
-                    if (t.done) Text("⚠ ${formatDuration(now - t.at)} 전에 멈췄어요 · ${t.source}", style = SbText.body(11, Sb.Red))
-                    else Text("${formatDuration(t.at - now)} 후 · ${localTime(t.at, true)} · ${t.source}", style = SbText.body(11, Sb.TextFaint))
+                    if (t.done) Text("⚠ ${formatDuration(now - t.at)} 전에 멈췄어요", style = SbText.body(11, Sb.Red))
+                    else Text("${formatDuration(t.at - now)} 후 · ${localTime(t.at, true)}", style = SbText.body(11, Sb.TextFaint))
                 }
                 Icon(
                     if (on) Icons.Rounded.Notifications else Icons.Rounded.NotificationsNone, "알림",
