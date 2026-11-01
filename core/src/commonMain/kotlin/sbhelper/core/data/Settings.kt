@@ -80,10 +80,12 @@ data class DeviceSettings(
     val textScale: Float = 1.15f,
     /** 글자 굵기: 0 = 기본, 1 = 굵게(기본값), 2 = 아주 굵게 */
     val fontWeight: Int = 1,
+    /** 가운데 화면 최대 너비: 0 = 기본(1280), 1 = 넓게(1600), 2 = 아주 넓게(2000), 3 = 창 끝까지 */
+    val contentWidth: Int = 0,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,
-    /** 새 버전이 나오면 자동으로 내려받아 설치 */
+    /** 새 버전이 나왔는지 자동으로 확인 (설치는 물어보고 나서) */
     val autoUpdate: Boolean = true,
     /** 마지막으로 확인한 패치노트(위키 Changelog) 키 */
     val lastSeenPatch: String = "",

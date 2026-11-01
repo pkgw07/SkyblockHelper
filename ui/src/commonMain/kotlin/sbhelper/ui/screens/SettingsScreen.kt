@@ -271,6 +271,14 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
             controller.repo.updateDevice { it.copy(fontWeight = i) }
         })
         Spacer(Modifier.height(12.dp))
+        Text("가운데 화면 너비", style = SbText.caption(Sb.TextDim))
+        Spacer(Modifier.height(6.dp))
+        Segmented(listOf("기본", "넓게", "아주 넓게", "창 끝까지"), d.contentWidth.coerceIn(0, 3), { i ->
+            controller.repo.updateDevice { it.copy(contentWidth = i) }
+        })
+        Spacer(Modifier.height(4.dp))
+        Text("큰 모니터에서 양옆 빈 공간을 줄이고 내용을 더 넓게 보여 줘요. 휴대폰에서는 차이가 없어요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(12.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
         Spacer(Modifier.height(6.dp))
         val options = listOf(1, 2, 5, 10)

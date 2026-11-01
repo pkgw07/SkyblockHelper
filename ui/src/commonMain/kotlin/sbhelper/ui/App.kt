@@ -237,7 +237,8 @@ fun SkyblockApp(
     val state by controller.repo.state.collectAsState()
     SkyblockTheme(textScale = state.device.textScale, textWeight = state.device.fontWeight) {
         CompositionLocalProvider(LocalPlatform provides platform, LocalController provides controller,
-            sbhelper.ui.components.LocalIconPackVersion provides state.iconPackVersion) {
+            sbhelper.ui.components.LocalIconPackVersion provides state.iconPackVersion,
+            sbhelper.ui.screens.LocalContentWidth provides state.device.contentWidth) {
             Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)
                 // 마우스 뒤로 버튼(MB4)으로 이전 화면
                 .pointerInput(Unit) {

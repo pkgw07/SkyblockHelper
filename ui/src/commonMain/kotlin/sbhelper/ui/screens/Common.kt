@@ -23,6 +23,16 @@ import androidx.compose.ui.unit.dp
  *  - 화면(탭)마다 스크롤 위치를 기억한다 (다른 화면에 갔다 와도 그대로)
  *  - 가운데 내용 바깥의 빈 공간에서 굴려도 스크롤된다
  */
+/** 설정의 "가운데 화면 너비" (0 기본 · 1 넓게 · 2 아주 넓게 · 3 창 끝까지) */
+val LocalContentWidth = androidx.compose.runtime.staticCompositionLocalOf { 0 }
+
+fun contentMaxWidth(level: Int): androidx.compose.ui.unit.Dp = when (level) {
+    1 -> 1600.dp
+    2 -> 2000.dp
+    3 -> androidx.compose.ui.unit.Dp.Infinity
+    else -> 1280.dp
+}
+
 @Composable
 fun ScreenColumn(wide: Boolean, scrollKey: String? = null, content: @Composable ColumnScope.() -> Unit) {
     val controller = sbhelper.ui.LocalController.current
@@ -33,7 +43,7 @@ fun ScreenColumn(wide: Boolean, scrollKey: String? = null, content: @Composable 
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
-            Modifier.widthIn(max = 1280.dp).fillMaxWidth()
+            Modifier.widthIn(max = contentMaxWidth(LocalContentWidth.current)).fillMaxWidth()
                 .padding(horizontal = if (wide) 28.dp else 14.dp)
                 .padding(bottom = 28.dp, top = if (wide) 4.dp else 8.dp),
             verticalArrangement = Arrangement.spacedBy(if (wide) 18.dp else 12.dp),

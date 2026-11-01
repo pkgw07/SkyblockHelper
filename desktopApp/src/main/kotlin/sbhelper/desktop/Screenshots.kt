@@ -119,6 +119,9 @@ fun main(args: Array<String>) {
     shot("32-gear-floating-info", Screen.GEAR)
     controller.gearSelected = null
     shot("33-mobile-settings", Screen.SETTINGS, 412, 900)
+    repo.updateDevice { it.copy(contentWidth = 2) }
+    controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
+    repo.updateDevice { it.copy(contentWidth = 0) }
     repo.stopLoops()
     kotlin.system.exitProcess(0)
 }
