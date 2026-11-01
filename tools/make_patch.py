@@ -51,7 +51,7 @@ def main() -> None:
     files = []
     for root, _, names in os.walk(app):
         for n in names:
-            if n.endswith(".jar") or n.endswith(".cfg"):
+            if n.endswith(".jar") or n.endswith(".cfg") or n.startswith("."):  # .jpackage.xml 은 버전이 적혀 있어 매번 바뀜
                 continue
             p = os.path.join(root, n)
             files.append((os.path.relpath(p, app).replace(os.sep, "/"), p))

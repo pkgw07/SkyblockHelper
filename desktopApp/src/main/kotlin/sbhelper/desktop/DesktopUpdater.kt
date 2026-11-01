@@ -111,7 +111,8 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
         /** 설치 폴더의 jar·설정 파일이 아닌 파일들(네이티브 라이브러리 등)의 지문 — CI 의 tools/make_patch.py 와 같은 방식 */
         fun nativeHash(appDir: File): String {
             val md = MessageDigest.getInstance("SHA-256")
-            appDir.walkTopDown().filter { it.isFile && !it.name.endsWith(".jar") && !it.name.endsWith(".cfg") }
+            // .jpackage.xml 처럼 점으로 시작하는 파일은 버전이 적혀 있어 매번 바뀌므로 뺀다
+            appDir.walkTopDown().filter { it.isFile && !it.name.endsWith(".jar") && !it.name.endsWith(".cfg") && !it.name.startsWith(".") }
                 .map { it.relativeTo(appDir).invariantSeparatorsPath to it }
                 .sortedBy { it.first }
                 .forEach { (rel, f) -> md.update("$rel:${sha256(f)}\n".toByteArray()) }
