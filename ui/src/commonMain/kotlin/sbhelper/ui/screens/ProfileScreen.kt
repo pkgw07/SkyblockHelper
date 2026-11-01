@@ -89,9 +89,9 @@ private val SKILL_STYLES = mapOf(
     "SOCIAL" to SkillStyle("사교", Icons.Rounded.Groups, Color(0xFF7EE8FA)),
 )
 
-private data class SlayerStyle(val name: String, val icon: ImageVector, val color: Color)
+internal data class SlayerStyle(val name: String, val icon: ImageVector, val color: Color)
 
-private val SLAYER_STYLES = mapOf(
+internal val SLAYER_STYLES = mapOf(
     "zombie" to SlayerStyle("Revenant Horror", Icons.Rounded.Healing, Color(0xFF55C46B)),
     "spider" to SlayerStyle("Tarantula Broodfather", Icons.Rounded.BugReport, Color(0xFFB0544A)),
     "wolf" to SlayerStyle("Sven Packmaster", Icons.Rounded.Pets, Color(0xFFD9D9D9)),

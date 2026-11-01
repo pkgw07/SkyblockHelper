@@ -11,13 +11,16 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -60,10 +63,13 @@ private val SKILL_TABS = listOf(
  */
 @Composable
 fun TechTreeScreen(controller: AppController, state: AppState, wide: Boolean) {
-    var tab by remember { mutableStateOf(0) }
-    var selected by remember { mutableStateOf<String?>(null) }
+    // 탭·고른 아이템은 컨트롤러에 둔다 (아이템 화면에 갔다 와도 그대로)
+    val tab = controller.gearTab.coerceIn(0, SKILL_TABS.lastIndex)
+    val sel = controller.gearSelected
+    val floating = wide && sel != null
+    Box(Modifier.fillMaxSize()) {
     ScreenColumn(wide) {
-        Segmented(SKILL_TABS.map { it.second }, tab, { tab = it; selected = null })
+        Segmented(SKILL_TABS.map { it.second }, tab, { controller.gearTab = it; controller.gearSelected = null })
         val (key, label) = SKILL_TABS[tab]
         val cats = remember(state.gameData, state.items, key) { TechTreeCalc.build(state.gameData, state.items, key) { state.itemName(it) } }
         // 가진 아이템 = 인벤토리·가방·펫 + 박물관에 기증한 아이템
@@ -80,18 +86,18 @@ fun TechTreeScreen(controller: AppController, state: AppState, wide: Boolean) {
             Panel(Modifier.fillMaxWidth()) { EmptyState("테크트리 데이터가 없어요", "위키 데이터를 받는 중이에요.") }
             return@ScreenColumn
         }
-        val content: @Composable (Modifier) -> Unit = { m ->
-            Column(m, verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                cats.forEach { c -> CategoryPanel(controller, state, c.label, c.steps, owned, selected, wide) { selected = it } }
-            }
+        // 정보창이 떠 있으면 오른쪽을 비워 둔다 (가리지 않게)
+        Column(Modifier.fillMaxWidth().padding(end = if (floating) 360.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            cats.forEach { c -> CategoryPanel(controller, state, c.label, c.steps, owned, sel, wide) { controller.gearSelected = it } }
         }
-        val sel = selected
-        if (wide && sel != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                content(Modifier.weight(1f))
-                Column(Modifier.width(340.dp)) { ItemInfo(controller, state, sel, onClose = { selected = null }) }
-            }
-        } else content(Modifier.fillMaxWidth())
+    }
+    // 넓은 화면: 스크롤과 상관없이 지금 보이는 화면 오른쪽에 고정된 정보창
+    if (floating && sel != null) {
+        Column(
+            Modifier.align(Alignment.TopEnd).padding(top = 8.dp, end = 20.dp, bottom = 16.dp).width(340.dp)
+                .verticalScroll(rememberScrollState(), reverseScrolling = false),
+        ) { ItemInfo(controller, state, sel, onClose = { controller.gearSelected = null }) }
+    }
     }
 }
 
@@ -100,6 +106,8 @@ private fun ownedIds(state: AppState): Set<String> {
     val p = state.selectedProfile ?: return emptySet()
     val ids = HashSet<String>()
     p.inventories.values.forEach { data -> ItemParser.parse(data).filterNotNull().forEach { it.skyblockId?.let(ids::add) } }
+    // 옷장·장비 세트 (공식 API 의 loadout)
+    p.wardrobe?.let { w -> (w.armor.values + w.equipment.values).flatten().forEach { d -> ItemParser.parse(d).filterNotNull().forEach { it.skyblockId?.let(ids::add) } } }
     p.pets.forEach { pet -> ids += "pet:" + pet.type.split('_').joinToString(" ") { it.lowercase().replaceFirstChar(Char::uppercase) } }
     return ids
 }

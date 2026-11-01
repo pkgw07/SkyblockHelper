@@ -16,7 +16,11 @@ data class PetEntry(
     val name get() = type.split('_').joinToString(" ") { it.lowercase().replaceFirstChar(Char::uppercase) }
 }
 
-data class DungeonFloor(val floor: Int, val master: Boolean, val completions: Int, val fastestSPlusMs: Long?, val fastestSMs: Long?, val bestScore: Int?)
+data class DungeonFloor(
+    val floor: Int, val master: Boolean, val completions: Int, val fastestSPlusMs: Long?, val fastestSMs: Long?, val bestScore: Int?,
+    /** 들어간 횟수 (클리어 못 한 판 포함, 기록이 없으면 null) */
+    val timesPlayed: Int? = null,
+)
 
 data class ProfileDetails(
     // 개요
@@ -117,10 +121,11 @@ object ProfileDetailsCalc {
         fun floors(type: String, master: Boolean): List<DungeonFloor> {
             val d = member.obj("dungeons", "dungeon_types", type) ?: return emptyList()
             val comp = d.obj("tier_completions").numbers()
-            return comp.keys.mapNotNull { it.toIntOrNull() }.sorted().map { f ->
+            val played = d.obj("times_played").numbers()
+            return (comp.keys + played.keys).mapNotNull { it.toIntOrNull() }.distinct().sorted().map { f ->
                 val k = f.toString()
                 DungeonFloor(f, master, comp[k]?.toInt() ?: 0, d.num("fastest_time_s_plus", k)?.toLong(), d.num("fastest_time_s", k)?.toLong(),
-                    d.num("best_score", k)?.toInt())
+                    d.num("best_score", k)?.toInt(), played[k]?.toInt())
             }
         }
 

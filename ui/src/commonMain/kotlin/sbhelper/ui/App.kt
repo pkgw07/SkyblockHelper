@@ -141,6 +141,25 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     var toast by mutableStateOf<String?>(null)
     var inventoryTab by mutableStateOf(0)
     var ironmanTab by mutableStateOf(0)
+    /** 테크트리: 고른 스킬 탭, 넓은 화면에서 정보창에 띄운 아이템 */
+    var gearTab by mutableStateOf(0)
+    var gearSelected by mutableStateOf<String?>(null)
+    /** 화면·탭별 스크롤 위치 (다른 화면에 갔다 와도 유지) */
+    private val scrolls = HashMap<String, androidx.compose.foundation.ScrollState>()
+    fun scrollState(key: String) = scrolls.getOrPut(key) { androidx.compose.foundation.ScrollState(0) }
+    /** 탭이 있는 화면은 탭마다 따로 */
+    fun tabKey(): String = when (screen) {
+        Screen.STATS -> ":$statsTab"
+        Screen.INVENTORY -> ":$inventoryTab"
+        Screen.IRONMAN -> ":$ironmanTab"
+        Screen.GEAR -> ":$gearTab"
+        Screen.EVENTS -> ":$eventsTab"
+        Screen.SEARCH -> ":" + (wiki?.toString() ?: "results")
+        else -> ""
+    }
+
+    /** 이번 실행에서 "업데이트할까요?" 에 답한 버전 */
+    var updateAsked by mutableStateOf<String?>(null)
     /** 제작 플래너 입력 (화면을 옮겨도 유지) */
     var plannerQuery by mutableStateOf("")
     var plannerUseSacks by mutableStateOf(true)
@@ -252,6 +271,7 @@ fun SkyblockApp(
                         }
                     }
                     Toast(controller.toast, Modifier.align(Alignment.TopCenter).padding(top = 18.dp))
+                    UpdateAvailableDialog(controller, state, platform)
                     UpdateReadyDialog(controller, state, platform)
                 }
             }
@@ -534,6 +554,36 @@ private fun UpdateBanner(controller: AppController, state: AppState, platform: P
             }, enabled = state.updateProgress == null, color = Sb.Aqua)
         }
     }
+}
+
+/** 새 버전이 나오면 묻는다: 업데이트할까요? (동의해야 받는다) */
+@Composable
+private fun UpdateAvailableDialog(controller: AppController, state: AppState, platform: Platform) {
+    val release = state.availableUpdate ?: return
+    if (state.updateStaged != null || state.updateProgress != null) return
+    if (platform.inAppUpdater == null && platform.updateAssetSuffix == null) return
+    if (controller.updateAsked == release.version) return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { controller.updateAsked = release.version },
+        containerColor = Sb.SurfaceHigh,
+        title = { Text("새 버전 ${release.version}", style = SbText.body(17, weight = FontWeight.Bold)) },
+        text = {
+            Column {
+                Text("새 버전이 나왔어요. 지금 받아서 업데이트할까요?\n(받은 뒤 다시 시작할지 한 번 더 물어봐요)", style = SbText.body(14, Sb.TextDim))
+                release.body?.lineSequence()?.filter { it.isNotBlank() }?.take(6)?.toList()?.takeIf { it.isNotEmpty() }?.let { lines ->
+                    Spacer(Modifier.height(8.dp))
+                    lines.forEach { Text(it.take(120), style = SbText.body(12, Sb.TextFaint), maxLines = 1) }
+                }
+            }
+        },
+        confirmButton = {
+            sbhelper.ui.components.SbButton("업데이트", {
+                controller.updateAsked = release.version
+                controller.scope.launch { UpdateFlow.run(controller, platform) }
+            }, color = Sb.Aqua)
+        },
+        dismissButton = { sbhelper.ui.components.SbButton("나중에", { controller.updateAsked = release.version }, outlined = true) },
+    )
 }
 
 /** 업데이트를 다 받으면 한 번 묻는다: 지금 다시 시작할까요? */

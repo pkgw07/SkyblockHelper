@@ -108,6 +108,17 @@ fun main(args: Array<String>) {
     controller.openEvent("Dark Auction"); shot("23-events", Screen.EVENTS)
     controller.openJacob(); shot("24-jacob", Screen.EVENTS)
     shot("25-mobile-gear", Screen.GEAR, 412, 900)
+    controller.statsTab = 5; shot("26-dungeons-slayer", Screen.STATS)
+    controller.inventoryTab = 3; shot("27-wardrobe", Screen.INVENTORY)
+    shot("28-mobile-wardrobe", Screen.INVENTORY, 412, 900)
+    controller.statsTab = 5; shot("29-mobile-dungeons", Screen.STATS, 412, 900)
+    controller.statsTab = 8; shot("30-mobile-bestiary", Screen.STATS, 412, 900)
+    controller.statsTab = 0; shot("31-mobile-stats", Screen.STATS, 412, 900)
+    controller.gearTab = 0; controller.gearSelected = "MITHRIL_PICKAXE"
+    controller.scrollState("GEAR:0").let { runBlocking { it.scrollTo(900) } }
+    shot("32-gear-floating-info", Screen.GEAR)
+    controller.gearSelected = null
+    shot("33-mobile-settings", Screen.SETTINGS, 412, 900)
     repo.stopLoops()
     kotlin.system.exitProcess(0)
 }
@@ -131,7 +142,8 @@ private fun demoProfile(id: String, name: String, mode: GameMode, selected: Bool
     essence = mapOf("WITHER" to 12_400L, "DRAGON" to 3_210L, "GOLD" to 980L, "DIAMOND" to 2_400L),
     pets = listOf(PetInfo("GOLDEN_DRAGON", "LEGENDARY", 2.1e7, true)),
     floorCompletions = mapOf(0 to 12, 1 to 30, 2 to 25, 3 to 40, 4 to 18, 5 to 9),
-    slayerBossKills = mapOf("zombie" to mapOf(4 to 20), "spider" to mapOf(3 to 10), "wolf" to mapOf(4 to 15), "enderman" to mapOf(2 to 5)),
+    slayerBossKills = mapOf("zombie" to mapOf(1 to 12, 2 to 40, 3 to 85, 4 to 220, 5 to 31), "spider" to mapOf(3 to 10, 4 to 64),
+        "wolf" to mapOf(3 to 30, 4 to 150), "enderman" to mapOf(1 to 5, 2 to 48, 3 to 12), "blaze" to mapOf(1 to 9)),
     hotmNodes = mapOf("mining_speed" to 50, "mining_fortune" to 50, "forge_time" to 14, "daily_powder" to 1, "random_event" to 45,
         "mining_speed_boost" to 1, "titanium_insanium" to 30, "pickaxe_toss" to 1, "efficient_miner" to 60, "mining_experience" to 100),
     bestiaryKills = mapOf("zombie_1" to 4_200, "skeleton_6" to 900, "spider_1" to 650, "enderman_42" to 12_000, "wolf_15" to 300,
@@ -141,7 +153,33 @@ private fun demoProfile(id: String, name: String, mode: GameMode, selected: Bool
     inventories = DemoNbt.inventories(),
     hotfNodes = mapOf("forest_speed" to 20, "timber" to 5, "sweep" to 30, "foraging_fortune" to 12, "center_of_the_forest" to 2),
     hotfXp = 240_000.0,
+    wardrobe = DemoNbt.wardrobe(),
+    member = demoMember(),
 )
+
+/** 화면 확인용 가짜 원본 데이터 (던전 입장·클리어, 슬레이어) — 실제 API 와 같은 위치 */
+private fun demoMember() = kotlinx.serialization.json.buildJsonObject {
+    fun floors(vararg pairs: Pair<Int, Int>) = kotlinx.serialization.json.buildJsonObject { pairs.forEach { (f, n) -> put("$f", kotlinx.serialization.json.JsonPrimitive(n)) } }
+    put("dungeons", kotlinx.serialization.json.buildJsonObject {
+        put("secrets", kotlinx.serialization.json.JsonPrimitive(18_420))
+        put("selected_dungeon_class", kotlinx.serialization.json.JsonPrimitive("mage"))
+        put("dungeon_types", kotlinx.serialization.json.buildJsonObject {
+            put("catacombs", kotlinx.serialization.json.buildJsonObject {
+                put("tier_completions", floors(0 to 12, 1 to 30, 2 to 25, 3 to 40, 4 to 18, 5 to 9, 6 to 120, 7 to 340))
+                put("times_played", floors(0 to 13, 1 to 33, 2 to 27, 3 to 44, 4 to 21, 5 to 10, 6 to 131, 7 to 372))
+                put("fastest_time_s_plus", floors(6 to 196_000, 7 to 312_000))
+                put("fastest_time_s", floors(5 to 150_000, 6 to 181_000, 7 to 295_000))
+                put("best_score", floors(5 to 290, 6 to 317, 7 to 305))
+                put("highest_tier_completed", kotlinx.serialization.json.JsonPrimitive(7))
+            })
+            put("master_catacombs", kotlinx.serialization.json.buildJsonObject {
+                put("tier_completions", floors(1 to 22, 2 to 15, 3 to 41, 4 to 8))
+                put("times_played", floors(1 to 24, 2 to 17, 3 to 45, 4 to 11))
+                put("best_score", floors(3 to 302))
+            })
+        })
+    })
+}
 
 /** 화면 확인용 가짜 인벤토리 (실제 API 와 같은 gzip NBT 형식) */
 private object DemoNbt {
@@ -170,6 +208,19 @@ private object DemoNbt {
             o.writeByte(0)
         }
         return java.util.Base64.getEncoder().encodeToString(bytes.toByteArray())
+    }
+
+    /** 옷장: 칸마다 아이템 하나씩 (실제 API 의 member.loadout 형식) */
+    fun wardrobe(): sbhelper.core.model.Wardrobe {
+        fun one(id: String, name: String, tier: String) = encode(listOf(item(id, name, listOf("", "§6§l$tier"), legacy = 298)))
+        val necron = listOf(one("NECRON_HELMET", "§6Necron's Helmet", "LEGENDARY DUNGEON HELMET"), one("NECRON_CHESTPLATE", "§6Necron's Chestplate", "LEGENDARY DUNGEON CHESTPLATE"),
+            one("NECRON_LEGGINGS", "§6Necron's Leggings", "LEGENDARY DUNGEON LEGGINGS"), one("NECRON_BOOTS", "§6Necron's Boots", "LEGENDARY DUNGEON BOOTS"))
+        val divan = listOf(one("DIVAN_HELMET", "§6Helmet of Divan", "LEGENDARY HELMET"), one("DIVAN_CHESTPLATE", "§6Chestplate of Divan", "LEGENDARY CHESTPLATE"),
+            one("DIVAN_LEGGINGS", "§6Leggings of Divan", "LEGENDARY LEGGINGS"), one("DIVAN_BOOTS", "§6Boots of Divan", "LEGENDARY BOOTS"))
+        val farm = listOf(null, one("FERMENTO_CHESTPLATE", "§6Fermento Chestplate", "LEGENDARY CHESTPLATE"),
+            one("FERMENTO_LEGGINGS", "§6Fermento Leggings", "LEGENDARY LEGGINGS"), one("FERMENTO_BOOTS", "§6Fermento Boots", "LEGENDARY BOOTS"))
+        return sbhelper.core.model.Wardrobe(mapOf(1 to necron, 2 to divan, 5 to farm, 11 to necron), mapOf(1 to listOf(null, null, null, null)), 1, null,
+            listOf(sbhelper.core.model.Loadout(1, "§a던전", 1, null), sbhelper.core.model.Loadout(2, "채광", 2, null)))
     }
 
     fun inventories(): Map<String, String> {

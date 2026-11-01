@@ -1,5 +1,7 @@
 package sbhelper.ui.screens
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -70,7 +72,7 @@ fun InventoryScreen(controller: AppController, state: AppState, wide: Boolean) {
             0 -> MainInventory(state, p, slot)
             1 -> Pages(state, p.inventories["ender_chest_contents"], 45, "엔더 상자", slot)
             2 -> Backpacks(state, p, slot)
-            3 -> Pages(state, p.inventories["wardrobe_contents"], 36, "옷장", slot)
+            3 -> WardrobeView(state, p, slot)
             4 -> Bag(state, p.inventories["talisman_bag"], "장신구 가방", slot)
             5 -> MissingAccessories(controller, state, p)
             6 -> Sacks(state, p, slot)
@@ -204,6 +206,62 @@ private fun MissingAccessories(controller: AppController, state: AppState, p: Pr
                     Text("${m.acc.category} · ${m.acc.npc ?: m.acc.source}", style = SbText.body(12, Sb.TextFaint), maxLines = 1)
                 }
                 Text(m.price?.let { formatCoins(it) } ?: "가격 정보 없음", style = SbText.pixel(13, if (m.price != null) Sb.Gold else Sb.TextFaint))
+            }
+        }
+    }
+}
+
+
+/**
+ * 옷장: 게임처럼 칸 번호마다 투구·갑옷·바지·신발을 세로로 (한 쪽 9칸).
+ * 공식 API 의 loadout(갑옷 세트·장비 세트·로드아웃 이름) 기준. 예전 wardrobe_contents 가 있으면 그것도 보여 준다.
+ */
+@Composable
+private fun WardrobeView(state: AppState, p: ProfileSummary, slot: androidx.compose.ui.unit.Dp) {
+    val w = p.wardrobe
+    if (w == null) {
+        Pages(state, p.inventories["wardrobe_contents"], 36, "옷장", slot)
+        return
+    }
+    val armor = remember(w) { w.armor.mapValues { (_, list) -> list.map { d -> d?.let { ItemParser.parse(it).firstOrNull() } } } }
+    val equip = remember(w) { w.equipment.mapValues { (_, list) -> list.map { d -> d?.let { ItemParser.parse(it).firstOrNull() } } } }
+    val maxSlot = (armor.keys.maxOrNull() ?: 0).coerceAtLeast(9)
+    val pages = (1..maxSlot).chunked(9)
+    pages.forEachIndexed { pi, nums ->
+        McPanel("옷장 ${pi + 1}쪽") {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                nums.forEach { n ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (n == w.equippedArmor) "▶$n" else "$n",
+                            style = SbText.pixel(10, if (n == w.equippedArmor) androidx.compose.ui.graphics.Color(0xFF2E7D32) else androidx.compose.ui.graphics.Color(0xFF404040), bold = n == w.equippedArmor))
+                        McSlotGrid(state, armor[n] ?: List(4) { null }, 1, slot, minRows = 4)
+                    }
+                }
+            }
+        }
+    }
+    if (equip.isNotEmpty()) {
+        McPanel("장비 세트") {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                equip.keys.sorted().forEach { n ->
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (n == w.equippedEquipment) "▶$n" else "$n",
+                            style = SbText.pixel(10, if (n == w.equippedEquipment) androidx.compose.ui.graphics.Color(0xFF2E7D32) else androidx.compose.ui.graphics.Color(0xFF404040), bold = n == w.equippedEquipment))
+                        McSlotGrid(state, equip[n] ?: List(4) { null }, 1, slot, minRows = 4)
+                    }
+                }
+            }
+        }
+    }
+    val named = w.loadouts.filter { it.armorSet != null || it.equipmentSet != null }
+    if (named.isNotEmpty()) {
+        Panel(Modifier.fillMaxWidth(), caption = "Loadouts", title = "로드아웃", accent = Sb.Aqua) {
+            named.forEach { l ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(l.name?.replace(Regex("§."), "")?.ifBlank { null } ?: "로드아웃 ${l.id}", style = SbText.body(14, Sb.Text), modifier = Modifier.weight(1f))
+                    Text(listOfNotNull(l.armorSet?.let { "옷장 ${it}번" }, l.equipmentSet?.let { "장비 ${it}번" }).joinToString(" · "),
+                        style = SbText.pixel(12, Sb.TextDim))
+                }
             }
         }
     }

@@ -2,7 +2,6 @@ package sbhelper.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +63,7 @@ import sbhelper.ui.theme.McColors
 import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
-private val STAT_TABS = listOf("개요", "순자산", "HotM 트리", "HotF 트리", "펫", "던전", "가든·제이콥", "크림슨·리프트·낚시",
+private val STAT_TABS = listOf("개요", "순자산", "HotM 트리", "HotF 트리", "펫", "던전·슬레이어", "가든·제이콥", "크림슨·리프트·낚시",
     "도감", "컬렉션", "미니언", "박물관", "기타 통계")
 
 /** 기록: 순자산 · HotM 트리 · 도감(Bestiary) · 컬렉션 · 미니언 */
@@ -77,10 +76,8 @@ fun StatsScreen(controller: AppController, state: AppState, wide: Boolean) {
             Panel { EmptyState("계정을 연결해 주세요", "기록을 보려면 계정 연결과 API 키가 필요해요.", icon = Icons.Rounded.Insights) }
             return@ScreenColumn
         }
-        // 탭이 많아서 옆으로 넘길 수 있게
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            Segmented(STAT_TABS, tab, { controller.statsTab = it })
-        }
+        // 탭이 많아서 옆으로 넘길 수 있게 (Segmented 가 알아서 가로 스크롤)
+        Segmented(STAT_TABS, tab, { controller.statsTab = it })
         val details = remember(p.member, state.garden, state.gameData) {
             sbhelper.core.calc.ProfileDetailsCalc.compute(p.member, state.garden, state.gameData)
         }
@@ -307,13 +304,29 @@ private fun HotmNode(node: GameData.HotmCell, level: Int?, size: Dp) {
     }
 }
 
+// ------------------------------------------------------------------ 카드 줄 (화면 너비에 맞춰 칸 수를 정함)
+private val LocalTileWidth = androidx.compose.runtime.staticCompositionLocalOf<androidx.compose.ui.unit.Dp?> { null }
+
+/** 가능한 만큼 칸을 넣고, 남는 폭은 칸들이 나눠 가져서 오른쪽이 비지 않게 (휴대폰에서는 한두 칸) */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TileFlow(minWidth: androidx.compose.ui.unit.Dp, gap: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val cols = ((maxWidth + gap) / (minWidth + gap)).toInt().coerceAtLeast(1)
+        val w = (maxWidth - gap * (cols - 1)) / cols
+        androidx.compose.runtime.CompositionLocalProvider(LocalTileWidth provides w) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(gap), verticalArrangement = Arrangement.spacedBy(gap)) { content() }
+        }
+    }
+}
+
 // ------------------------------------------------------------------ 카테고리 카드 (도감·컬렉션 공통)
 /** 카테고리 하나: 대표 아이콘 + 이름 + 진행도. 누르면 하위 항목 카드가 펼쳐진다 */
 @Composable
 private fun CategoryCard(title: String, sub: String, progress: Double, done: Boolean, selected: Boolean, accent: Color,
                          icon: @Composable () -> Unit, onClick: () -> Unit) {
     Row(
-        Modifier.width(260.dp).clip(RoundedCornerShape(12.dp))
+        Modifier.width(LocalTileWidth.current ?: 260.dp).clip(RoundedCornerShape(12.dp))
             .background(if (selected) accent.copy(alpha = 0.15f) else Sb.SurfaceHigh)
             .border(if (selected) 2.dp else 1.dp, if (selected) accent else Sb.Border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick).padding(10.dp),
@@ -336,7 +349,7 @@ private fun ItemTile(title: String, value: String, detail: String, progress: Dou
                      icon: @Composable () -> Unit, tooltip: (@Composable () -> Unit)? = null) {
     val body: @Composable () -> Unit = {
         Column(
-            Modifier.width(200.dp).clip(RoundedCornerShape(10.dp)).background(Sb.Surface)
+            Modifier.width(LocalTileWidth.current ?: 200.dp).clip(RoundedCornerShape(10.dp)).background(Sb.Surface)
                 .border(1.dp, if (maxed) Sb.Gold.copy(alpha = 0.6f) else Sb.Border, RoundedCornerShape(10.dp)).padding(9.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -373,7 +386,7 @@ private fun BestiaryTab(state: AppState, p: ProfileSummary) {
         Spacer(Modifier.height(8.dp))
         SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "몹·지역 검색", Icons.Rounded.Search)
         Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TileFlow(240.dp, 10.dp) {
             areas.forEach { (area, list) ->
                 val hits = if (q.isEmpty()) list else list.filter { it.family.contains(q, true) || area.contains(q, true) }
                 if (hits.isEmpty()) return@forEach
@@ -392,7 +405,7 @@ private fun BestiaryTab(state: AppState, p: ProfileSummary) {
         val hits = if (q.isEmpty()) list else list.filter { it.family.contains(q, true) || area.contains(q, true) }
         if (hits.isEmpty() || (q.isEmpty() && open != area)) return@forEach
         Panel(Modifier.fillMaxWidth(), title = area, accent = Sb.Red) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TileFlow(165.dp, 8.dp) {
                 hits.forEach { e ->
                     ItemTile(e.family, if (e.maxed) "MAX" else "${e.tier}/${e.maxTier}",
                         if (e.maxed) "${formatNumber(e.kills.toLong())} 처치" else "${formatNumber(e.kills.toLong())} / ${formatNumber(e.nextKills ?: 0)} 처치",
@@ -424,7 +437,7 @@ private fun CollectionsTab(state: AppState, p: ProfileSummary) {
         Spacer(Modifier.height(8.dp))
         SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "컬렉션·분야 검색", Icons.Rounded.Search)
         Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        TileFlow(240.dp, 10.dp) {
             cats.forEach { (cat, items) ->
                 val hits = if (q.isEmpty()) items else items.filter { it.name.contains(q, true) || cat.contains(q, true) }
                 if (hits.isEmpty()) return@forEach
@@ -442,7 +455,7 @@ private fun CollectionsTab(state: AppState, p: ProfileSummary) {
         val hits = if (q.isEmpty()) items else items.filter { it.name.contains(q, true) || cat.contains(q, true) }
         if (hits.isEmpty() || (q.isEmpty() && open != cat)) return@forEach
         Panel(Modifier.fillMaxWidth(), title = nice(cat), accent = Sb.Yellow) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TileFlow(165.dp, 8.dp) {
                 hits.forEach { c ->
                     ItemTile(c.name, if (c.maxed) "MAX" else toRomanStats(c.tier),
                         if (c.maxed) "${formatNumber(c.amount)}개" else "${formatNumber(c.amount)} / ${formatNumber(c.nextRequired ?: 0)}",
@@ -481,14 +494,14 @@ private fun MinionsTab(state: AppState, p: ProfileSummary) {
         Text("만든 미니언 단계 수가 많을수록 미니언 칸이 늘어나요. 흐린 것은 아직 안 만든 미니언이에요 (목록: 공식 위키).",
             style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(10.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        TileFlow(190.dp, 8.dp) {
             list.forEach { m ->
                 HoverTip({
                     LoreTooltip(m.name, if (m.highest > 0) Sb.Yellow else Sb.Gray,
                         listOf(if (m.tiers.isEmpty()) "§7아직 만들지 않았어요" else "§7만든 단계: §a" + m.tiers.sorted().joinToString(", ") { toRomanStats(it) }))
                 }) {
                     Row(
-                        Modifier.width(210.dp).clip(RoundedCornerShape(10.dp)).background(Sb.SurfaceHigh)
+                        Modifier.width(LocalTileWidth.current ?: 210.dp).clip(RoundedCornerShape(10.dp)).background(Sb.SurfaceHigh)
                             .padding(horizontal = 10.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -662,28 +675,65 @@ private fun PetsTab(controller: AppController, state: AppState, d: sbhelper.core
 private fun DungeonsTab(state: AppState, p: ProfileSummary, d: sbhelper.core.calc.ProfileDetails?) {
     if (d == null) { NoDetails(); return }
     Panel(Modifier.fillMaxWidth(), caption = "Dungeons", title = "던전", accent = Sb.Red) {
+        val totalClears = d.floors.sumOf { it.completions }
+        val played = d.floors.mapNotNull { it.timesPlayed }
         FlowRow2 {
             p.catacombsXp?.takeIf { state.gameData.leveling.catacombs.isNotEmpty() }?.let { xp ->
                 StatTile("카타콤 레벨", "${Leveling.catacombs(xp, state.gameData.leveling.catacombs).level}", color = Sb.Red)
             }
+            StatTile("총 클리어", formatNumber(totalClears.toLong()) + " 판", color = Sb.Gold,
+                sub = "일반 ${formatNumber(d.floors.filter { !it.master }.sumOf { it.completions }.toLong())} · 마스터 ${formatNumber(d.floors.filter { it.master }.sumOf { it.completions }.toLong())}")
+            if (played.isNotEmpty()) StatTile("총 입장", formatNumber(played.sum().toLong()) + " 판", color = Sb.Aqua)
             d.secrets?.let { StatTile("찾은 시크릿", formatNumber(it), color = Sb.Aqua) }
             d.selectedClass?.let { StatTile("선택한 클래스", nice(it), color = Sb.Gold) }
             d.highestFloor?.let { StatTile("최고 층", "F$it", color = Sb.Red) }
         }
+        if (d.floors.isEmpty()) return@Panel
         Spacer(Modifier.height(10.dp))
+        // 비율 너비: 휴대폰에서도 잘리지 않게
+        val cols = listOf("층" to 0.8f, "클리어" to 1f, "입장" to 1f, "S+ 기록" to 1.1f, "S 기록" to 1.1f, "최고 점수" to 1f)
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-            listOf("층" to 70, "클리어" to 80, "S+ 최고 기록" to 110, "S 최고 기록" to 110, "최고 점수" to 80).forEach { (h, w) ->
-                Text(h, style = SbText.caption(Sb.TextDim), modifier = Modifier.width(w.dp))
-            }
+            cols.forEach { (h, w) -> Text(h, style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(w), maxLines = 1) }
         }
         d.floors.forEach { f ->
             Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Text((if (f.master) "M" else if (f.floor == 0) "입구" else "F") + (if (f.floor == 0 && !f.master) "" else "${f.floor}"),
-                    style = SbText.pixel(12, if (f.master) Sb.Red else Sb.Text, bold = true), modifier = Modifier.width(70.dp))
-                Text(formatNumber(f.completions.toLong()), style = SbText.body(13), modifier = Modifier.width(80.dp))
-                Text(timeText(f.fastestSPlusMs), style = SbText.body(13, Sb.Gold), modifier = Modifier.width(110.dp))
-                Text(timeText(f.fastestSMs), style = SbText.body(13, Sb.TextDim), modifier = Modifier.width(110.dp))
-                Text(f.bestScore?.toString() ?: "-", style = SbText.body(13, Sb.TextDim), modifier = Modifier.width(80.dp))
+                    style = SbText.pixel(12, if (f.master) Sb.Red else Sb.Text, bold = true), modifier = Modifier.weight(cols[0].second))
+                Text(formatNumber(f.completions.toLong()), style = SbText.body(13), modifier = Modifier.weight(cols[1].second))
+                Text(f.timesPlayed?.let { formatNumber(it.toLong()) } ?: "-", style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(cols[2].second))
+                Text(timeText(f.fastestSPlusMs), style = SbText.body(13, Sb.Gold), modifier = Modifier.weight(cols[3].second))
+                Text(timeText(f.fastestSMs), style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(cols[4].second))
+                Text(f.bestScore?.toString() ?: "-", style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(cols[5].second))
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("입장 횟수는 게임 API 가 기록을 주는 층만 보여요.", style = SbText.body(12, Sb.TextFaint))
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Slayer", title = "슬레이어 처치 횟수", accent = Sb.Red) {
+        val kills = p.slayerBossKills.filterValues { it.values.any { n -> n > 0 } }
+        if (kills.isEmpty()) {
+            Text("슬레이어 보스를 잡은 기록이 없어요.", style = SbText.body(13, Sb.TextFaint)); return@Panel
+        }
+        FlowRow2 {
+            StatTile("모든 보스", formatNumber(kills.values.sumOf { it.values.sum() }.toLong()) + " 마리", color = Sb.Red)
+        }
+        Spacer(Modifier.height(10.dp))
+        val maxTier = kills.values.flatMap { it.keys }.maxOrNull()?.coerceAtLeast(4) ?: 4
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text("보스", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(2.2f), maxLines = 1)
+            (1..maxTier).forEach { t -> Text("T$t", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(1f), maxLines = 1) }
+            Text("합계", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(1.2f), maxLines = 1)
+        }
+        val order = SLAYER_STYLES.keys.toList()
+        kills.entries.sortedBy { order.indexOf(it.key).let { i -> if (i < 0) 99 else i } }.forEach { (boss, tiers) ->
+            val style = SLAYER_STYLES[boss]
+            Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(style?.name ?: nice(boss), style = SbText.body(13, style?.color ?: Sb.Text, FontWeight.Bold), modifier = Modifier.weight(2.2f), maxLines = 2)
+                (1..maxTier).forEach { t ->
+                    Text(tiers[t]?.takeIf { it > 0 }?.let { formatNumber(it.toLong()) } ?: "-", style = SbText.body(13, if ((tiers[t] ?: 0) > 0) Sb.Text else Sb.TextFaint),
+                        modifier = Modifier.weight(1f), maxLines = 1)
+                }
+                Text(formatNumber(tiers.values.sum().toLong()), style = SbText.pixel(13, Sb.Gold, bold = true), modifier = Modifier.weight(1.2f), maxLines = 1)
             }
         }
     }

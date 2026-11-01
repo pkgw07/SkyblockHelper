@@ -105,7 +105,9 @@ class ProfileProbe {
                     "hotfXp=${parsed.hotfXp != null} hotfNodes=${parsed.hotfNodes.size} timeTower=${parsed.timeTowerCharges != null} " +
                     "forge=${parsed.forge.size} sacks=${parsed.sacks?.size} collections=${parsed.collections?.size} inventories=${parsed.inventories.keys.sorted()} " +
                     "bestiary=${parsed.bestiaryKills.size} minions=${parsed.craftedMinions.size} pets=${parsed.pets.size} powders=${parsed.powders.keys} " +
-                    "skills=${parsed.skillXp?.keys?.sorted()}")
+                    "skills=${parsed.skillXp?.keys?.sorted()} " +
+                    "wardrobe=${parsed.wardrobe?.let { w -> "세트 ${w.armor.size}개, 아이템 ${w.armor.values.sumOf { l -> l.count { d -> sbhelper.core.nbt.ItemParser.parse(d).any { it != null } } }}개, 장비 ${w.equipment.size}, 로드아웃 ${w.loadouts.size}, 착용 ${w.equippedArmor != null}" } ?: "없음"} " +
+                    "slayerBosses=${parsed.slayerBossKills.size} floors=${parsed.floorCompletions.size}")
             val pid = (p["profile_id"] as? JsonPrimitive)?.content ?: return@forEachIndexed
             if (selected) {
                 runCatching {

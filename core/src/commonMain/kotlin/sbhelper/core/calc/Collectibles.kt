@@ -181,6 +181,18 @@ object NetworthCalc {
             }
             parts[label] = sum
         }
+        // 옷장 (공식 API loadout)
+        profile.wardrobe?.let { w ->
+            var sum = 0.0
+            (w.armor.values + w.equipment.values).flatten().filterNotNull().forEach { data ->
+                ItemParser.parse(data).filterNotNull().forEach { item ->
+                    val id = item.skyblockId ?: return@forEach
+                    val v = prices.valueOf(id)
+                    if (v == null) unpriced++ else { sum += v * item.count; valued += item to v * item.count }
+                }
+            }
+            parts["옷장"] = (parts["옷장"] ?: 0.0) + sum
+        }
         return Networth(parts.values.sum(), parts, unpriced, valued.sortedByDescending { it.second }.take(15))
     }
 }

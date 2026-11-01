@@ -88,21 +88,16 @@ fun main(args: Array<String>) {
     val platform = DesktopPlatform()
     platform.onQuitForUpdate = { repo.stopLoops(); kotlin.system.exitProcess(0) }
 
-    // 업데이트 확인: 켤 때 + 6시간마다. 자동 업데이트가 켜져 있으면 바로 설치
+    // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)
     scope.launch {
         while (true) {
             platform.inAppUpdater?.stagedVersion?.let { repo.setUpdateStaged(it) }
-            val release = runCatching { repo.checkForUpdate() }.getOrNull()
-            if (release != null && repo.state.value.updateStaged != release.version) {
-                if (repo.state.value.device.autoUpdate && platform.inAppUpdater != null) {
-                    // 자동 업데이트: 조용히 받아 두고, 다음에 켤 때(또는 '지금 다시 시작') 적용
-                    if (UpdateFlow.run(controller, platform) && repo.state.value.updateStaged == release.version) {
-                        notifier.show(sbhelper.core.notify.AppNotification("update:${release.version}", "새 버전 ${release.version} 준비 완료",
-                            "다시 시작하면 바로 적용돼요.", AlertCategory.SYSTEM, sbhelper.core.util.Clock.now()))
-                    }
-                } else if (repo.state.value.device.autoUpdate) UpdateFlow.run(controller, platform)
-                else notifier.show(sbhelper.core.notify.AppNotification("update:${release.version}", "새 버전 ${release.version}",
-                    "설정 또는 상단 안내에서 업데이트할 수 있어요.", AlertCategory.SYSTEM, sbhelper.core.util.Clock.now()))
+            if (repo.state.value.device.autoUpdate) {
+                val release = runCatching { repo.checkForUpdate() }.getOrNull()
+                if (release != null && repo.state.value.updateStaged != release.version) {
+                    notifier.show(sbhelper.core.notify.AppNotification("update:${release.version}", "새 버전 ${release.version}",
+                        "앱을 열어 업데이트할지 골라 주세요.", AlertCategory.SYSTEM, sbhelper.core.util.Clock.now()))
+                }
             }
             kotlinx.coroutines.delay(6 * 3_600_000L)
         }

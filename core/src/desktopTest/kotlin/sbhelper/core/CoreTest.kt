@@ -369,4 +369,25 @@ class CoreTest {
         assertEquals(now + 3_000_000L, comp.at)
         assertTrue(timers.any { it.key == "fetchur" } && timers.any { it.key == "experiment" })
     }
+
+    @Test
+    fun wardrobeFromLoadoutAndDungeonRuns() {
+        // 실제 프로필과 같은 위치 (2026-11 진단으로 확인): member.loadout.armor.<n>.<SLOT>.data
+        val member = SbJson.parseToJsonElement("""{
+            "loadout":{"armor":{"equipped_set":2,"1":{"HELMET":{"type":0,"data":"x"},"BOOTS":{"data":"y"}},"2":{"CHESTPLATE":{"data":"z"}}},
+                       "equipment":{"1":{"EQUIPMENT_SLOT_1":{"data":"e"}}},
+                       "loadouts":{"1":{"name":"Dungeon","armor_set_id":2,"equipment_set_id":1}}},
+            "dungeons":{"dungeon_types":{"catacombs":{"tier_completions":{"7":10},"times_played":{"7":12,"6":3}}}}
+        }""").jsonObject
+        val w = assertNotNull(ProfileParser.wardrobe(member))
+        assertEquals(listOf("x", null, null, "y"), w.armor[1])
+        assertEquals(listOf(null, "z", null, null), w.armor[2])
+        assertEquals(2, w.equippedArmor)
+        assertEquals("e", w.equipment[1]?.first())
+        assertEquals(2, w.loadouts.single().armorSet)
+        val d = assertNotNull(sbhelper.core.calc.ProfileDetailsCalc.compute(member, null, GameData()))
+        val f7 = d.floors.first { it.floor == 7 && !it.master }
+        assertEquals(10, f7.completions); assertEquals(12, f7.timesPlayed)
+        assertEquals(0, d.floors.first { it.floor == 6 }.completions)
+    }
 }

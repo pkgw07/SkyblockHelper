@@ -77,6 +77,8 @@ data class ProfileSummary(
     val powders: Map<String, Long> = emptyMap(),
     /** HotF (Heart of the Forest) 노드 레벨 (skill_tree.nodes.foraging) */
     val hotfNodes: Map<String, Int> = emptyMap(),
+    /** 옷장·장비 세트·로드아웃 (member.loadout) */
+    val wardrobe: Wardrobe? = null,
     /** 이 플레이어의 원본 데이터 (SkyCrypt 수준 상세 기록용, 화면에서 필요한 것만 읽음) */
     val member: kotlinx.serialization.json.JsonObject? = null,
     /** 벌목 최대 레벨 추가분 (player_data.experience.SKILL_FORAGING_extra_level_cap) */
@@ -103,6 +105,17 @@ data class ProfileSummary(
     }
     val activePet get() = pets.firstOrNull { it.active }
 }
+
+/** 옷장 (각 칸: 투구·갑옷·바지·신발 / 장비 4칸의 base64 NBT) */
+data class Wardrobe(
+    val armor: Map<Int, List<String?>>,
+    val equipment: Map<Int, List<String?>>,
+    val equippedArmor: Int?,
+    val equippedEquipment: Int?,
+    val loadouts: List<Loadout>,
+)
+
+data class Loadout(val id: Int, val name: String?, val armorSet: Int?, val equipmentSet: Int?)
 
 /**
  * Hypixel 프로필 JSON 을 읽는다.
@@ -182,6 +195,7 @@ object ProfileParser {
             hotmNodes = hotmNodes(member),
             hotfNodes = treeNodes(member.obj("skill_tree", "nodes", "foraging")),
             member = member,
+            wardrobe = wardrobe(member),
             foragingCapBonus = member.num("player_data", "experience", "SKILL_FORAGING_extra_level_cap")?.toInt(),
             tokensSpent = member.obj("skill_tree", "tokens_spent")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             hotfXp = member.num("skill_tree", "experience", "foraging"),
@@ -214,6 +228,31 @@ object ProfileParser {
             }
         }
         return out
+    }
+
+    /**
+     * 옷장: 공식 API 는 예전 inventory.wardrobe_contents 대신 loadout 에 넣는다 (2026-11 실제 프로필로 확인).
+     *  loadout.armor.<칸>.<HELMET|CHESTPLATE|LEGGINGS|BOOTS>.data, loadout.equipment.<칸>.EQUIPMENT_SLOT_1~4.data,
+     *  loadout.loadouts.<번호>.{name, armor_set_id, equipment_set_id}, equipped_set
+     */
+    fun wardrobe(member: JsonObject): Wardrobe? {
+        val lo = member.obj("loadout") ?: return null
+        fun data(o: JsonElement?) = ((o as? JsonObject)?.get("data") as? JsonPrimitive)?.content
+        fun sets(kind: String, slots: List<String>): Map<Int, List<String?>> =
+            lo.obj(kind)?.mapNotNull { (k, v) ->
+                val n = k.toIntOrNull() ?: return@mapNotNull null
+                val o = v as? JsonObject ?: return@mapNotNull null
+                n to slots.map { data(o[it]) }
+            }?.toMap().orEmpty()
+        val armor = sets("armor", listOf("HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS"))
+        val equipment = sets("equipment", listOf("EQUIPMENT_SLOT_1", "EQUIPMENT_SLOT_2", "EQUIPMENT_SLOT_3", "EQUIPMENT_SLOT_4"))
+        val loadouts = lo.obj("loadouts")?.mapNotNull { (k, v) ->
+            val o = v as? JsonObject ?: return@mapNotNull null
+            Loadout(k.toIntOrNull() ?: return@mapNotNull null, (o["name"] as? JsonPrimitive)?.content,
+                (o["armor_set_id"] as? JsonPrimitive)?.content?.toIntOrNull(), (o["equipment_set_id"] as? JsonPrimitive)?.content?.toIntOrNull())
+        }?.sortedBy { it.id }.orEmpty()
+        if (armor.isEmpty() && equipment.isEmpty()) return null
+        return Wardrobe(armor, equipment, lo.num("armor", "equipped_set")?.toInt(), lo.num("equipment", "equipped_set")?.toInt(), loadouts)
     }
 
     /** 스킬 트리 노드 (toggle_ 키 제외) */

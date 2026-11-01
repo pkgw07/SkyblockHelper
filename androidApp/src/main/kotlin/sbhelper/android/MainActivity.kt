@@ -83,8 +83,9 @@ class MainActivity : ComponentActivity() {
             BackgroundScheduler.apply(this@MainActivity, device.runInBackground)
             if (device.notificationsOnThisDevice) platform.requestNotificationPermission()
             // 새 버전 확인 (자동 업데이트가 켜져 있으면 내려받고 설치 화면을 띄운다)
-            val release = runCatching { app.repo.checkForUpdate() }.getOrNull()
-            if (release != null && device.autoUpdate) UpdateFlow.run(controller, platform)
+            val release = if (device.autoUpdate) runCatching { app.repo.checkForUpdate() }.getOrNull() else null
+            // 확인만 한다. 받기·설치는 화면의 "업데이트할까요?" 에 동의해야
+            if (release == null) Unit
         }
         setContent {
             SkyblockApp(controller, platform, Modifier.safeDrawingPadding())

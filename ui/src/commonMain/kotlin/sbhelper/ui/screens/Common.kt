@@ -19,12 +19,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** 화면 공통 스크롤 컨테이너 */
+/** 화면 공통 스크롤 컨테이너
+ *  - 화면(탭)마다 스크롤 위치를 기억한다 (다른 화면에 갔다 와도 그대로)
+ *  - 가운데 내용 바깥의 빈 공간에서 굴려도 스크롤된다
+ */
 @Composable
-fun ScreenColumn(wide: Boolean, content: @Composable ColumnScope.() -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+fun ScreenColumn(wide: Boolean, scrollKey: String? = null, content: @Composable ColumnScope.() -> Unit) {
+    val controller = sbhelper.ui.LocalController.current
+    val key = controller.screen.name + (scrollKey?.let { ":$it" } ?: controller.tabKey())
+    val state = controller.scrollState(key)
+    Column(
+        Modifier.fillMaxSize().verticalScroll(state),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
         Column(
-            Modifier.widthIn(max = 1280.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+            Modifier.widthIn(max = 1280.dp).fillMaxWidth()
                 .padding(horizontal = if (wide) 28.dp else 14.dp)
                 .padding(bottom = 28.dp, top = if (wide) 4.dp else 8.dp),
             verticalArrangement = Arrangement.spacedBy(if (wide) 18.dp else 12.dp),

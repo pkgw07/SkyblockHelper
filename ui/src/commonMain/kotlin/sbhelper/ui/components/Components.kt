@@ -4,6 +4,8 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -343,19 +345,23 @@ fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, desc
 /** 탭처럼 생긴 선택 버튼 묶음 */
 @Composable
 fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier.clip(RoundedCornerShape(12.dp)).background(Sb.Window).border(1.dp, Sb.Border, RoundedCornerShape(12.dp))
-            .padding(4.dp),
-    ) {
-        options.forEachIndexed { i, label ->
-            val active = i == selected
-            Box(
-                Modifier.clip(RoundedCornerShape(9.dp))
-                    .background(if (active) Sb.SurfaceHover else Color.Transparent)
-                    .clickable { onSelect(i) }
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-            ) {
-                Text(label, style = SbText.body(13, if (active) Sb.Text else Sb.TextDim, if (active) FontWeight.SemiBold else FontWeight.Normal))
+    // 한 줄로만: 칸이 모자라면(휴대폰) 글자를 줄바꿈하지 않고 옆으로 밀어서 보게
+    Box(modifier.horizontalScroll(rememberScrollState())) {
+        Row(
+            Modifier.clip(RoundedCornerShape(12.dp)).background(Sb.Window).border(1.dp, Sb.Border, RoundedCornerShape(12.dp))
+                .padding(4.dp),
+        ) {
+            options.forEachIndexed { i, label ->
+                val active = i == selected
+                Box(
+                    Modifier.clip(RoundedCornerShape(9.dp))
+                        .background(if (active) Sb.SurfaceHover else Color.Transparent)
+                        .clickable { onSelect(i) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Text(label, style = SbText.body(13, if (active) Sb.Text else Sb.TextDim, if (active) FontWeight.SemiBold else FontWeight.Normal),
+                        maxLines = 1, softWrap = false)
+                }
             }
         }
     }
