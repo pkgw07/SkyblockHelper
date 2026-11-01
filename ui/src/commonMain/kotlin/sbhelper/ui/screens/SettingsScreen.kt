@@ -277,8 +277,8 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
             "비공식 Google 번역을 써요. 번역이 안 되면 원문을 보여 줘요.")
         Divider(Modifier.padding(vertical = 10.dp))
         SwitchRow("자동 업데이트", d.autoUpdate, { on -> controller.repo.updateDevice { it.copy(autoUpdate = on) } },
-            if (platform.isDesktop) "새 버전이 나오면 프로그램을 켤 때 자동으로 내려받아 설치해요."
-            else "새 버전이 나오면 내려받아 설치 화면을 띄워요.")
+            if (platform.isDesktop) "새 버전이 나오면 바뀐 파일만 조용히 받아 두고, 다시 시작하면 바로 적용돼요."
+            else "새 버전이 나오면 앱 안에서 받아 설치해요. 처음 한 번만 확인 화면이 뜨고, 그다음부터는 바로 설치돼요.")
         val scope = rememberCoroutineScope()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("현재 버전 ${platform.versionName}", style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(1f))

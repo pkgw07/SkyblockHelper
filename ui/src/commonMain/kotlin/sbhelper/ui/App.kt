@@ -397,8 +397,10 @@ private fun Toast(message: String?, modifier: Modifier) {
 /** 새 버전 안내 띠 */
 @Composable
 private fun UpdateBanner(controller: AppController, state: AppState, platform: Platform) {
-    val release = state.availableUpdate ?: return
-    if (platform.updateAssetSuffix == null) return
+    val staged = state.updateStaged
+    val release = state.availableUpdate
+    if (staged == null && release == null) return
+    if (staged == null && platform.updateAssetSuffix == null && platform.inAppUpdater == null) return
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp))
             .background(Sb.Aqua.copy(alpha = 0.10f)).border(1.dp, Sb.Aqua.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
@@ -408,18 +410,26 @@ private fun UpdateBanner(controller: AppController, state: AppState, platform: P
         Icon(Icons.Rounded.SystemUpdate, null, tint = Sb.Aqua, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text("새 버전 ${release.version} 이 나왔어요", style = SbText.body(13, weight = FontWeight.SemiBold))
+            Text(if (staged != null) "새 버전 $staged 준비 완료 — 다시 시작하면 바로 적용돼요" else "새 버전 ${release?.version} 이 나왔어요",
+                style = SbText.body(13, weight = FontWeight.SemiBold))
             val msg = state.updateMessage
-            if (msg != null) Text(msg, style = SbText.body(12, if (msg.startsWith("⚠")) Sb.Negative else Sb.TextDim))
+            if (msg != null && staged == null) Text(msg, style = SbText.body(12, if (msg.startsWith("⚠")) Sb.Negative else Sb.TextDim))
             state.updateProgress?.let { p ->
-                Spacer(Modifier.height(4.dp))
-                sbhelper.ui.components.XpBar(p, Modifier.fillMaxWidth(), Sb.Aqua, 5.dp)
+                if (staged == null) {
+                    Spacer(Modifier.height(4.dp))
+                    sbhelper.ui.components.XpBar(p, Modifier.fillMaxWidth(), Sb.Aqua, 5.dp)
+                }
             }
         }
         Spacer(Modifier.width(10.dp))
-        sbhelper.ui.components.SbButton("지금 업데이트", {
-            controller.scope.launch { UpdateFlow.run(controller, platform) }
-        }, enabled = state.updateProgress == null, color = Sb.Aqua)
+        val updater = platform.inAppUpdater
+        if (staged != null && updater != null) {
+            sbhelper.ui.components.SbButton("지금 다시 시작", { controller.repo.stopLoops(); updater.restart() }, color = Sb.Aqua)
+        } else {
+            sbhelper.ui.components.SbButton("업데이트 받기", {
+                controller.scope.launch { UpdateFlow.run(controller, platform) }
+            }, enabled = state.updateProgress == null, color = Sb.Aqua)
+        }
     }
 }
 

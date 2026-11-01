@@ -21,6 +21,8 @@ interface Platform {
     val updateAssetSuffix: String? get() = null
     /** 내려받은 업데이트 설치를 시작한다. 성공하면 true */
     fun installUpdate(bytes: ByteArray, fileName: String): Boolean = false
+    /** 앱 안 업데이트 (받아 두고 다시 시작하면 적용). null 이면 설치 파일 방식만 */
+    val inAppUpdater: InAppUpdater? get() = null
     /** 휴대폰에서 QR 스캔으로 연동 코드를 읽는다. 지원하지 않으면 null */
     val scanPairingCode: ((onResult: (String) -> Unit) -> Unit)? get() = null
 }
@@ -29,3 +31,15 @@ val LocalPlatform = staticCompositionLocalOf<Platform> { error("Platform not pro
 
 /** PNG 바이트 -> 이미지 */
 expect fun decodeImage(bytes: ByteArray): ImageBitmap?
+
+/** 앱 안에서 받아 다시 시작하면 적용되는 업데이트 */
+interface InAppUpdater {
+    enum class Result { STAGED, NEEDS_INSTALLER, FAILED }
+
+    /** 필요한 파일만 받아 둔다. [download] 는 주소 → 내용 (실패하면 null) */
+    suspend fun stage(release: sbhelper.core.update.Release, download: suspend (String) -> ByteArray?): Result
+    /** 다시 시작하면 적용될 버전 (없으면 null) */
+    val stagedVersion: String?
+    /** 프로그램을 다시 시작한다 */
+    fun restart()
+}

@@ -74,6 +74,8 @@ data class AppState(
     /** 업데이트 다운로드 진행도 (null = 진행 안 함) */
     val updateProgress: Double? = null,
     val updateMessage: String? = null,
+    /** 받아 두어서 다시 시작하면 적용되는 버전 */
+    val updateStaged: String? = null,
     /** 제이콥 농사대회 시작 시각 → 작물 (비공식: EliteBot) */
     val jacobCrops: Map<Long, List<String>> = emptyMap(),
     /** 경매장 아이템별 최저 BIN (순자산·장신구 가격용) */
@@ -222,7 +224,7 @@ class SkyblockRepository(
     suspend fun downloadUpdate(assetUrl: String): ByteArray? = try {
         _state.update { it.copy(updateProgress = 0.0, updateMessage = "업데이트를 내려받는 중…") }
         val bytes = updates.download(assetUrl) { p -> _state.update { it.copy(updateProgress = p) } }
-        _state.update { it.copy(updateProgress = 1.0, updateMessage = "설치를 시작해요…") }
+        _state.update { it.copy(updateProgress = 1.0, updateMessage = "내려받았어요.") }
         bytes
     } catch (e: ApiException) {
         _state.update { it.copy(updateProgress = null, updateMessage = "⚠ ${e.message}") }
@@ -230,6 +232,8 @@ class SkyblockRepository(
     }
 
     fun setUpdateMessage(message: String?) = _state.update { it.copy(updateMessage = message, updateProgress = null) }
+
+    fun setUpdateStaged(version: String?) = _state.update { it.copy(updateStaged = version) }
 
     /** 앱이 실행되는 동안 도는 주기 작업들 */
     fun startLoops() {

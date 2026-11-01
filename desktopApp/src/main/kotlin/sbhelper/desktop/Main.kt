@@ -91,9 +91,16 @@ fun main(args: Array<String>) {
     // 업데이트 확인: 켤 때 + 6시간마다. 자동 업데이트가 켜져 있으면 바로 설치
     scope.launch {
         while (true) {
+            platform.inAppUpdater?.stagedVersion?.let { repo.setUpdateStaged(it) }
             val release = runCatching { repo.checkForUpdate() }.getOrNull()
-            if (release != null) {
-                if (repo.state.value.device.autoUpdate) UpdateFlow.run(controller, platform)
+            if (release != null && repo.state.value.updateStaged != release.version) {
+                if (repo.state.value.device.autoUpdate && platform.inAppUpdater != null) {
+                    // 자동 업데이트: 조용히 받아 두고, 다음에 켤 때(또는 '지금 다시 시작') 적용
+                    if (UpdateFlow.run(controller, platform) && repo.state.value.updateStaged == release.version) {
+                        notifier.show(sbhelper.core.notify.AppNotification("update:${release.version}", "새 버전 ${release.version} 준비 완료",
+                            "다시 시작하면 바로 적용돼요.", AlertCategory.SYSTEM, sbhelper.core.util.Clock.now()))
+                    }
+                } else if (repo.state.value.device.autoUpdate) UpdateFlow.run(controller, platform)
                 else notifier.show(sbhelper.core.notify.AppNotification("update:${release.version}", "새 버전 ${release.version}",
                     "설정 또는 상단 안내에서 업데이트할 수 있어요.", AlertCategory.SYSTEM, sbhelper.core.util.Clock.now()))
             }
@@ -101,8 +108,9 @@ fun main(args: Array<String>) {
         }
     }
 
-    val startHidden = "--minimized" in args ||
-        (repo.state.value.device.startMinimized && repo.state.value.device.runInBackground)
+    val smokeFile = args.firstOrNull { it.startsWith("--smoke-test=") }?.removePrefix("--smoke-test=")
+    val startHidden = smokeFile == null && ("--minimized" in args ||
+        (repo.state.value.device.startMinimized && repo.state.value.device.runInBackground))
 
     application {
         var visible by remember { mutableStateOf(!startHidden) }
@@ -153,6 +161,14 @@ fun main(args: Array<String>) {
             undecorated = true,
         ) {
             LaunchedEffect(Unit) { window.minimumSize = Dimension(900, 620) }
+            // CI 확인용: 창이 그려지면 버전을 파일에 쓰고 끝낸다 (앱 안 업데이트로 실행되는지 검사)
+            smokeFile?.let { f ->
+                LaunchedEffect(Unit) {
+                    kotlinx.coroutines.delay(4000)
+                    java.io.File(f).writeText("${AppInfo.VERSION} patch=${System.getProperty(Patches.PROP_RUNNING) ?: "none"}")
+                    kotlin.system.exitProcess(0)
+                }
+            }
             // 테두리 없는 창은 OS 최대화가 작업 표시줄까지 덮으므로, 작업 영역(작업 표시줄 제외)에 직접 맞춘다
             var maximized by remember { mutableStateOf(false) }
             var restore by remember { mutableStateOf<java.awt.Rectangle?>(null) }

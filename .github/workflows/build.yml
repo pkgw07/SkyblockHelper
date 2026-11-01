@@ -73,14 +73,21 @@ jobs:
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_SEED: ${{ secrets.ANDROID_SIGNING_SEED }}
         run: |
           set -o pipefail
-          if [ -n "$KEYSTORE_B64" ]; then
+          if [ -n "$ANDROID_SIGNING_SEED" ]; then
+            # 비밀 문구 하나로 항상 같은 키를 만든다 → 휴대폰에서 기존 앱 위에 바로 업데이트
+            pip install -q cryptography
+            python tools/android_key.py androidApp/release.jks sbhelper
+            export ANDROID_KEYSTORE_PASSWORD=sbhelper ANDROID_KEY_ALIAS=sbh ANDROID_KEY_PASSWORD=sbhelper
+          elif [ -n "$KEYSTORE_B64" ]; then
             # 저장소 비밀값의 고정 키 → 휴대폰에서 업데이트 설치가 그대로 됨
             echo "$KEYSTORE_B64" | base64 -d > androidApp/release.jks
             export ANDROID_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD" ANDROID_KEY_ALIAS="$KEY_ALIAS" ANDROID_KEY_PASSWORD="$KEY_PASSWORD"
           else
             # 비밀값이 없으면 임시 키 (새 버전을 설치하려면 기존 앱을 지워야 할 수 있음)
+            echo "::warning title=Android signing::ANDROID_SIGNING_SEED 비밀값이 없어서 임시 키로 서명했어요. 휴대폰 앱 업데이트가 설치되지 않을 수 있어요."
             keytool -genkeypair -keystore androidApp/release.jks -alias sbh -keyalg RSA -keysize 2048 -validity 10000 \
               -storepass android -keypass android -dname "CN=SkyblockHelper"
             export ANDROID_KEYSTORE_PASSWORD=android ANDROID_KEY_ALIAS=sbh ANDROID_KEY_PASSWORD=android
@@ -138,7 +145,39 @@ jobs:
           MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" "$ISCC" "/DMyAppVersion=${{ steps.ver.outputs.v }}" desktopApp/installer/SkyblockHelper.iss 2>&1 | tee -a gradle-windows.log
           # 설치 없이 쓰는 압축판
           (cd desktopApp/build/compose/binaries/main/app && 7z a -tzip "../../../../installer/SkyblockHelper-${{ steps.ver.outputs.v }}-portable.zip" SkyblockHelper > /dev/null)
+          # 앱 안 업데이트 파일 (바뀐 jar 만 받아 다시 시작하면 적용)
+          python tools/make_patch.py desktopApp/build/compose/binaries/main/app/SkyblockHelper "${{ steps.ver.outputs.v }}" desktopApp/build/installer
           ls -la desktopApp/build/installer
+      - name: In-app update smoke test
+        continue-on-error: true
+        shell: bash
+        run: |
+          # 1) 그냥 실행  2) 앱 안 업데이트(받아 둔 jar)로 실행 — 둘 다 창이 뜨고 버전을 써야 한다
+          DIST=desktopApp/build/compose/binaries/main/app/SkyblockHelper
+          EXE="$DIST/SkyblockHelper.exe"
+          timeout 180 "$EXE" "--smoke-test=$(cygpath -w "$PWD/smoke1.txt")" || true
+          PATCH="$(cygpath -u "$APPDATA")/SkyblockHelper/patch"
+          rm -rf "$PATCH" && mkdir -p "$PATCH/jars"
+          python - "$DIST" "$PATCH" <<'PY'
+          import json, os, shutil, sys
+          dist, patch = sys.argv[1], sys.argv[2]
+          m = json.load(open("desktopApp/build/installer/update-manifest.json"))
+          lines = ["99.0.0"]
+          for j in m["jars"]:
+              if j["pack"] == "app":
+                  name = j["sha256"][:16] + "-" + j["name"]
+                  shutil.copy(os.path.join(dist, "app", j["name"]), os.path.join(patch, "jars", name))
+                  lines.append("store:" + name)
+              else:
+                  lines.append("app:" + j["name"])
+          open(os.path.join(patch, "current.txt"), "w").write("\n".join(lines))
+          PY
+          timeout 180 "$EXE" "--smoke-test=$(cygpath -w "$PWD/smoke2.txt")" || true
+          r1=$(cat smoke1.txt 2>/dev/null || echo "실행 안 됨"); r2=$(cat smoke2.txt 2>/dev/null || echo "실행 안 됨")
+          cat "$PATCH/broken.txt" 2>/dev/null || true
+          rm -rf "$PATCH"
+          echo "::notice title=Smoke test::normal: $r1 / in-app update: $r2"
+          echo "$r2" | grep -q "patch=99.0.0"
       - name: Report build errors as annotations
         if: failure()
         shell: bash
@@ -155,6 +194,7 @@ jobs:
           path: |
             desktopApp/build/installer/*.exe
             desktopApp/build/installer/*.zip
+            desktopApp/build/installer/*.json
 
   # 태그(v1.0.0 등)를 올리거나, Actions 에서 release_version 을 넣고 실행하면 GitHub Releases 에 설치 파일을 올린다
   release:

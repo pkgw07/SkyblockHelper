@@ -27,7 +27,7 @@ val appVersion = findProperty("appVersion") as String
 
 compose.desktop {
     application {
-        mainClass = "sbhelper.desktop.MainKt"
+        mainClass = "sbhelper.desktop.Boot"
 
         nativeDistributions {
             // Windows 는 설치 파일 .exe (설치 후 시작 메뉴/바탕화면에 바로가기)

@@ -59,14 +59,16 @@ class MainActivity : ComponentActivity() {
             BackgroundScheduler.apply(this@MainActivity, enabled)
         }
         override val updateAssetSuffix: String = ".apk"
-        override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {
-            val dir = java.io.File(cacheDir, "updates").apply { mkdirs() }
-            val file = java.io.File(dir, fileName).apply { writeBytes(bytes) }
-            val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.updates", file)
-            startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
-            true
-        }.getOrDefault(false)
+        // 앱 안에서 바로 설치 (PackageInstaller). 안 되면 예전처럼 설치 화면을 연다
+        override fun installUpdate(bytes: ByteArray, fileName: String): Boolean =
+            SelfUpdate.install(this@MainActivity, bytes) || runCatching {
+                val dir = java.io.File(cacheDir, "updates").apply { mkdirs() }
+                val file = java.io.File(dir, fileName).apply { writeBytes(bytes) }
+                val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.updates", file)
+                startActivity(Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/vnd.android.package-archive")
+                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK))
+                true
+            }.getOrDefault(false)
         override val scanPairingCode: ((onResult: (String) -> Unit) -> Unit) = { onResult ->
             scanCallback = onResult
             scanner.launch(ScanOptions().setDesiredBarcodeFormats(ScanOptions.QR_CODE).setPrompt("PC 에 표시된 연동 QR 코드를 비춰 주세요").setBeepEnabled(false))

@@ -45,6 +45,10 @@ class DesktopPlatform : Platform {
     /** 설치 파일을 임시 폴더에 저장하고 실행한 뒤, 설치가 덮어쓸 수 있도록 프로그램을 끝낸다 */
     var onQuitForUpdate: () -> Unit = {}
 
+    /** 앱 안 업데이트: 바뀐 파일만 받아 두고 다시 시작하면 적용 */
+    private val updater = DesktopUpdater { onQuitForUpdate() }
+    override val inAppUpdater: sbhelper.ui.InAppUpdater? = updater.takeIf { it.available }
+
     override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {
         val file = java.io.File(System.getProperty("java.io.tmpdir"), fileName)
         file.writeBytes(bytes)
