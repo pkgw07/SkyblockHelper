@@ -634,9 +634,10 @@ private fun DungeonsTab(state: AppState, p: ProfileSummary, d: sbhelper.core.cal
 private fun GardenTab(state: AppState, d: sbhelper.core.calc.ProfileDetails?) {
     if (d == null) { NoDetails(); return }
     Panel(Modifier.fillMaxWidth(), caption = "Garden", title = "가든", accent = Sb.Green) {
-        if (d.gardenXp == null) { Text("가든 정보가 없어요 (가든을 연 적이 없거나 불러오는 중).", style = SbText.body(13, Sb.TextFaint)); return@Panel }
+        val gxp = d.gardenXp
+        if (gxp == null) { Text("가든 정보가 없어요 (가든을 연 적이 없거나 불러오는 중).", style = SbText.body(13, Sb.TextFaint)); return@Panel }
         FlowRow2 {
-            d.gardenLevel?.let { StatTile("가든 레벨", "$it", color = Sb.Green, sub = "Garden XP ${formatNumber(d.gardenXp.toLong())}") }
+            d.gardenLevel?.let { StatTile("가든 레벨", "$it", color = Sb.Green, sub = "Garden XP ${formatNumber(gxp.toLong())}") }
             d.visitorsServed?.let { StatTile("방문자 요청 완료", formatNumber(it.toLong()), color = Sb.Aqua) }
             d.visitorsUnique?.let { StatTile("만난 방문자", "$it 명", color = Sb.Aqua) }
             d.plots?.let { StatTile("연 구역", "$it 칸", color = Sb.Green) }
