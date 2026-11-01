@@ -33,13 +33,20 @@ jobs:
           if [ -n "${{ inputs.release_version }}" ]; then echo "v=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT";
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT";
           else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
-      - name: Tests (실제 Hypixel API 확인 포함)
-        env:
-          LIVE_API: "1"
+      - name: Tests
         shell: bash
         run: |
           set -o pipefail
           ./gradlew :core:desktopTest :ui:compileKotlinDesktop :desktopApp:compileKotlin 2>&1 | tee gradle-test.log
+      - name: Live check (실제 Hypixel·Mojang·위키 접속, 실패해도 빌드는 계속)
+        continue-on-error: true
+        env:
+          LIVE_API: "1"
+        shell: bash
+        run: |
+          ./gradlew :core:desktopTest --tests '*LiveApiTest*' --rerun -i > live.log 2>&1 || {
+            echo "::warning title=Live check::$(grep -E 'LIVE OK|FAILED|Exception' live.log | head -5 | tr '\n' ' ')"; exit 1; }
+          echo "::notice title=Live check::$(grep 'LIVE OK' live.log | head -1)"
       - name: Unofficial sources check (EliteBot, Google 번역 응답 형식)
         continue-on-error: true
         shell: bash
@@ -86,7 +93,7 @@ jobs:
         shell: bash
         run: |
           # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
-          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
+          msg=$(grep -hE -A6 "^e: |What went wrong|FAILED|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
             | grep -vE "^> Task|^--$" | head -80 || true)
           if [ -z "$msg" ]; then msg=$(tail -n 40 gradle-*.log 2>/dev/null || echo "no log"); fi
           msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
@@ -135,7 +142,7 @@ jobs:
         shell: bash
         run: |
           # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
-          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
+          msg=$(grep -hE -A6 "^e: |What went wrong|FAILED|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
             | grep -vE "^> Task|^--$" | head -80 || true)
           if [ -z "$msg" ]; then msg=$(tail -n 40 gradle-*.log 2>/dev/null || echo "no log"); fi
           msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
