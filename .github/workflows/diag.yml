@@ -8,13 +8,27 @@ on:
         description: "프로필 구조를 확인할 닉네임 (비우면 프로필 확인 안 함)"
         required: false
         default: ""
+      cleanup:
+        description: "예전 진단 결과 브랜치(ci-diag) 지우기"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  cleanup:
+    if: inputs.cleanup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete ci-diag branch (사용자 승인 2026-11-01)
+        run: |
+          git init -q
+          git push "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" --delete ci-diag || true
+
   translate:
-    if: inputs.player == ''
+    if: inputs.player == '' && !inputs.cleanup
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -44,8 +58,4 @@ jobs:
           mkdir -p probe-out
           LIVE_PROFILE=1 PROBE_OUT="$PWD/probe-out" ./gradlew -q :core:desktopTest --tests '*ProfileProbe*' || true
           while IFS= read -r line; do echo "::notice title=Profile probe::${line//%/%25}"; done < probe-out/report.txt
-          # 구조 파일은 ci-diag 브랜치에 (값·UUID·닉네임 없음)
-          cd probe-out && git init -q && git checkout -q -b ci-diag
-          git config user.name "github-actions" && git config user.email "actions@github.com"
-          git add . && git commit -q -m "profile structure (names only)"
-          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-diag
+          # 결과는 이 빌드 기록의 주석으로만 남긴다 (브랜치를 만들지 않음, 값·UUID·닉네임 없음)

@@ -43,6 +43,32 @@ class ProfileProbe {
 
     private fun redact(k: String) = if (uuidLike.matches(k)) "<uuid>" else k
 
+    /** 아이템 데이터(base64 NBT)가 들어 있는 모든 위치와 아이템 개수 */
+    private fun itemSpots(e: JsonElement?, path: String, out: MutableList<String>, depth: Int = 0) {
+        if (depth > 8 || e == null) return
+        when (e) {
+            is JsonObject -> e.forEach { (k, v) ->
+                val p = "$path.${redact(k)}"
+                if (v is JsonPrimitive && v.isString && v.content.length > 60 && v.content.startsWith("H4sI")) {
+                    val items = sbhelper.core.nbt.ItemParser.parse(v.content)
+                    out += "$p : 칸 ${items.size}, 아이템 ${items.count { it != null }}"
+                } else itemSpots(v, p, out, depth + 1)
+            }
+            is JsonArray -> e.forEachIndexed { i, v -> if (i < 3) itemSpots(v, "$path[$i]", out, depth + 1) }
+            else -> Unit
+        }
+    }
+
+    /** 이름에 wardrobe 가 들어간 모든 항목 */
+    private fun wardrobeKeys(e: JsonElement?, path: String, out: MutableList<String>, depth: Int = 0) {
+        if (depth > 9 || e !is JsonObject) return
+        e.forEach { (k, v) ->
+            val p = "$path.${redact(k)}"
+            if (k.contains("wardrobe", true)) out += "$p = " + when (v) { is JsonObject -> "{${v.keys.joinToString(",")}}"; is JsonArray -> "[${v.size}]"; else -> "값" }
+            wardrobeKeys(v, p, out, depth + 1)
+        }
+    }
+
     @Test fun probe() = kotlinx.coroutines.runBlocking {
         if (System.getenv("LIVE_PROFILE") != "1") return@runBlocking
         val key = System.getenv("HYPIXEL_API_KEY").orEmpty()
@@ -67,6 +93,10 @@ class ProfileProbe {
             tree(JsonObject(p.filterKeys { it != "members" }), "profile", lines)
             tree(me, "member", lines)
             File(dir, "profile-$i${if (selected) "-selected" else ""}.txt").writeText(lines.joinToString("\n"))
+            val spots = mutableListOf<String>(); itemSpots(me, "member", spots); itemSpots(JsonObject(p.filterKeys { it != "members" }), "profile", spots)
+            val wk = mutableListOf<String>(); wardrobeKeys(p.mapKeys { it.key }.let { JsonObject(it) }, "profile", wk)
+            report.appendLine("  아이템 위치(#$i): " + spots.joinToString(" | "))
+            report.appendLine("  wardrobe 항목(#$i): " + wk.joinToString(" | ").ifEmpty { "없음" })
             report.appendLine("프로필 #$i selected=$selected 멤버 ${members?.size} 내 데이터 ${lines.size}줄 game_mode=${(p["game_mode"] as? JsonPrimitive)?.content ?: "normal"}")
             // 앱 파서가 찾은 것 (값 대신 개수·있음/없음)
             val parsed = sbhelper.core.model.ProfileParser.parse(p, uuid)
