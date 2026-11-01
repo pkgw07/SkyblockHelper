@@ -3,6 +3,7 @@ package sbhelper.core.api
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
@@ -42,9 +43,17 @@ class EliteBotApi(private val client: HttpClient = defaultHttpClient()) {
 /** 패치노트 번역 — Google 번역 공개 주소 (키 없음) */
 class Translator(private val client: HttpClient = defaultHttpClient()) {
 
+    /** 요청이 너무 많으면 Google 이 잠시 막는다(sorry 페이지). 막힌 동안은 요청하지 않는다 */
+    private var blockedUntil = 0L
+
+    /** 지금 막혀 있으면 풀리는 시각(ms), 아니면 0 */
+    val blockedUntilMs get() = if (blocked()) blockedUntil else 0L
+
     /**
      * 여러 줄을 한국어로. 실패한 줄은 null (나중에 그 줄만 다시 시도).
-     * 요청 제한에 걸리지 않도록 묶음 사이에 잠깐 쉬고, 실패하면 한 번 더 시도한다.
+     *
+     * 요청 수를 줄이려고 큰 묶음(약 1,800자)으로 보내고, 줄 수가 맞지 않으면 묶음을 반으로 나눠 다시 보낸다
+     * (예전처럼 한 줄씩 보내면 요청이 많아져 금방 막히고, 아래쪽이 번역되지 않았다).
      */
     suspend fun toKorean(lines: List<String>, only: Set<Int>? = null): List<String?> {
         val out = MutableList<String?>(lines.size) { null }
@@ -54,35 +63,73 @@ class Translator(private val client: HttpClient = defaultHttpClient()) {
         while (i < todo.size) {
             var j = i
             var size = 0
-            while (j < todo.size && (j == i || size + lines[todo[j]].length < 1200)) { size += lines[todo[j]].length + 1; j++ }
-            val idx = todo.subList(i, j)
-            val joined = idx.joinToString("\n") { lines[it].replace('\n', ' ') }
-            val parts = (translate(joined) ?: run { kotlinx.coroutines.delay(1200); translate(joined) })?.split('\n')
-            if (parts != null && parts.size == idx.size) {
-                idx.forEachIndexed { k, line -> out[line] = parts[k] }
-            } else {
-                for (line in idx) {
-                    out[line] = translate(lines[line]) ?: run { kotlinx.coroutines.delay(800); translate(lines[line]) }
-                    kotlinx.coroutines.delay(120)
-                }
-            }
-            kotlinx.coroutines.delay(250)
+            while (j < todo.size && (j == i || size + lines[todo[j]].length < MAX_CHARS)) { size += lines[todo[j]].length + 1; j++ }
+            translateGroup(lines, todo.subList(i, j), out, depth = 0)
+            if (blocked()) break
+            kotlinx.coroutines.delay(400)
             i = j
         }
         return out
     }
 
-    private suspend fun translate(text: String): String? = runCatching {
-        if (text.isBlank()) return text
-        val res = client.get("https://translate.googleapis.com/translate_a/single") {
-            header("User-Agent", "Mozilla/5.0")
-            parameter("client", "gtx"); parameter("sl", "en"); parameter("tl", "ko"); parameter("dt", "t")
-            parameter("q", text)
+    private suspend fun translateGroup(lines: List<String>, idx: List<Int>, out: MutableList<String?>, depth: Int) {
+        if (idx.isEmpty() || blocked()) return
+        val joined = idx.joinToString("\n") { lines[it].replace('\n', ' ') }
+        val parts = translate(joined)?.split('\n')?.map { it.trim() }?.filter { it.isNotEmpty() }
+        if (parts != null && parts.size == idx.size) {
+            idx.forEachIndexed { k, line -> out[line] = parts[k] }
+            return
         }
+        if (parts != null && idx.size == 1) { out[idx[0]] = parts.joinToString(" "); return }
+        if (parts == null || depth > 6) return
+        // 줄 수가 어긋남 → 반으로 나눠 다시
+        kotlinx.coroutines.delay(300)
+        val half = idx.size / 2
+        translateGroup(lines, idx.subList(0, half), out, depth + 1)
+        translateGroup(lines, idx.subList(half, idx.size), out, depth + 1)
+    }
+
+    private fun blocked() = sbhelper.core.util.Clock.now() < blockedUntil
+
+    private suspend fun translate(text: String): String? {
+        if (text.isBlank()) return text
+        if (blocked()) return null
+        return primary(text) ?: backup(text) ?: run {
+            // 둘 다 막힘 → 3분 동안 쉬었다가 나중에 다시
+            blockedUntil = sbhelper.core.util.Clock.now() + 3 * 60_000
+            null
+        }
+    }
+
+    /** translate.googleapis.com (POST: 긴 글도 주소 길이 제한 없음) */
+    private suspend fun primary(text: String): String? = runCatching {
+        val res = client.submitForm(
+            "https://translate.googleapis.com/translate_a/single",
+            io.ktor.http.parameters { append("client", "gtx"); append("sl", "en"); append("tl", "ko"); append("dt", "t"); append("q", text) },
+        ) { header("User-Agent", "Mozilla/5.0") }
         if (!res.status.isSuccess()) return null
         val root = SbJson.parseToJsonElement(res.bodyAsText()) as? JsonArray ?: return null
         val segments = root.firstOrNull() as? JsonArray ?: return null
         segments.joinToString("") { seg -> ((seg as? JsonArray)?.firstOrNull() as? JsonPrimitive)?.content.orEmpty() }
             .trimEnd('\n')
     }.getOrNull()
+
+    /** 예비 주소 (clients5.google.com) — 응답: ["번역"] 또는 [["번역","en"]] */
+    private suspend fun backup(text: String): String? = runCatching {
+        val res = client.submitForm(
+            "https://clients5.google.com/translate_a/t",
+            io.ktor.http.parameters { append("client", "dict-chrome-ex"); append("sl", "en"); append("tl", "ko"); append("q", text) },
+        ) { header("User-Agent", "Mozilla/5.0") }
+        if (!res.status.isSuccess()) return null
+        val root = SbJson.parseToJsonElement(res.bodyAsText()) as? JsonArray ?: return null
+        when (val first = root.firstOrNull()) {
+            is JsonPrimitive -> first.content
+            is JsonArray -> (first.firstOrNull() as? JsonPrimitive)?.content
+            else -> null
+        }?.trimEnd('\n')
+    }.getOrNull()
+
+    companion object {
+        const val MAX_CHARS = 1800
+    }
 }

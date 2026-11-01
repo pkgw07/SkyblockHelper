@@ -15,7 +15,7 @@ import sbhelper.core.util.formatCoins
 import sbhelper.core.util.formatDuration
 import sbhelper.core.util.stripColor
 
-enum class AlertCategory(val label: String) { FORGE("포지"), EVENT("이벤트"), AUCTION("경매"), PRICE("가격"), PATCH("패치노트"), SYSTEM("시스템") }
+enum class AlertCategory(val label: String) { FORGE("포지"), EVENT("이벤트"), AUCTION("경매"), PRICE("가격"), PATCH("패치노트"), TIMER("타이머"), SYSTEM("시스템") }
 
 data class AppNotification(
     val key: String,
@@ -23,6 +23,8 @@ data class AppNotification(
     val body: String,
     val category: AlertCategory,
     val time: Long,
+    /** 알림을 누르면 열 화면 (예: "jacob", "event:Dark Auction", "timers", "patch") */
+    val target: String? = null,
 )
 
 /** 플랫폼별 알림 표시 (데스크톱: 트레이 알림, Android: 시스템 알림) */
@@ -40,6 +42,7 @@ data class AlertInputs(
     val itemName: (String) -> String,
     val patchNotes: List<sbhelper.core.api.PatchNote> = emptyList(),
     val jacobCrops: Map<Long, List<String>> = emptyMap(),
+    val extraTimers: List<sbhelper.core.calc.ExtraTimer> = emptyList(),
 )
 
 data class AlertResult(
@@ -59,8 +62,8 @@ object AlertEngine {
     fun evaluate(inputs: AlertInputs, prefs: NotifyPrefs, sent: Set<String>, now: Long): AlertResult {
         val out = mutableListOf<AppNotification>()
         val forget = mutableSetOf<String>()
-        fun emit(key: String, title: String, body: String, cat: AlertCategory) {
-            if (key !in sent && out.none { it.key == key }) out += AppNotification(key, title, body, cat, now)
+        fun emit(key: String, title: String, body: String, cat: AlertCategory, target: String? = null) {
+            if (key !in sent && out.none { it.key == key }) out += AppNotification(key, title, body, cat, now, target)
         }
 
         // 1) 포지 완료
@@ -70,7 +73,7 @@ object AlertEngine {
                 if (slot.isDone(now) && now - slot.endTime!! < FRESH_FORGE) {
                     val p = slot.process
                     emit("forge:${inputs.profileId}:${p.slot}:${p.startTime}",
-                        "⚒ 포지 완료!", "${slot.itemName} (슬롯 ${p.slot}) 이(가) 완성되었어요.", AlertCategory.FORGE)
+                        "⚒ 포지 완료!", "${slot.itemName} (슬롯 ${p.slot}) 이(가) 완성되었어요.", AlertCategory.FORGE, "timers")
                 }
             }
         }
@@ -85,7 +88,16 @@ object AlertEngine {
                     else inputs.jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - e.start) < 60_000 }?.value
                 val cropText = crops?.let { " 작물: " + it.joinToString(", ") { c -> EventLabels.crop(c) } }.orEmpty()
                 val body = (if (left > 0) "${formatDuration(left)} 후 시작해요." else "지금 진행 중이에요!") + cropText
-                emit("event:${e.key}", "${EventLabels.emoji(e.name)} ${EventLabels.label(e.name)}", body, AlertCategory.EVENT)
+                emit("event:${e.key}", "${EventLabels.emoji(e.name)} ${EventLabels.label(e.name)}", body, AlertCategory.EVENT,
+                    if (e.name.contains("Jacob")) "jacob" else "event:${e.name}")
+            }
+        }
+
+        // 2-1) 추가 타이머 (Fetchur, 컴포스터, Time Tower …) — 1분 전부터 5분 뒤까지
+        for (t in inputs.extraTimers) {
+            if (!prefs.timerEnabled(t.key)) continue
+            if (now >= t.at - 60_000 && now < t.at + 5 * 60_000) {
+                emit("timer:${t.key}:${t.at / 60_000}", "${t.emoji} ${t.title}", t.detail, AlertCategory.TIMER, "timers")
             }
         }
 
@@ -131,7 +143,7 @@ object AlertEngine {
                 val published = patchDate(note) ?: continue
                 if (now - published > 3 * 86_400_000L) continue
                 emit("patch:${note.key}", if (note.alpha) "🧪 알파 서버 패치노트" else "📰 새 패치노트",
-                    note.title, AlertCategory.PATCH)
+                    note.title, AlertCategory.PATCH, "patch")
             }
         }
         return AlertResult(out, forget)
@@ -143,6 +155,7 @@ object AlertEngine {
         if (prefs.forge) inputs.forge.mapNotNullTo(times) { it.endTime?.takeIf { t -> t > now } }
         val lead = prefs.eventLeadMinutes * 60_000L
         inputs.events.filter { prefs.eventEnabled(it.name) }.mapNotNullTo(times) { (it.start - lead).takeIf { t -> t > now } }
+        inputs.extraTimers.filter { prefs.timerEnabled(it.key) }.mapNotNullTo(times) { (it.at - 60_000).takeIf { t -> t > now } }
         return times.minOrNull()
     }
 

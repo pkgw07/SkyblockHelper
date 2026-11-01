@@ -132,7 +132,7 @@ fun BazaarScreen(controller: AppController, state: AppState, wide: Boolean) {
                                 items(flips.take(400), key = { it.id }) { f ->
                                     TableRow(onClick = { selected = f.id }, selected = selected == f.id) {
                                         Row(Modifier.weight(2.4f), verticalAlignment = Alignment.CenterVertically) {
-                                            ItemGlyph(state.itemName(f.id), state.itemTier(f.id), 26.dp)
+                                            sbhelper.ui.components.ItemIcon(state, f.id, 26.dp)
                                             Spacer(Modifier.width(10.dp))
                                             RarityName(state.itemName(f.id), state.itemTier(f.id), size = 13)
                                         }
@@ -167,7 +167,7 @@ fun BazaarScreen(controller: AppController, state: AppState, wide: Boolean) {
                                 items(flips.take(300), key = { it.id }) { f ->
                                     TableRow(onClick = { selected = f.id }, selected = selected == f.id) {
                                         Row(Modifier.weight(2.4f), verticalAlignment = Alignment.CenterVertically) {
-                                            ItemGlyph(state.itemName(f.id), state.itemTier(f.id), 26.dp)
+                                            sbhelper.ui.components.ItemIcon(state, f.id, 26.dp)
                                             Spacer(Modifier.width(10.dp))
                                             RarityName(state.itemName(f.id), state.itemTier(f.id), size = 13)
                                         }

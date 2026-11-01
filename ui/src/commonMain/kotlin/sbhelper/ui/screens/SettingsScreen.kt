@@ -251,11 +251,24 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
                 enabled = d.runInBackground)
         }
         Spacer(Modifier.height(8.dp))
-        Text("글자 크기", style = SbText.caption(Sb.TextDim))
+        // 글자 크기: 슬라이더 (놓았을 때 저장 — 끌고 있는 동안은 미리보기만)
+        var scale by remember { mutableStateOf(d.textScale) }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("글자 크기", style = SbText.caption(Sb.TextDim), modifier = Modifier.weight(1f))
+            Text("${kotlin.math.round(scale * 100).toInt()}%", style = SbText.pixel(12, Sb.Gold))
+        }
+        androidx.compose.material3.Slider(
+            value = scale, onValueChange = { scale = (kotlin.math.round(it * 20) / 20f) },
+            onValueChangeFinished = { controller.repo.updateDevice { it.copy(textScale = scale) } },
+            valueRange = 0.9f..1.7f, steps = 15,
+            colors = androidx.compose.material3.SliderDefaults.colors(thumbColor = Sb.Gold, activeTrackColor = Sb.Gold, inactiveTrackColor = Sb.Border),
+        )
+        Text("가나다 ABC 123 — 이 정도 크기로 보여요", style = SbText.body(14).let { it.copy(fontSize = it.fontSize * (scale / d.textScale)) })
+        Spacer(Modifier.height(8.dp))
+        Text("글자 굵기 (글꼴은 그대로)", style = SbText.caption(Sb.TextDim))
         Spacer(Modifier.height(6.dp))
-        val scales = listOf(1.0f to "작게", 1.15f to "보통", 1.3f to "크게", 1.45f to "아주 크게")
-        Segmented(scales.map { it.second }, scales.indexOfFirst { kotlin.math.abs(it.first - d.textScale) < 0.01f }.coerceAtLeast(0), { i ->
-            controller.repo.updateDevice { it.copy(textScale = scales[i].first) }
+        Segmented(listOf("기본", "굵게", "아주 굵게"), d.fontWeight.coerceIn(0, 2), { i ->
+            controller.repo.updateDevice { it.copy(fontWeight = i) }
         })
         Spacer(Modifier.height(12.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
@@ -319,9 +332,18 @@ private fun NotificationPanel(controller: AppController, state: AppState) {
         Segmented(leads.map { "${it}분" }, leads.indexOf(n.eventLeadMinutes).coerceAtLeast(0), { i -> update { it.copy(eventLeadMinutes = leads[i]) } })
         Spacer(Modifier.height(4.dp))
         Text("일정은 공식 위키 Events 페이지 기준이에요. 시장 전용 이벤트는 그 시장일 때만 열려요.", style = SbText.body(12, Sb.TextFaint))
-        state.gameData.events.map { it.name }.distinct().forEach { name ->
-            SwitchRow("${EventLabels.emoji(name)} ${EventLabels.label(name)}", n.eventEnabled(name),
-                { on -> update { it.copy(events = it.events + (name to on)) } })
+        val names = state.gameData.events.map { it.name }.distinct()
+        Foldable("이벤트별 알림", "${names.count { n.eventEnabled(it) }} / ${names.size}개 켜짐") {
+            names.forEach { name ->
+                SwitchRow("${EventLabels.emoji(name)} ${EventLabels.label(name)}", n.eventEnabled(name),
+                    { on -> update { it.copy(events = it.events + (name to on)) } })
+            }
+        }
+        Foldable("다른 타이머 알림", "${sbhelper.core.calc.ExtraTimers.KINDS.keys.count { n.timerEnabled(it) }} / ${sbhelper.core.calc.ExtraTimers.KINDS.size}개 켜짐") {
+            Text("필요 없는 타이머는 끄세요. 꺼도 타이머 화면에서는 보여요.", style = SbText.body(12, Sb.TextFaint))
+            sbhelper.core.calc.ExtraTimers.KINDS.forEach { (key, label) ->
+                SwitchRow(label, n.timerEnabled(key), { on -> update { it.copy(timers = it.timers + (key to on)) } })
+            }
         }
         Divider(Modifier.padding(vertical = 6.dp))
         val wikiTax = state.gameData.rules.bazaarTaxPercent
@@ -360,4 +382,22 @@ private fun AboutPanel(state: AppState) {
         }, outlined = true, color = Sb.TextDim)
         Text("API 키·코인 같은 값은 빼고 항목 이름만 복사해요. HotM·인벤토리 항목 이름을 맞추는 데 써요.", style = SbText.body(11, Sb.TextFaint))
     }
+}
+
+
+/** 눌러서 펼치는 목록 (설정이 너무 길어지지 않게) */
+@Composable
+private fun Foldable(title: String, summary: String, content: @Composable () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().padding(top = 6.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+            .background(Sb.SurfaceHigh).clickable { open = !open }.padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(if (open) "▾" else "▸", style = SbText.body(14, Sb.TextDim))
+        Spacer(Modifier.width(8.dp))
+        Text(title, style = SbText.body(14, Sb.Text, androidx.compose.ui.text.font.FontWeight.SemiBold), modifier = Modifier.weight(1f))
+        Text(summary, style = SbText.body(12, Sb.TextFaint))
+    }
+    if (open) Column(Modifier.padding(start = 8.dp, top = 4.dp)) { content() }
 }

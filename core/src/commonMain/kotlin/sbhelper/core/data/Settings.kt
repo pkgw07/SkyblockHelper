@@ -19,6 +19,8 @@ data class SyncedSettings(
     val priceAlerts: List<PriceAlert> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val craftTargets: List<CraftTarget> = emptyList(),
+    /** 제작 플래너에서 마지막으로 보던 목표 (다른 화면에 갔다 와도, 다시 켜도 그대로) */
+    val craftCurrent: CraftTarget? = null,
     /** 아이언맨 진행 가이드에서 체크한 항목 (기기 간 동기화) */
     val ironmanChecked: Set<String> = emptySet(),
     val updatedAt: Long = 0,
@@ -33,8 +35,11 @@ data class NotifyPrefs(
     /** 위키 이벤트 이름 → 알림 켜짐. 없는 이벤트는 기본값(EventLabels.enabledByDefault) */
     val events: Map<String, Boolean> = emptyMap(),
     val eventLeadMinutes: Int = 5,
+    /** 추가 타이머 키(ExtraTimers.KINDS) → 알림 켜짐 */
+    val timers: Map<String, Boolean> = emptyMap(),
 ) {
     fun eventEnabled(name: String) = events[name] ?: EventLabels.enabledByDefault(name)
+    fun timerEnabled(key: String) = timers[key] ?: sbhelper.core.calc.ExtraTimers.enabledByDefault(key)
 }
 
 @Serializable
@@ -73,6 +78,8 @@ data class DeviceSettings(
     val translatePatchNotes: Boolean = true,
     /** 글자 크기 배율 */
     val textScale: Float = 1.15f,
+    /** 글자 굵기: 0 = 기본, 1 = 굵게(기본값), 2 = 아주 굵게 */
+    val fontWeight: Int = 1,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

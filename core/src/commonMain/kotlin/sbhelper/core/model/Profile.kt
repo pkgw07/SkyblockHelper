@@ -75,6 +75,12 @@ data class ProfileSummary(
     val craftedMinions: List<String> = emptyList(),
     /** 파우더 (mithril, gemstone, glacite) 현재 보유량 */
     val powders: Map<String, Long> = emptyMap(),
+    /** HotF (Heart of the Forest) 노드 레벨 (skill_tree.nodes.foraging) */
+    val hotfNodes: Map<String, Int> = emptyMap(),
+    val hotfXp: Double? = null,
+    /** 초콜릿 공장 Time Tower: 현재 충전 수, 마지막 충전 시각(ms) — events.easter.time_tower */
+    val timeTowerCharges: Int? = null,
+    val timeTowerLastCharge: Long? = null,
 ) {
     val skyblockLevel: Double? get() = skyblockXp?.div(100.0)
 
@@ -166,6 +172,10 @@ object ProfileParser {
             masterCompletions = completions(member, "master_catacombs"),
             inventories = inventories(member),
             hotmNodes = hotmNodes(member),
+            hotfNodes = treeNodes(member.obj("skill_tree", "nodes", "foraging")),
+            hotfXp = member.num("skill_tree", "experience", "foraging"),
+            timeTowerCharges = member.num("events", "easter", "time_tower", "charges")?.toInt(),
+            timeTowerLastCharge = member.num("events", "easter", "time_tower", "last_charge_time")?.toLong(),
             bestiaryKills = member.obj("bestiary", "kills")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             craftedMinions = (member.path("player_data", "crafted_generators") as? JsonArray)
                 ?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty(),
@@ -194,6 +204,12 @@ object ProfileParser {
         }
         return out
     }
+
+    /** 스킬 트리 노드 (toggle_ 키 제외) */
+    fun treeNodes(o: JsonObject?): Map<String, Int> = o?.mapNotNull { (k, v) ->
+        if (k.startsWith("toggle_")) return@mapNotNull null
+        (v as? JsonPrimitive)?.let { it.doubleOrNull?.toInt() ?: it.booleanOrNull?.let { b -> if (b) 1 else 0 } }?.let { k to it }
+    }?.toMap().orEmpty()
 
     /** Quick Forge 노드 레벨. 키 이름이 바뀌어도 찾도록 forge 가 들어간 키를 찾는다 */
     fun quickForge(nodes: Map<String, Int>): Int =

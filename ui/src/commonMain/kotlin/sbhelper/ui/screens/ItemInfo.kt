@@ -87,10 +87,13 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (data.forge.containsKey(id) || data.crafting.containsKey(id)) {
                 SbButton("제작 플래너", {
-                    controller.repo.updateSynced { s -> s.copy(craftTargets = (listOf(CraftTarget(id, 1)) + s.craftTargets.filterNot { it.itemId == id }).take(12)) }
+                    controller.repo.updateSynced { s -> s.copy(craftTargets = (listOf(CraftTarget(id, 1)) + s.craftTargets.filterNot { it.itemId == id }).take(12),
+                        craftCurrent = CraftTarget(id, 1)) }
+                    controller.ironmanTab = 1
                     controller.go(Screen.IRONMAN)
                 }, icon = Icons.Rounded.Handyman, outlined = true)
             }
+            SbButton("자세히", { controller.openItem(id) }, outlined = true, color = Sb.Gold)
             SbButton("위키", { platform.openUrl(WikiApi.pageUrl(name)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua)
         }
     }
@@ -131,7 +134,7 @@ fun ItemChip(state: AppState, id: String, selected: Boolean, checked: Boolean? =
             Text(if (checked) "☑" else "☐", style = SbText.body(15, if (checked) Sb.Green else Sb.TextFaint))
             Spacer(Modifier.width(4.dp))
         }
-        if (id.startsWith("pet:")) Text("🐾", style = SbText.body(16)) else ItemGlyph(name, state.itemTier(id), 24.dp)
+        sbhelper.ui.components.ItemIcon(state, id, 24.dp)
         Spacer(Modifier.width(7.dp))
         RarityName(name, state.itemTier(id), size = 13, bold = selected)
     }

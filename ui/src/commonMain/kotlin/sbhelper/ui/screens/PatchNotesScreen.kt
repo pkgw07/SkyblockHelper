@@ -56,6 +56,8 @@ class PatchNotesState {
     val errors = mutableStateMapOf<String, String>()
     /** 페이지 → [제목, 블록1, 블록2 …] 한국어 번역 */
     val translated = mutableStateMapOf<String, List<String>>()
+    /** 페이지 → 아직 번역되지 않은 줄 수 (잠시 후 자동으로 다시 시도) */
+    val missing = mutableStateMapOf<String, Int>()
     var showOriginal by mutableStateOf(false)
 }
 
@@ -128,10 +130,18 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
     val blocks = s.bodies[n.page]
     val translateOn = controller.repo.state.value.device.translatePatchNotes
     LaunchedEffect(n.page, blocks, translateOn) {
-        if (translateOn && blocks != null && n.page !in s.translated) {
-            val lines = listOf(n.title) + blocks.map { it.text() }
-            runCatching { controller.repo.translatePatch(n.page, lines) }.getOrNull()
-                ?.let { t -> s.translated[n.page] = lines.indices.map { i -> t[i] ?: lines[i] } }
+        if (!translateOn || blocks == null || (n.page in s.translated && (s.missing[n.page] ?: 0) == 0)) return@LaunchedEffect
+        val lines = listOf(n.title) + blocks.map { it.text() }
+        // 번역이 덜 되면 (Google 이 잠시 막는 경우) 기다렸다가 남은 줄만 다시 — 최대 8번
+        for (attempt in 0 until 8) {
+            val t = runCatching { controller.repo.translatePatch(n.page, lines) }.getOrNull() ?: break
+            s.translated[n.page] = lines.indices.map { i -> t[i] ?: lines[i] }
+            val left = lines.indices.count { t[it] == null && lines[it].isNotBlank() }
+            s.missing[n.page] = left
+            if (left == 0) break
+            val until = controller.repo.translationBlockedUntil
+            val wait = if (until > 0) until - sbhelper.core.util.Clock.now() + 2_000 else 20_000L * (attempt + 1)
+            kotlinx.coroutines.delay(wait.coerceIn(5_000, 240_000))
         }
     }
     val tr = s.translated[n.page]?.takeIf { translateOn && !s.showOriginal }
@@ -165,6 +175,8 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
                 Text(
                     when {
                         blocks != null && s.translated[n.page] == null -> "번역 중… (Google 번역, 비공식)"
+                        (s.missing[n.page] ?: 0) > 0 && !s.showOriginal ->
+                            "아직 ${s.missing[n.page]}줄이 번역되지 않았어요. 번역 서버가 잠시 막혀서, 조금 뒤 자동으로 이어서 번역해요."
                         tr != null -> "Google 번역(비공식)으로 옮긴 글이에요. 정확한 내용은 원문을 확인하세요."
                         else -> ""
                     }, style = SbText.body(11, Sb.TextFaint),

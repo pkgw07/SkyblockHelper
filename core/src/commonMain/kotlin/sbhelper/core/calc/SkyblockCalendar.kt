@@ -142,15 +142,23 @@ object EventLabels {
         "Dark Auction" to "다크 옥션",
         "Fallen Star Meeting" to "타락한 별의 교단 모임",
         "Bank Interest" to "은행 이자",
-        "Marina's Fishing Festivals" to "낚시 축제 (Marina)",
-        "Cole's Mining Fiestas" to "채광 축제 (Cole)",
-        "Foxy's Extra Spooky Fishing" to "추가 스푸키 낚시 (Foxy)",
-        "Foxy's Extra Spooky Festival" to "추가 스푸키 축제 (Foxy)",
-        "Foxy's Extra Fishing Festival" to "추가 낚시 축제 (Foxy)",
-        "Foxy's Extra Mining Fiesta" to "추가 채광 축제 (Foxy)",
+        "Marina's Fishing Festivals" to "마리나의 낚시 축제",
+        "Cole's Mining Fiestas" to "콜의 채광 축제",
+        "Foxy's Extra Spooky Fishing" to "폭시의 추가 스푸키 낚시",
+        "Foxy's Extra Spooky Festival" to "폭시의 추가 스푸키 축제",
+        "Foxy's Extra Fishing Festival" to "폭시의 추가 낚시 축제",
+        "Foxy's Extra Mining Fiesta" to "폭시의 추가 채광 축제",
+        "Year of the Pig" to "돼지의 해",
+        "Year of the Seal" to "물개의 해",
+        "Year of the Witch" to "마녀의 해",
+        "Hoppity's Hunt" to "호피티의 사냥",
     )
 
-    fun label(name: String): String = ko[name] ?: name.replace("Year of the", "올해의 동물:")
+    /** 한국어 이름 + 원어 이름. 예: 다크 옥션 (Dark Auction) */
+    fun label(name: String): String = ko[name]?.let { "$it ($name)" } ?: name
+
+    /** 한국어 이름만 (좁은 곳) */
+    fun short(name: String): String = ko[name] ?: name
 
     fun emoji(name: String): String = when {
         name.contains("Zoo") -> "🦁"

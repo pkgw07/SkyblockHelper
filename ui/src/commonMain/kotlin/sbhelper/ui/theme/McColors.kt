@@ -40,7 +40,8 @@ object McColors {
      * 예) "§6Legendary §lSword" -> 금색 Legendary + 굵은 Sword
      */
     fun format(text: String, default: Color = Color(0xFFAAAAAA)): AnnotatedString = buildAnnotatedString {
-        val src = text.percentColorsToSection()
+        // 위키 글은 &7 처럼 & 를 쓴다 → § 로 바꿔서 색으로 표시 (글자로 새지 않게)
+        val src = text.percentColorsToSection().replace(Regex("&([0-9a-fk-orA-FK-OR])"), "§$1")
         var color = default
         var bold = false
         var italic = false

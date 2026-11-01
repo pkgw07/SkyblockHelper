@@ -23,6 +23,8 @@ data class GameData(
     val progression: Progression = Progression(),
     /** 스킬별 장비·펫 테크트리 (위키 가이드). 키: MINING, FARMING, FORAGING, FISHING, HUNTING, COMBAT */
     val techTrees: Map<String, List<GuideStage>> = emptyMap(),
+    /** 스킬별 도구 목록 (위키 Pickaxes, Drills, Farming Tools, Axes, Fishing Rods, Lassos 문서) */
+    val gearPools: Map<String, List<String>> = emptyMap(),
     /** 위키 Tutorial:Ironman Guide 단계 */
     val ironmanGuide: List<GuideStage> = emptyList(),
     /** 재료 출처 (위키 Bucket:Mob drops, Bucket:Minions) */
@@ -31,6 +33,10 @@ data class GameData(
     val pets: Map<String, List<WikiPet>> = emptyMap(),
     /** HotM 칸 배치 (위키 Template:Heart of the Mountain/UI) */
     val hotmLayout: List<HotmCell> = emptyList(),
+    /** HotF 칸 배치 (위키 Template:Heart of the Forest/UI) */
+    val hotfLayout: List<HotmCell> = emptyList(),
+    /** 타이머용 위키 규칙 (Hoppity's Hunt, Composter, Chocolate Factory, Fetchur, Experimentation Table) */
+    val timerRules: TimerRules = TimerRules(),
     /** 장신구 목록 (위키 Accessories 하위 문서) */
     val accessories: List<Accessory> = emptyList(),
     val bestiary: Bestiary = Bestiary(),
@@ -39,6 +45,24 @@ data class GameData(
     /** 업그레이드 이전 단계 (위키 정보 상자 upgrades_from): 아이템 → 이전 아이템 */
     val upgrades: Map<String, String> = emptyMap(),
 ) {
+    @Serializable
+    data class TimerRules(
+        /** 초콜릿 알이 나오는 게임 속 시각 (예: 7, 14, 21시) */
+        val hoppityEggHours: List<Int> = emptyList(),
+        val composter: Composter? = null,
+        val timeTower: TimeTower? = null,
+        /** "America/New_York 00:00" 형식 */
+        val fetchurReset: String? = null,
+        val experimentBitsReset: String? = null,
+    )
+
+    @Serializable
+    data class Composter(val secondsPerCompost: Int = 600, val organicPerCompost: Int = 4000, val fuelPerCompost: Int = 2000,
+                         val speedPerTier: Double = 0.2, val costReductionPerTier: Double = 0.01)
+
+    @Serializable
+    data class TimeTower(val maxCharges: Int = 3, val hoursPerCharge: Int = 8)
+
     @Serializable
     data class WikiPet(val name: String, val rarity: String = "", val lore: List<String> = emptyList())
 

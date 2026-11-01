@@ -178,7 +178,7 @@ private fun ForgePanel(state: AppState, now: Long, modifier: Modifier) {
                 slots.forEach { slot ->
                     val done = slot.isDone(now)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        ItemGlyph(slot.itemName, state.itemTier(slot.process.itemId), 40.dp)
+                        sbhelper.ui.components.ItemIcon(state, slot.process.itemId, 40.dp)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {

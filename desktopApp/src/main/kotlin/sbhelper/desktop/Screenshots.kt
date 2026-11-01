@@ -100,8 +100,14 @@ fun main(args: Array<String>) {
     controller.inventoryTab = 5; shot("15-missing-accessories", Screen.INVENTORY)
     controller.statsTab = 1; shot("16-hotm", Screen.STATS)
     controller.statsTab = 0; shot("17-networth", Screen.STATS)
-    controller.statsTab = 2; shot("18-bestiary", Screen.STATS)
-    controller.statsTab = 4; shot("19-minions", Screen.STATS)
+    controller.statsTab = 3; shot("18-bestiary", Screen.STATS)
+    controller.statsTab = 5; shot("19-minions", Screen.STATS)
+    controller.statsTab = 2; shot("20-hotf", Screen.STATS)
+    controller.go(Screen.SEARCH); controller.openItem("MITHRIL_PICKAXE"); shot("21-search-item", Screen.SEARCH)
+    controller.wiki = null; controller.searchQuery = "mithril"; shot("22-search", Screen.SEARCH)
+    controller.openEvent("Dark Auction"); shot("23-events", Screen.EVENTS)
+    controller.openJacob(); shot("24-jacob", Screen.EVENTS)
+    shot("25-mobile-gear", Screen.GEAR, 412, 900)
     repo.stopLoops()
     kotlin.system.exitProcess(0)
 }
@@ -133,6 +139,8 @@ private fun demoProfile(id: String, name: String, mode: GameMode, selected: Bool
     craftedMinions = listOf("COBBLESTONE_1", "COBBLESTONE_5", "COBBLESTONE_11", "WHEAT_1", "WHEAT_9", "SNOW_11", "CLAY_4", "MITHRIL_7"),
     powders = mapOf("mithril" to 1_820_000L, "gemstone" to 3_400_000L, "glacite" to 640_000L),
     inventories = DemoNbt.inventories(),
+    hotfNodes = mapOf("forest_speed" to 20, "timber" to 5, "sweep" to 30, "foraging_fortune" to 12, "center_of_the_forest" to 2),
+    hotfXp = 240_000.0,
 )
 
 /** 화면 확인용 가짜 인벤토리 (실제 API 와 같은 gzip NBT 형식) */

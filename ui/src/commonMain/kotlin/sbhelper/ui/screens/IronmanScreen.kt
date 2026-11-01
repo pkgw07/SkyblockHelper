@@ -61,11 +61,11 @@ import sbhelper.ui.theme.SbText
 
 @Composable
 fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
-    var tab by remember { mutableStateOf(0) }
+    val tab = controller.ironmanTab
     ScreenColumn(wide) {
         val p = state.selectedProfile
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { tab = it })
+            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { controller.ironmanTab = it })
             Spacer(Modifier.weight(1f))
             if (p?.gameMode == GameMode.IRONMAN) Pill("♲ Ironman · ${p.cuteName}", Sb.Gray, filled = true)
         }
@@ -85,17 +85,23 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
-    var query by remember { mutableStateOf("") }
-    var target by remember { mutableStateOf(state.synced.craftTargets.firstOrNull()?.itemId) }
-    var amountText by remember { mutableStateOf("1") }
-    var useSacks by remember { mutableStateOf(true) }
+    var query by remember { mutableStateOf(controller.plannerQuery) }
+    val current = state.synced.craftCurrent ?: state.synced.craftTargets.firstOrNull()
+    val target = current?.itemId
+    var amountText by remember(target) { mutableStateOf((current?.amount ?: 1).toString()) }
+    val useSacks = controller.plannerUseSacks
+    // 고른 목표는 바로 저장 → 다른 화면에 갔다 와도, 앱을 다시 켜도 그대로
+    fun open(id: String?, amount: Int = 1) {
+        controller.repo.updateSynced { s -> s.copy(craftCurrent = id?.let { CraftTarget(it, amount) }) }
+    }
     val planner = remember(state.gameData) { CraftPlanner(state.gameData) }
     val sacks = state.selectedProfile?.sacks
 
     Panel(Modifier.fillMaxWidth(), caption = "Craft Planner", title = "무엇을 만들까요?", accent = Sb.Gold) {
-        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "아이템 검색 (예: Refined Diamond, Enchanted Iron Block)", Icons.Rounded.Search)
+        SbTextField(query, { query = it; controller.plannerQuery = it }, Modifier.fillMaxWidth(), "아이템 검색 (예: Refined Diamond, Enchanted Iron Block)", Icons.Rounded.Search)
         val q = query.trim()
         if (q.length >= 2) {
             val ids = (state.gameData.crafting.keys + state.gameData.forge.keys)
@@ -106,10 +112,10 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             Spacer(Modifier.height(6.dp))
             suggestions.forEach { id ->
                 Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { target = id; query = "" }.padding(8.dp),
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { open(id); query = ""; controller.plannerQuery = "" }.padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    ItemGlyph(state.itemName(id), state.itemTier(id), 24.dp)
+                    sbhelper.ui.components.ItemIcon(state, id, 24.dp)
                     Spacer(Modifier.width(10.dp))
                     RarityName(state.itemName(id), state.itemTier(id), Modifier.weight(1f), size = 13)
                     if (state.gameData.forge.containsKey(id)) Pill("포지", Sb.Gold)
@@ -121,17 +127,24 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             Spacer(Modifier.height(10.dp))
             Text("저장한 목표", style = SbText.caption())
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                state.synced.craftTargets.take(6).forEach { t ->
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                state.synced.craftTargets.take(12).forEach { t ->
                     Row(
                         Modifier.clip(RoundedCornerShape(50)).background(if (t.itemId == target) Sb.SurfaceHover else Sb.SurfaceHigh)
-                            .clickable { target = t.itemId; amountText = t.amount.toString() }
+                            .clickable { open(t.itemId, t.amount) }
                             .padding(start = 12.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(state.itemName(t.itemId), style = SbText.body(12, Sb.Text))
                         Icon(Icons.Rounded.Close, "삭제", tint = Sb.TextFaint, modifier = Modifier.padding(start = 4.dp).size(14.dp)
-                            .clickable { controller.repo.updateSynced { s -> s.copy(craftTargets = s.craftTargets - t) } })
+                            .clickable {
+                                // 지우면 바로 사라지고, 보던 목표였으면 다음 목표로 넘어간다
+                                controller.repo.updateSynced { s ->
+                                    val left = s.craftTargets.filterNot { it.itemId == t.itemId }
+                                    s.copy(craftTargets = left,
+                                        craftCurrent = if (s.craftCurrent?.itemId == t.itemId || (s.craftCurrent == null && target == t.itemId)) left.firstOrNull() else s.craftCurrent)
+                                }
+                            })
                     }
                 }
             }
@@ -151,7 +164,7 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
 
     Panel(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            ItemGlyph(state.itemName(id), state.itemTier(id), 46.dp)
+            sbhelper.ui.components.ItemIcon(state, id, 46.dp)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 RarityName(state.itemName(id), state.itemTier(id), size = 18, bold = true)
@@ -159,7 +172,10 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             }
             Text("수량", style = SbText.body(13, Sb.TextDim))
             Spacer(Modifier.width(8.dp))
-            SbTextField(amountText, { v -> amountText = v.filter { it.isDigit() }.take(6) }, Modifier.width(90.dp), "1", numeric = true)
+            SbTextField(amountText, { v ->
+                amountText = v.filter { it.isDigit() }.take(6)
+                amountText.toIntOrNull()?.let { n -> open(id, n.coerceIn(1, 100_000)) }
+            }, Modifier.width(90.dp), "1", numeric = true)
             Spacer(Modifier.width(10.dp))
             SbButton("저장", {
                 controller.repo.updateSynced { s ->
@@ -169,7 +185,7 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             }, icon = Icons.Rounded.BookmarkAdd, outlined = true)
         }
         Spacer(Modifier.height(6.dp))
-        SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { useSacks = it },
+        SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { controller.plannerUseSacks = it },
             if (sacks == null) "프로필의 인벤토리 API 가 꺼져 있거나 계정이 연결되지 않았어요." else "자루 ${sacks.size}종의 재료를 먼저 쓴다고 계산해요.",
             enabled = sacks != null)
     }
@@ -206,7 +222,7 @@ private fun RawMaterials(state: AppState, plan: CraftPlan, modifier: Modifier) {
         plan.raw.forEach { r ->
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ItemGlyph(state.itemName(r.itemId), state.itemTier(r.itemId), 26.dp)
+                    sbhelper.ui.components.ItemIcon(state, r.itemId, 26.dp)
                     Spacer(Modifier.width(10.dp))
                     RarityName(state.itemName(r.itemId), state.itemTier(r.itemId), Modifier.weight(1f), size = 13)
                     Text("${formatNumber(r.have.toLong())} / ${formatNumber(kotlin.math.ceil(r.needed).toLong())}",
@@ -270,7 +286,7 @@ private fun SackValues(state: AppState, wide: Boolean) {
     Panel(Modifier.fillMaxWidth(), caption = "Sacks", title = "NPC 에게 팔면 많이 남는 순", accent = Sb.Gold) {
         values.take(if (wide) 60 else 30).forEach { v ->
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                ItemGlyph(state.itemName(v.itemId), state.itemTier(v.itemId), 26.dp)
+                sbhelper.ui.components.ItemIcon(state, v.itemId, 26.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     RarityName(state.itemName(v.itemId), state.itemTier(v.itemId), size = 13)
@@ -322,7 +338,6 @@ private fun IronmanGuide(controller: AppController, state: AppState, wide: Boole
         Text("공식 위키 Ironman Guide 의 순서예요. ☐ 를 눌러 끝낸 항목을 표시하고, 이름을 누르면 제작법·드롭을 볼 수 있어요.",
             style = SbText.body(12, Sb.TextFaint))
     }
-    selected?.let { ItemInfo(controller, state, it, onClose = { selected = null }) }
     stages.forEach { st ->
         Panel(Modifier.fillMaxWidth(), caption = st.group, title = st.title, accent = Sb.Gray) {
             if (st.desc.isNotBlank()) {
@@ -339,7 +354,8 @@ private fun IronmanGuide(controller: AppController, state: AppState, wide: Boole
                                     s.copy(ironmanChecked = if (key in s.ironmanChecked) s.ironmanChecked - key else s.ironmanChecked + key)
                                 }
                             }.padding(4.dp))
-                        ItemChip(state, id, id == selected) { selected = id }
+                        // 누르면 아이템 화면으로 (뒤로 가기로 돌아옴) — 목록 위에 정보를 끼워 넣어 스크롤이 튀지 않게
+                        ItemChip(state, id, false) { controller.openItem(id) }
                     }
                 }
             }
@@ -363,7 +379,7 @@ private fun MaterialSources(controller: AppController, state: AppState, wide: Bo
             hits.forEach { id ->
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { selected = id; query = "" }.padding(6.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    ItemGlyph(state.itemName(id), state.itemTier(id), 24.dp)
+                    sbhelper.ui.components.ItemIcon(state, id, 24.dp)
                     Spacer(Modifier.width(10.dp))
                     RarityName(state.itemName(id), state.itemTier(id), Modifier.weight(1f), size = 13)
                     if (id in data.sources.drops) Pill("드롭", Sb.Red)

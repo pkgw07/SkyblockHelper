@@ -2,6 +2,7 @@ package sbhelper.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +61,7 @@ import sbhelper.ui.theme.McColors
 import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
-private val STAT_TABS = listOf("순자산", "HotM 트리", "도감", "컬렉션", "미니언")
+private val STAT_TABS = listOf("순자산", "HotM 트리", "HotF 트리", "도감", "컬렉션", "미니언")
 
 /** 기록: 순자산 · HotM 트리 · 도감(Bestiary) · 컬렉션 · 미니언 */
 @Composable
@@ -76,8 +77,9 @@ fun StatsScreen(controller: AppController, state: AppState, wide: Boolean) {
         when (tab) {
             0 -> NetworthTab(controller, state, p, wide)
             1 -> HotmTab(state, p, wide)
-            2 -> BestiaryTab(state, p)
-            3 -> CollectionsTab(state, p)
+            2 -> HotfTab(state, p, wide)
+            3 -> BestiaryTab(state, p)
+            4 -> CollectionsTab(state, p)
             else -> MinionsTab(state, p)
         }
     }
@@ -180,41 +182,62 @@ private fun HotmTab(state: AppState, p: ProfileSummary, wide: Boolean) {
             }
         }
         Spacer(Modifier.height(10.dp))
-        Text("칸 배치와 설명은 공식 위키(Heart of the Mountain) 기준이에요. 칸에 마우스를 올리면 설명이 떠요.",
-            style = SbText.body(12, Sb.TextFaint))
-        Spacer(Modifier.height(12.dp))
-        if (layout.isEmpty()) {
-            EmptyState("HotM 배치 데이터가 없어요", "위키 데이터를 받는 중이에요.")
-        } else {
-            val cell = if (wide) 54.dp else 40.dp
-            val rows = layout.map { it.row }.distinct().sorted()
-            val cols = (layout.minOf { it.col })..(layout.maxOf { it.col })
-            Column(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF0B0D12)).padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                rows.forEach { r ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        cols.forEach { c ->
-                            val node = layout.firstOrNull { it.row == r && it.col == c }
-                            if (node == null) Box(Modifier.size(cell)) else HotmNode(node, levels[node.name], cell)
-                        }
+        TreeGrid(layout, levels, unmatched, p.hotmNodes.isEmpty(), "Heart of the Mountain", wide)
+    }
+}
+
+@Composable
+private fun HotfTab(state: AppState, p: ProfileSummary, wide: Boolean) {
+    val layout = state.gameData.hotfLayout
+    val (levels, unmatched) = remember(layout, p.hotfNodes) { hotmLevels(layout, p.hotfNodes) }
+    Panel(Modifier.fillMaxWidth(), caption = "Heart of the Forest", title = "내 HotF 트리", accent = Sb.Green) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            p.hotfXp?.let { StatTile("HotF 경험치", formatNumber(it.toLong()), color = Sb.Green) }
+            StatTile("찍은 칸", "${levels.count { it.value > 0 }} / ${layout.size}", color = Sb.Green)
+        }
+        Spacer(Modifier.height(10.dp))
+        TreeGrid(layout, levels, unmatched, p.hotfNodes.isEmpty(), "Heart of the Forest", wide)
+    }
+}
+
+/** HotM·HotF 공통: 위키 배치도대로 칸을 그리고, 내 레벨을 색으로 */
+@Composable
+private fun TreeGrid(layout: List<GameData.HotmCell>, levels: Map<String, Int>, unmatched: Map<String, Int>, noData: Boolean,
+                     wikiName: String, wide: Boolean) {
+    Text("칸 배치와 설명은 공식 위키($wikiName) 기준이에요. 칸에 마우스를 올리면(휴대폰은 누르면) 설명이 떠요.",
+        style = SbText.body(12, Sb.TextFaint))
+    Spacer(Modifier.height(12.dp))
+    if (layout.isEmpty()) {
+        EmptyState("배치 데이터가 없어요", "위키 데이터를 받는 중이에요.")
+    } else {
+        val cell = if (wide) 54.dp else 38.dp
+        val rows = layout.map { it.row }.distinct().sorted()
+        val cols = (layout.minOf { it.col })..(layout.maxOf { it.col })
+        Column(Modifier.clip(RoundedCornerShape(10.dp)).background(Color(0xFF0B0D12)).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            rows.forEach { r ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    cols.forEach { c ->
+                        val node = layout.firstOrNull { it.row == r && it.col == c }
+                        if (node == null) Box(Modifier.size(cell)) else HotmNode(node, levels[node.name], cell)
                     }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Pill("■ 최대", Sb.Gold); Pill("■ 찍음", Sb.Green); Pill("■ 능력", Sb.Pink); Pill("■ 안 찍음", Sb.TextFaint)
-            }
         }
-        if (unmatched.isNotEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Text("위키 칸과 이름이 다른 API 항목: " + unmatched.entries.joinToString(", ") { "${it.key} ${it.value}" },
-                style = SbText.body(11, Sb.TextFaint))
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("■ 최대", Sb.Gold); Pill("■ 찍음", Sb.Green); Pill("■ 능력", Sb.Pink); Pill("■ 안 찍음", Sb.TextFaint)
         }
-        if (p.hotmNodes.isEmpty()) {
-            Spacer(Modifier.height(10.dp))
-            Text("프로필에서 HotM 칸 정보를 찾지 못했어요. 설정 → '프로필 구조 복사' 로 알려 주시면 고칠게요.",
-                style = SbText.body(12, Sb.Negative))
-        }
+    }
+    if (unmatched.isNotEmpty()) {
+        Spacer(Modifier.height(10.dp))
+        Text("위키 칸과 이름이 다른 API 항목: " + unmatched.entries.joinToString(", ") { "${it.key} ${it.value}" },
+            style = SbText.body(11, Sb.TextFaint))
+    }
+    if (noData) {
+        Spacer(Modifier.height(10.dp))
+        Text("프로필에서 칸 정보를 찾지 못했어요. 설정 → '프로필 구조 복사' 로 알려 주시면 고칠게요.",
+            style = SbText.body(12, Sb.Negative))
     }
 }
 
@@ -250,6 +273,7 @@ private fun HotmNode(node: GameData.HotmCell, level: Int?, size: Dp) {
 @Composable
 private fun BestiaryTab(state: AppState, p: ProfileSummary) {
     var query by remember { mutableStateOf("") }
+    var openAreas by remember { mutableStateOf(setOf<String>()) }
     val entries = remember(state.gameData.bestiary, p.bestiaryKills) { BestiaryCalc.entries(state.gameData, p.bestiaryKills) }
     if (p.bestiaryKills.isEmpty()) {
         Panel { EmptyState("도감 정보가 없어요", "게임 API 설정이 꺼져 있거나 아직 잡은 몹이 없어요.") }
@@ -262,18 +286,35 @@ private fun BestiaryTab(state: AppState, p: ProfileSummary) {
         Spacer(Modifier.height(8.dp))
         SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "몹 검색", Icons.Rounded.Search)
         Spacer(Modifier.height(8.dp))
+        // 지역별로 접어 두고, 누르면 펼친다 (검색 중이면 맞는 지역은 펼쳐서)
         entries.filter { query.isBlank() || it.family.contains(query, true) || it.section.contains(query, true) }
-            .groupBy { it.section }.forEach { (section, list) ->
+            .groupBy { it.section.ifBlank { "기타" } }.forEach { (section, list) ->
+                val key = section
+                val open = query.isNotBlank() || key in openAreas
+                val areaMax = list.count { it.maxed }
                 Spacer(Modifier.height(6.dp))
-                Text(section.ifBlank { "기타" }, style = SbText.pixel(13, Sb.Red, bold = true))
-                list.forEach { e ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(e.family, style = SbText.body(13, if (e.kills > 0) Sb.Text else Sb.TextFaint), modifier = Modifier.width(190.dp), maxLines = 1)
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Sb.SurfaceHigh)
+                        .clickable { openAreas = if (key in openAreas) openAreas - key else openAreas + key }
+                        .padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(if (open) "▾" else "▸", style = SbText.body(14, Sb.TextDim))
+                    Spacer(Modifier.width(8.dp))
+                    Text(section, style = SbText.body(14, Sb.Text, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                    XpBar(if (list.isEmpty()) 0.0 else list.sumOf { it.tier }.toDouble() / list.sumOf { it.maxTier }.coerceAtLeast(1),
+                        Modifier.width(120.dp), if (areaMax == list.size) Sb.Gold else Sb.Red, 6.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Text("최대 $areaMax/${list.size}", style = SbText.pixel(12, if (areaMax == list.size) Sb.Gold else Sb.TextDim))
+                }
+                if (open) list.forEach { e ->
+                    Row(Modifier.fillMaxWidth().padding(start = 18.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(e.family, style = SbText.body(13, if (e.kills > 0) Sb.Text else Sb.TextFaint), modifier = Modifier.width(170.dp), maxLines = 1)
                         XpBar(e.progress, Modifier.weight(1f), if (e.maxed) Sb.Gold else Sb.Red, 6.dp)
                         Spacer(Modifier.width(10.dp))
                         Text("${e.tier}/${e.maxTier}", style = SbText.pixel(12, if (e.maxed) Sb.Gold else Sb.TextDim), modifier = Modifier.width(48.dp))
                         Text(if (e.maxed) formatNumber(e.kills.toLong()) else "${formatNumber(e.kills.toLong())}/${formatNumber(e.nextKills ?: 0)}",
-                            style = SbText.body(11, Sb.TextFaint), modifier = Modifier.width(120.dp), maxLines = 1)
+                            style = SbText.body(11, Sb.TextFaint), modifier = Modifier.width(110.dp), maxLines = 1)
                     }
                 }
             }

@@ -338,4 +338,35 @@ class CoreTest {
         assertEquals("ghp_token123" to "gist456", PairingCode.decode(code))
         assertNull(PairingCode.decode("garbage"))
     }
+
+    @Test
+    fun wikiTextKeepsLinksAndSkipsInfobox() {
+        val (text, links) = sbhelper.core.api.WikiText.inlineLinks(
+            "Bought from {{NPCSprite|Bubu}} for {{Item|Fractured Mithril Pickaxe|amount=1}} in the [[Dwarven Mines|mines]].")
+        assertEquals("Bought from Bubu for 1× Fractured Mithril Pickaxe in the mines.", text)
+        assertEquals(listOf("Bubu", "Fractured Mithril Pickaxe", "Dwarven Mines"), links.map { it.page })
+        assertEquals("mines", text.substring(links[2].start, links[2].end))
+        val blocks = sbhelper.core.api.WikiText.blocks(
+            "{{Infobox/Item\n|type = Pickaxe\n|id = X\n}}\nThe '''X''' is a [[Pickaxe]].\n== Obtaining ==\n* From {{NPCSprite|Bubu}}")
+        assertEquals(3, blocks.size)
+        assertTrue((blocks[0] as sbhelper.core.api.DocBlock.Paragraph).text.startsWith("The X is a Pickaxe"))
+    }
+
+    @Test
+    fun extraTimersFromWikiRules() {
+        val data = sbhelper.core.data.GameData(timerRules = sbhelper.core.data.GameData.TimerRules(
+            fetchurReset = "America/New_York 00:00", experimentBitsReset = "UTC 00:00",
+            composter = sbhelper.core.data.GameData.Composter()))
+        val now = 1_793_500_000_000L
+        val f = sbhelper.core.calc.ExtraTimers.nextDaily(now, "UTC 00:00")!!
+        assertEquals(0L, f % 86_400_000L)
+        assertTrue(f > now && f - now <= 86_400_000L)
+        val garden = sbhelper.core.api.SbJson.parseToJsonElement(
+            """{"composter_data":{"organic_matter":40000,"fuel_units":100000,"last_save":$now,"upgrades":{"speed":5,"cost_reduction":0}}}""") as kotlinx.serialization.json.JsonObject
+        val timers = sbhelper.core.calc.ExtraTimers.all(now, data, null, garden)
+        val comp = timers.first { it.key == "composter" }
+        // 유기물 40000 / 4000 = 10개, 속도 +100% → 개당 300초 → 3000초
+        assertEquals(now + 3_000_000L, comp.at)
+        assertTrue(timers.any { it.key == "fetchur" } && timers.any { it.key == "experiment" })
+    }
 }

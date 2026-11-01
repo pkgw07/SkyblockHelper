@@ -27,6 +27,8 @@ import sbhelper.ui.SkyblockApp
 import sbhelper.ui.UpdateFlow
 
 class MainActivity : ComponentActivity() {
+    companion object { const val EXTRA_TARGET = "sbhelper.target" }
+
     private val app get() = application as SbApplication
     private lateinit var controller: AppController
     private var scanCallback: ((String) -> Unit)? = null
@@ -91,6 +93,18 @@ class MainActivity : ComponentActivity() {
         setContent {
             SkyblockApp(controller, platform, Modifier.safeDrawingPadding())
         }
+        // 휴대폰 뒤로 버튼: 앱 안 이전 화면, 더 없으면 원래대로
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (!controller.back()) { isEnabled = false; onBackPressedDispatcher.onBackPressed(); isEnabled = true }
+            }
+        })
+        intent?.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
     }
 
     override fun onStart() {

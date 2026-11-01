@@ -325,9 +325,74 @@ def events():
         out.append({"name": "Bank Interest", "page": "Bank",
                     "anchor": {"year": 1, "month": 0, "day": 1, "hour": 0, "minute": 0},
                     "cycle": [SB_HOUR, 3 * SB_MONTH - SB_HOUR]})
+    # Hoppity's Hunt: 문서 위쪽 LiveCountdownBox
+    hop = wikitext("Hoppity's Hunt")
+    m = re.search(r"\{\{LiveCountdownBox\|routine=([^|}]*)", hop)
+    if m:
+        anchor, cycle = parse_routine(m.group(1))
+        out.append({"name": "Hoppity's Hunt", "page": "Hoppity's Hunt", "anchor": anchor, "cycle": cycle})
     if len(out) < 10:
         raise RuntimeError(f"events look wrong ({len(out)})")
     return out
+
+
+GEAR_PAGES = {
+    "MINING": ["Pickaxes", "Drills"],
+    "FARMING": ["Farming Tools"],
+    "FORAGING": ["Axes"],
+    "FISHING": ["Fishing Rods"],
+    "HUNTING": ["Lassos"],
+}
+
+
+def gear_pools(ids):
+    """위키 도구 목록 문서(Pickaxes, Drills, Farming Tools …)의 {{Slot|A ; B}} → 스킬별 도구 아이템 ID (문서 순서)"""
+    out = {}
+    for skill, pages in GEAR_PAGES.items():
+        found = []
+        for page in pages:
+            for slot in re.findall(r"\{\{Slot\|([^}]+)\}\}", wikitext(page)):
+                for name in slot.split(";"):
+                    name = name.split("|")[0].strip()
+                    i = ids.id(name) if name else None
+                    if i and not i.startswith("name:") and i not in found:
+                        found.append(i)
+        out[skill] = found
+    return out
+
+
+def timer_rules():
+    """타이머용 위키 규칙: 초콜릿 알 등장 시각, 컴포스터, Time Tower, Fetchur·실험대 초기화"""
+    r = {}
+    hop = wikitext("Hoppity's Hunt")
+    hours = []
+    for h, ap in re.findall(r'rowspan="2"\s*\|\s*(\d{1,2})\s*(AM|PM)', hop):
+        v = int(h) % 12 + (12 if ap == "PM" else 0)
+        if v not in hours:
+            hours.append(v)
+    if hours:
+        r["hoppityEggHours"] = hours
+    comp = wikitext("Composter")
+    m1 = re.search(r"takes (\d+) minutes to create each", comp)
+    m2 = re.search(r"consuming \{\{Green\|([\d,]+)\}\} \{\{Yellow\|Organic Matter\}\} and \{\{Green\|([\d,]+)\}\}", comp)
+    m3 = re.search(r"production speed by \{\{Green\|(\d+)%\}\} per tier", comp)
+    m4 = re.search(r"required to produce Compost by \{\{Green\|(\d+)%\}\} per tier", comp)
+    if m1 and m2 and m3 and m4:
+        r["composter"] = {"secondsPerCompost": int(m1.group(1)) * 60,
+                          "organicPerCompost": int(m2.group(1).replace(",", "")),
+                          "fuelPerCompost": int(m2.group(2).replace(",", "")),
+                          "speedPerTier": int(m3.group(1)) / 100, "costReductionPerTier": int(m4.group(1)) / 100}
+    tower = wikitext("Chocolate Factory")
+    m = re.search(r"builds up to (\d+) charges, each over an (\d+) hour period", tower)
+    if m:
+        r["timeTower"] = {"maxCharges": int(m.group(1)), "hoursPerCharge": int(m.group(2))}
+    fet = wikitext("Fetchur")
+    if "resets every night at midnight [[Hypixel Server Time]]" in fet:
+        r["fetchurReset"] = "America/New_York 00:00"
+    exp = wikitext("Experimentation Table")
+    if "reset every day at 12:00 AM GMT" in exp:
+        r["experimentBitsReset"] = "UTC 00:00"
+    return r
 
 
 def rules():
@@ -536,9 +601,9 @@ def pets_by_type():
     return out
 
 
-def hotm_layout():
-    """위키 Template:Heart of the Mountain/UI → HotM 칸 배치 (행 1 = 가장 위 = 10단계)"""
-    text = wikitext("Template:Heart of the Mountain/UI")
+def hotm_layout(template="Template:Heart of the Mountain/UI"):
+    """위키 Template:Heart of the Mountain/UI (또는 Heart of the Forest/UI) → 칸 배치 (행 1 = 가장 위)"""
+    text = wikitext(template)
     cells = []
     for r, c, body in re.findall(r"^\|(\d+),\s*(\d+)=(.*)$", text, flags=re.M):
         parts = body.split(", ", 3)
@@ -549,10 +614,16 @@ def hotm_layout():
             continue
         lore = parts[3] if len(parts) > 3 else ""
         mx = re.search(r"Level \d+&8\\?/(\d+)", lore)
-        ability = "Pickaxe Ability" in lore
+        ability = "Pickaxe Ability" in lore or "Axe Ability" in lore
+        if not mx:
+            # 예시 트리에서 다 찍은 칸은 "Level 50" 처럼 최대치만 적혀 있다
+            mx = re.search(r"Level (\d+)(?!&8)", lore)
         cells.append({"row": int(r), "col": int(c), "name": name, "maxLevel": int(mx.group(1)) if mx else 1,
                       "ability": ability, "lore": [mc_clean(x) for x in lore.split("/")
                                                     if x and not x.startswith("&5&o") and "Cost" not in x][:8]})
+    # 맨 아래 줄은 안내 칸(트리 슬롯·지역 설명 등)이라 뺀다
+    last = max((c["row"] for c in cells), default=0)
+    cells = [c for c in cells if c["row"] != last]
     if len(cells) < 20:
         raise RuntimeError("hotm layout looks wrong")
     return cells
@@ -710,12 +781,15 @@ def main(out_path):
         "leveling": leveling(),
         "events": events(),
         "rules": rules(),
+        "timerRules": timer_rules(),
         "progression": progression(),
         "techTrees": tech_trees(ids),
+        "gearPools": gear_pools(ids),
         "ironmanGuide": ironman_guide(ids),
         "sources": sources(ids),
         "pets": pets_by_type(),
         "hotmLayout": hotm_layout(),
+        "hotfLayout": hotm_layout("Template:Heart of the Forest/UI"),
         "accessories": accessories(ids),
         "bestiary": bestiary(),
     }

@@ -78,6 +78,8 @@ data class AppState(
     val updateStaged: String? = null,
     /** 제이콥 농사대회 시작 시각 → 작물 (비공식: EliteBot) */
     val jacobCrops: Map<Long, List<String>> = emptyMap(),
+    /** 공식 가든 API (컴포스터 타이머용) */
+    val garden: kotlinx.serialization.json.JsonObject? = null,
     /** 경매장 아이템별 최저 BIN (순자산·장신구 가격용) */
     val lowestBin: Map<String, Double> = emptyMap(),
     val lowestBinAt: Long = 0,
@@ -116,6 +118,10 @@ data class AppState(
     }
 
     fun upcomingEvents(now: Long): List<EventOccurrence> = SkyblockCalendar.upcoming(now, gameData, election)
+
+    /** 포지·이벤트 말고 추가 타이머 */
+    fun extraTimers(now: Long): List<sbhelper.core.calc.ExtraTimer> =
+        sbhelper.core.calc.ExtraTimers.all(now, gameData, selectedProfile, garden)
 
     /** 바자 판매 수수료(비율). 위키 기본값 + 시장 효과(예: Derpy 4배) */
     val bazaarTaxRate: Double
@@ -192,6 +198,9 @@ class SkyblockRepository(
      * 패치노트 본문 한국어 번역 (비공식: Google 번역).
      * 번역된 줄만 저장하고, 실패한 줄(null)은 다음에 다시 시도한다. 돌려주는 목록의 null = 원문 그대로 보여 줄 줄.
      */
+    /** 번역이 막혀 있으면 풀리는 시각(ms), 아니면 0 */
+    val translationBlockedUntil get() = translator.blockedUntilMs
+
     suspend fun translatePatch(page: String, lines: List<String>): List<String?> {
         val ser = kotlinx.serialization.serializer<Map<String, List<String?>>>()
         val cache = storage.read(TRANSLATION_FILE)?.let { runCatching { SbJson.decodeFromString(ser, it) }.getOrNull() }.orEmpty()
@@ -328,9 +337,12 @@ class SkyblockRepository(
             val auctions = if (selected?.gameMode?.canTrade == true) {
                 runCatching { api.playerAuctions(uuid).filter { it.profileId.isBlank() || it.profileId == selected.profileId } }.getOrDefault(emptyList())
             } else emptyList()
+            // 가든(컴포스터)은 타이머를 켠 경우에만
+            val garden = if (selected != null && s.synced.notify.timerEnabled("composter"))
+                runCatching { api.garden(selected.profileId) }.getOrNull() else null
             _state.update {
                 it.copy(profiles = profiles, myAuctions = auctions, lastProfileSync = Clock.now(),
-                    loadingProfile = false, profileError = null)
+                    loadingProfile = false, profileError = null, garden = garden ?: it.garden)
             }
         } catch (e: ApiException) {
             _state.update { it.copy(loadingProfile = false, profileError = e.message) }
@@ -471,6 +483,7 @@ class SkyblockRepository(
         itemName = s::itemName,
         patchNotes = s.patchNotes,
         jacobCrops = s.jacobCrops,
+        extraTimers = s.extraTimers(now),
     )
 
     suspend fun checkAlerts() {

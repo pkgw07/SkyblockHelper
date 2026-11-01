@@ -112,11 +112,13 @@ fun main(args: Array<String>) {
     val startHidden = smokeFile == null && ("--minimized" in args ||
         (repo.state.value.device.startMinimized && repo.state.value.device.runInBackground))
 
+    var lastNotice: Pair<String?, Long> = null to 0L
     application {
         var visible by remember { mutableStateOf(!startHidden) }
         val trayState = rememberTrayState()
         LaunchedEffect(Unit) {
             notifier.sink = { n ->
+                lastNotice = n.target to System.currentTimeMillis()
                 trayState.sendNotification(Notification(n.title, n.body, when (n.category) {
                     AlertCategory.PRICE, AlertCategory.AUCTION -> Notification.Type.Info
                     else -> Notification.Type.None
@@ -134,7 +136,13 @@ fun main(args: Array<String>) {
             icon = painterResource("tray.png"),
             state = trayState,
             tooltip = "SkyblockHelper",
-            onAction = { visible = true; bringToFront() },
+            onAction = {
+                visible = true; bringToFront()
+                // Windows 알림 풍선을 누르면 여기로 온다 (어느 알림인지는 알려 주지 않아 최근 알림 기준)
+                val (target, at) = lastNotice
+                if (target != null && System.currentTimeMillis() - at < 3 * 60_000) controller.openTarget(target)
+                lastNotice = null to 0L
+            },
             menu = {
                 Item("열기", onClick = { visible = true; bringToFront() })
                 Item("지금 새로 고침", onClick = { scope.launch { repo.refreshProfile(); repo.checkAlerts() } })

@@ -57,7 +57,12 @@ fun TimersScreen(controller: AppController, state: AppState, wide: Boolean) {
     ScreenColumn(wide) {
         Responsive(
             wide,
-            cell(1f) { m -> ForgeDetail(state, now, m) },
+            cell(1f) { m ->
+                Column(m, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                    ForgeDetail(state, now, Modifier.fillMaxWidth())
+                    ExtraTimersPanel(controller, state, now, Modifier.fillMaxWidth())
+                }
+            },
             cell(1f) { m -> EventSchedule(controller, state, now, m) },
         )
         HistoryPanel(controller, state)
@@ -78,7 +83,7 @@ private fun ForgeDetail(state: AppState, now: Long, modifier: Modifier) {
             slots.forEach { slot ->
                 val done = slot.isDone(now)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ItemGlyph(slot.itemName, state.itemTier(slot.process.itemId), 44.dp)
+                    sbhelper.ui.components.ItemIcon(state, slot.process.itemId, 44.dp)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("슬롯 ${slot.process.slot} · ${slot.itemName}", style = SbText.body(14, weight = FontWeight.SemiBold))
@@ -107,6 +112,38 @@ private fun ForgeDetail(state: AppState, now: Long, modifier: Modifier) {
     }
 }
 
+/** Fetchur·실험대·초콜릿 알·시장·컴포스터·Time Tower */
+@Composable
+private fun ExtraTimersPanel(controller: AppController, state: AppState, now: Long, modifier: Modifier) {
+    val timers = state.extraTimers(now)
+    val prefs = state.synced.notify
+    Panel(modifier, caption = "Other timers", title = "다른 타이머", accent = Sb.Green) {
+        Text("공식 위키 규칙과 공식 API 값으로 계산해요. 🔔 으로 알림을 켜고 끌 수 있어요 (설정에서도 가능).",
+            style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(8.dp))
+        if (timers.isEmpty()) Text("지금 보여 줄 타이머가 없어요.", style = SbText.body(13, Sb.TextFaint))
+        timers.forEach { t ->
+            val on = prefs.timerEnabled(t.key)
+            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(t.emoji, style = SbText.body(16))
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(t.title, style = SbText.body(14, weight = FontWeight.Medium))
+                    Text(t.detail, style = SbText.body(12, Sb.TextDim))
+                    Text("${formatDuration(t.at - now)} 후 · ${localTime(t.at, true)} · ${t.source}", style = SbText.body(11, Sb.TextFaint))
+                }
+                Icon(
+                    if (on) Icons.Rounded.Notifications else Icons.Rounded.NotificationsNone, "알림",
+                    tint = if (on) Sb.Gold else Sb.TextFaint,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                        controller.repo.updateSynced { s -> s.copy(notify = s.notify.copy(timers = s.notify.timers + (t.key to !on))) }
+                    }.padding(6.dp).size(20.dp),
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun EventSchedule(controller: AppController, state: AppState, now: Long, modifier: Modifier) {
     val events = state.upcomingEvents(now)
@@ -114,7 +151,7 @@ private fun EventSchedule(controller: AppController, state: AppState, now: Long,
     val date = SkyblockCalendar.dateAt(now)
     Panel(modifier, caption = "Calendar · Year ${date.year}", title = "이벤트 일정", accent = Sb.Aqua,
         trailing = { Pill("${prefs.eventLeadMinutes}분 전 알림", Sb.Aqua) }) {
-        Text("🔔 을 눌러 이벤트별 알림을 켜고 끌 수 있어요.", style = SbText.body(12, Sb.TextFaint))
+        Text("이벤트를 누르면 자세한 정보, 🔔 을 누르면 알림을 켜고 끌 수 있어요.", style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(8.dp))
         events.forEach { e ->
             val active = e.isActive(now)
@@ -122,6 +159,7 @@ private fun EventSchedule(controller: AppController, state: AppState, now: Long,
             Row(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                     .background(if (active) Sb.Aqua.copy(alpha = 0.08f) else Color.Transparent)
+                    .clickable { controller.openEvent(e.name) }
                     .padding(horizontal = 8.dp, vertical = 7.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -168,6 +206,7 @@ private fun HistoryPanel(controller: AppController, state: AppState) {
                 AlertCategory.AUCTION -> Sb.Green
                 AlertCategory.PRICE -> Sb.Pink
                 AlertCategory.PATCH -> Sb.Green
+                AlertCategory.TIMER -> Sb.Green
                 AlertCategory.SYSTEM -> Sb.TextDim
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {

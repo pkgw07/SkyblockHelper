@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Apps
@@ -47,6 +48,8 @@ import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.ShowChart
 import androidx.compose.material.icons.rounded.Timer
@@ -69,6 +72,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
@@ -99,6 +104,8 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     HOME("홈", "대시보드", Icons.Rounded.Dashboard),
     PLAN("추천", "진행 방향 추천", Icons.Rounded.AccountTree),
     PROFILE("프로필", "프로필", Icons.Rounded.Person),
+    SEARCH("검색", "위키 검색", Icons.Rounded.Search),
+    EVENTS("이벤트", "이벤트", Icons.Rounded.Event),
     INVENTORY("인벤토리", "인벤토리 · 장신구 · 자루", Icons.Rounded.Inventory2),
     STATS("기록", "순자산 · HotM · 도감 · 미니언", Icons.Rounded.Insights),
     GEAR("테크트리", "장비 · 펫 테크트리", Icons.Rounded.Category),
@@ -111,6 +118,21 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     SETTINGS("설정", "설정", Icons.Rounded.Settings),
 }
 
+/** 아이템 이름 → 공식 아이템 ID (없으면 null) */
+fun itemIdForName(state: AppState, name: String): String? {
+    val n = name.trim()
+    state.items.values.firstOrNull { it.name.replace(Regex("§."), "").equals(n, true) }?.let { return it.id }
+    state.gameData.names.entries.firstOrNull { it.value.equals(n, true) }?.let { return it.key }
+    if (n.endsWith(" Pet", true)) return "pet:" + n.dropLast(4)
+    return null
+}
+
+/** 위키 검색 화면에서 여는 것: 아이템(공식 ID) 또는 위키 문서 */
+sealed interface WikiTarget {
+    data class Item(val id: String) : WikiTarget
+    data class Page(val title: String) : WikiTarget
+}
+
 val LocalController = androidx.compose.runtime.staticCompositionLocalOf<AppController> { error("no controller") }
 
 /** 화면 상태 + 저장소 */
@@ -118,16 +140,72 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     var screen by mutableStateOf(Screen.HOME)
     var toast by mutableStateOf<String?>(null)
     var inventoryTab by mutableStateOf(0)
+    var ironmanTab by mutableStateOf(0)
+    /** 제작 플래너 입력 (화면을 옮겨도 유지) */
+    var plannerQuery by mutableStateOf("")
+    var plannerUseSacks by mutableStateOf(true)
     var statsTab by mutableStateOf(0)
     val auctionSearch = AuctionSearchState(repo.api, scope)
     val patchNotes = PatchNotesState()
+
+    // ---------------------------------------------------------------- 화면 이동 + 뒤로 가기
+    /** 이벤트 화면: 고른 이벤트 이름, 0 = 일정 / 1 = 제이콥 농사대회 */
+    var event by mutableStateOf<String?>(null)
+    var eventsTab by mutableStateOf(0)
+    /** 위키 검색 화면에서 보는 것 */
+    var wiki by mutableStateOf<WikiTarget?>(null)
+    var searchQuery by mutableStateOf("")
+
+    private data class NavEntry(val screen: Screen, val event: String?, val eventsTab: Int, val wiki: WikiTarget?)
+    private val history = ArrayList<NavEntry>()
+    private var historySize by mutableStateOf(0)
+    val canGoBack get() = historySize > 0
+
+    private fun push() {
+        history += NavEntry(screen, event, eventsTab, wiki)
+        if (history.size > 60) history.removeAt(0)
+        historySize = history.size
+    }
 
     fun showToast(message: String) {
         toast = message
         scope.launch { delay(2600); if (toast == message) toast = null }
     }
 
-    fun go(screen: Screen) { this.screen = screen }
+    fun go(screen: Screen) {
+        if (screen != this.screen) push()
+        this.screen = screen
+    }
+
+    /** 이전 화면으로 (마우스 뒤로 버튼 / 휴대폰 뒤로 버튼). 더 갈 곳이 없으면 false */
+    fun back(): Boolean {
+        val e = history.removeLastOrNull() ?: return false
+        historySize = history.size
+        screen = e.screen; event = e.event; eventsTab = e.eventsTab; wiki = e.wiki
+        return true
+    }
+
+    fun openEvent(name: String) { push(); screen = Screen.EVENTS; eventsTab = 0; event = name }
+    fun openJacob() { push(); screen = Screen.EVENTS; eventsTab = 1 }
+    fun openItem(id: String) { push(); screen = Screen.SEARCH; wiki = WikiTarget.Item(id) }
+    fun openPage(title: String) { push(); screen = Screen.SEARCH; wiki = WikiTarget.Page(title) }
+
+    /** 위키 링크: 아이템 이름이면 아이템 화면, 아니면 위키 문서 */
+    fun openWikiLink(page: String) {
+        val id = itemIdForName(repo.state.value, page)
+        if (id != null) openItem(id) else openPage(page)
+    }
+
+    /** 알림을 눌렀을 때 (AppNotification.target) */
+    fun openTarget(target: String?) {
+        when {
+            target == null -> Unit
+            target == "jacob" -> openJacob()
+            target.startsWith("event:") -> openEvent(target.removePrefix("event:"))
+            target == "timers" -> go(Screen.TIMERS)
+            target == "patch" -> go(Screen.PATCH)
+        }
+    }
 }
 
 @Composable
@@ -138,9 +216,20 @@ fun SkyblockApp(
     titleBar: (@Composable () -> Unit)? = null,
 ) {
     val state by controller.repo.state.collectAsState()
-    SkyblockTheme(textScale = state.device.textScale) {
+    SkyblockTheme(textScale = state.device.textScale, textWeight = state.device.fontWeight) {
         CompositionLocalProvider(LocalPlatform provides platform, LocalController provides controller) {
-            Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)) {
+            Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)
+                // 마우스 뒤로 버튼(MB4)으로 이전 화면
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press && e.buttons.isBackPressed) {
+                                controller.back()
+                            }
+                        }
+                    }
+                }) {
                 titleBar?.invoke()
                 BoxWithConstraints(Modifier.fillMaxSize()) {
                     val wide = maxWidth >= 760.dp
@@ -177,6 +266,8 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
                 Screen.PROFILE -> ProfileScreen(controller, state, wide)
                 Screen.INVENTORY -> sbhelper.ui.screens.InventoryScreen(controller, state, wide)
                 Screen.STATS -> sbhelper.ui.screens.StatsScreen(controller, state, wide)
+                Screen.SEARCH -> sbhelper.ui.screens.SearchScreen(controller, state, wide)
+                Screen.EVENTS -> sbhelper.ui.screens.EventsScreen(controller, state, wide)
                 Screen.TIMERS -> TimersScreen(controller, state, wide)
                 Screen.BAZAAR, Screen.AUCTION -> if (wide) {
                     if (screen == Screen.BAZAAR) BazaarScreen(controller, state, wide) else AuctionScreen(controller, state, wide)
@@ -210,7 +301,8 @@ private fun SideRail(controller: AppController, state: AppState) {
     ) {
         Logo()
         Spacer(Modifier.height(18.dp))
-        val main = listOf(Screen.HOME, Screen.PLAN, Screen.GEAR, Screen.PROFILE, Screen.INVENTORY, Screen.STATS, Screen.TIMERS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
+        val main = listOf(Screen.HOME, Screen.PROFILE, Screen.SEARCH, Screen.PLAN, Screen.GEAR, Screen.INVENTORY, Screen.STATS,
+            Screen.TIMERS, Screen.EVENTS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             main.forEach { s ->
                 val dim = (s == Screen.BAZAAR || s == Screen.AUCTION) && state.selectedProfile?.gameMode?.canTrade == false
@@ -268,7 +360,7 @@ private fun BottomNav(controller: AppController, state: AppState) {
     ) {
         items.forEach { s ->
             val selected = controller.screen == s || (s == Screen.BAZAAR && controller.screen == Screen.AUCTION) ||
-                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.INVENTORY, Screen.STATS, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
+                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.SEARCH, Screen.EVENTS, Screen.INVENTORY, Screen.STATS, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
             Column(
                 Modifier.clip(RoundedCornerShape(12.dp)).clickable { controller.go(s) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -287,6 +379,11 @@ private fun TopBar(controller: AppController, state: AppState, compact: Boolean)
         Modifier.fillMaxWidth().padding(horizontal = if (compact) 16.dp else 28.dp, vertical = if (compact) 10.dp else 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        if (controller.canGoBack) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "뒤로", tint = Sb.TextDim,
+                modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable { controller.back() }.padding(6.dp).size(22.dp))
+            Spacer(Modifier.width(8.dp))
+        }
         Column(Modifier.weight(1f)) {
             Text(controller.screen.title, style = SbText.pixel(if (compact) 17 else 21, bold = true))
             val sub = when {

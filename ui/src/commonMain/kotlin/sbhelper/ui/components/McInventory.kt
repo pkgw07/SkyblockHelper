@@ -67,27 +67,80 @@ object WikiIcons {
     }
 }
 
-/** 픽셀 그림을 뭉개지 않고 확대해서 그린다 (마인크래프트 아이콘) */
+/** 위키 파일 이름이 아이템 이름과 다를 때: 그 문서의 대표 그림(PageImages)을 찾는다 */
+object IconResolver {
+    private val wiki by lazy { sbhelper.core.api.WikiApi() }
+    private val cache = HashMap<String, String?>()
+    private val lock = kotlinx.coroutines.sync.Mutex()
+
+    suspend fun pageImage(title: String): String? {
+        val key = title.trim()
+        if (key.isEmpty()) return null
+        lock.lock(); try { if (cache.containsKey(key)) return cache[key] } finally { lock.unlock() }
+        val url = runCatching { wiki.pageImages(listOf(key))[key] }.getOrNull()
+        lock.lock(); try { cache[key] = url } finally { lock.unlock() }
+        return url
+    }
+
+    /** 공식 API 의 머리 스킨 값(base64) → 스킨 그림 주소 */
+    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+    fun skinUrl(value: String?): String? = runCatching {
+        val json = kotlin.io.encoding.Base64.decode(value ?: return null).decodeToString()
+        Regex("\"url\"\\s*:\\s*\"([^\"]+)\"").find(json)?.groupValues?.get(1)?.replace("http://", "https://")
+    }.getOrNull()
+}
+
+/**
+ * 픽셀 그림을 뭉개지 않고 확대해서 그린다 (마인크래프트 아이콘).
+ * 그림 찾는 순서: 위키 파일(아이템 이름) → 위키 문서 대표 그림 → 머리 아이템이면 스킨의 얼굴 → 글자 아이콘
+ */
 @Composable
-fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp) {
+fun PixelIcon(url: String, fallbackName: String, tier: String?, size: Dp, skinUrl: String? = null) {
     var img by remember(url) { mutableStateOf<ImageBitmap?>(null) }
+    var face by remember(url) { mutableStateOf(false) }
     var failed by remember(url) { mutableStateOf(false) }
-    LaunchedEffect(url) { img = ImageCache.load(url); failed = img == null }
+    LaunchedEffect(url, skinUrl) {
+        var i = ImageCache.load(url)
+        if (i == null) IconResolver.pageImage(fallbackName)?.let { i = ImageCache.load(it) }
+        if (i == null && skinUrl != null) {
+            i = ImageCache.load(skinUrl)
+            face = i != null
+        }
+        img = i
+        failed = i == null
+    }
     val i = img
     if (i != null) {
         Canvas(Modifier.size(size)) {
-            val scale = minOf(this.size.width / i.width, this.size.height / i.height)
-            val w = (i.width * scale).toInt()
-            val h = (i.height * scale).toInt()
-            drawImage(i, IntOffset.Zero, IntSize(i.width, i.height),
-                IntOffset(((this.size.width - w) / 2).toInt(), ((this.size.height - h) / 2).toInt()), IntSize(w, h),
-                filterQuality = FilterQuality.None)
+            if (face && i.width >= 64) {
+                // 스킨 그림(64×64)에서 얼굴(8,8)과 모자 겹(40,8) 부분만
+                val s = minOf(this.size.width, this.size.height).toInt()
+                val off = IntOffset(((this.size.width - s) / 2).toInt(), ((this.size.height - s) / 2).toInt())
+                val unit = i.width / 64
+                drawImage(i, IntOffset(8 * unit, 8 * unit), IntSize(8 * unit, 8 * unit), off, IntSize(s, s), filterQuality = FilterQuality.None)
+                drawImage(i, IntOffset(40 * unit, 8 * unit), IntSize(8 * unit, 8 * unit), off, IntSize(s, s), filterQuality = FilterQuality.None)
+            } else {
+                val scale = minOf(this.size.width / i.width, this.size.height / i.height)
+                val w = (i.width * scale).toInt()
+                val h = (i.height * scale).toInt()
+                drawImage(i, IntOffset.Zero, IntSize(i.width, i.height),
+                    IntOffset(((this.size.width - w) / 2).toInt(), ((this.size.height - h) / 2).toInt()), IntSize(w, h),
+                    filterQuality = FilterQuality.None)
+            }
         }
     } else if (failed) {
         ItemGlyph(fallbackName, tier, size)
     } else {
         Box(Modifier.size(size))
     }
+}
+
+/** 아이템 ID 로 그림 (공식 API 이름·등급·머리 스킨 사용) */
+@Composable
+fun ItemIcon(state: AppState, id: String, size: Dp) {
+    val name = state.itemName(id).replace(Regex("§."), "")
+    val skin = IconResolver.skinUrl(state.items[id]?.skin?.value)
+    PixelIcon(WikiIcons.url(name), name, state.itemTier(id), size, skin)
 }
 
 // 마인크래프트 GUI 색
@@ -187,7 +240,8 @@ fun McSlot(state: AppState, item: SbItem?, size: Dp, onHover: (Boolean) -> Unit 
         contentAlignment = Alignment.Center,
     ) {
         if (item != null) {
-            PixelIcon(WikiIcons.url(WikiIcons.nameFor(state, item)), item.plainName, item.tier, size - 8.dp)
+            PixelIcon(WikiIcons.url(WikiIcons.nameFor(state, item)), WikiIcons.nameFor(state, item), item.tier, size - 8.dp,
+                item.skinUrl ?: IconResolver.skinUrl(item.skyblockId?.let { state.items[it]?.skin?.value }))
             if (item.count > 1) {
                 Text("${item.count}", Modifier.align(Alignment.BottomEnd).padding(end = 2.dp),
                     style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 12.sp,
