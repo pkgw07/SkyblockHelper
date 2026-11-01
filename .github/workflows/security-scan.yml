@@ -1,0 +1,60 @@
+name: Security scan
+
+# 릴리스 설치 파일을 Windows Defender(최신 정의)와 ClamAV 로 검사한다. 결과는 이 실행 기록에 남는다.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "검사할 릴리스 태그 (예: v1.2.0)"
+        required: true
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  defender:
+    runs-on: windows-latest
+    steps:
+      - name: Download release files
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          mkdir dl && gh release download "$TAG" -R "${{ github.repository }}" -D dl
+          sha256sum dl/* | tee hashes.txt
+          echo "::notice title=SHA-256::$(cat hashes.txt | tr '\n' ' ')"
+      - name: Windows Defender scan
+        shell: pwsh
+        run: |
+          $mp = "$env:ProgramFiles\Windows Defender\MpCmdRun.exe"
+          & $mp -SignatureUpdate | Out-String | Write-Host
+          $v = (Get-MpComputerStatus).AntivirusSignatureVersion
+          foreach ($f in Get-ChildItem dl) {
+            $out = & $mp -Scan -ScanType 3 -File $f.FullName -DisableRemediation | Out-String
+            Write-Host $out
+            $clean = $out -match "found no threats"
+            $msg = ($out -replace "`r?`n", " ").Trim()
+            if ($clean) { Write-Host "::notice title=Defender ($v) $($f.Name)::No threats found" }
+            else { Write-Host "::error title=Defender ($v) $($f.Name)::$msg" }
+          }
+
+  clamav:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release files
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: mkdir dl && gh release download "$TAG" -R "${{ github.repository }}" -D dl
+      - name: ClamAV scan
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq clamav > /dev/null
+          sudo systemctl stop clamav-freshclam || true
+          sudo freshclam --quiet || sudo freshclam
+          out=$(clamscan -r --scan-archive=yes --max-filesize=500M --max-scansize=1000M dl || true)
+          echo "$out"
+          summary=$(echo "$out" | grep -E "FOUND|Infected files" | tr '\n' ' ')
+          if echo "$out" | grep -q "Infected files: 0"; then echo "::notice title=ClamAV::$summary"; else echo "::error title=ClamAV::$summary"; fi
