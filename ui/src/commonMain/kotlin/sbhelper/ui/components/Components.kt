@@ -1,5 +1,9 @@
 package sbhelper.ui.components
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -346,7 +350,16 @@ fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, desc
 @Composable
 fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     // 한 줄로만: 칸이 모자라면(휴대폰) 글자를 줄바꿈하지 않고 옆으로 밀어서 보게
-    Box(modifier.horizontalScroll(rememberScrollState())) {
+    val scroll = rememberScrollState()
+    val lefts = remember { HashMap<Int, Pair<Int, Int>>() } // 칸 번호 → (왼쪽 x, 너비)
+    var viewport by remember { mutableStateOf(0) }
+    // 고른 칸이 화면 밖이면 보이게 옮긴다 (예: 휴대폰에서 뒤쪽 탭을 골라 둔 채로 돌아왔을 때)
+    LaunchedEffect(selected, viewport) {
+        val (x, w) = lefts[selected] ?: return@LaunchedEffect
+        if (viewport <= 0) return@LaunchedEffect
+        if (x < scroll.value || x + w > scroll.value + viewport) scroll.scrollTo((x - (viewport - w) / 2).coerceAtLeast(0))
+    }
+    Box(modifier.onSizeChanged { viewport = it.width }.horizontalScroll(scroll)) {
         Row(
             Modifier.clip(RoundedCornerShape(12.dp)).background(Sb.Window).border(1.dp, Sb.Border, RoundedCornerShape(12.dp))
                 .padding(4.dp),
@@ -354,7 +367,8 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
             options.forEachIndexed { i, label ->
                 val active = i == selected
                 Box(
-                    Modifier.clip(RoundedCornerShape(9.dp))
+                    Modifier.onGloballyPositioned { c -> lefts[i] = (c.positionInParent().x.toInt() + 4) to c.size.width }
+                        .clip(RoundedCornerShape(9.dp))
                         .background(if (active) Sb.SurfaceHover else Color.Transparent)
                         .clickable { onSelect(i) }
                         .padding(horizontal = 14.dp, vertical = 8.dp),

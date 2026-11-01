@@ -408,7 +408,9 @@ private fun TopBar(controller: AppController, state: AppState, compact: Boolean)
             Spacer(Modifier.width(8.dp))
         }
         Column(Modifier.weight(1f)) {
-            Text(controller.screen.title, style = SbText.pixel(if (compact) 17 else 21, bold = true))
+            // 휴대폰: 짧은 이름 한 줄 (긴 제목이 여러 줄로 꺾이지 않게)
+            Text(if (compact) controller.screen.label else controller.screen.title, style = SbText.pixel(if (compact) 17 else 21, bold = true),
+                maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
             val sub = when {
                 state.loadingProfile -> "프로필을 불러오는 중…"
                 state.profileError != null -> "⚠ ${state.profileError}"

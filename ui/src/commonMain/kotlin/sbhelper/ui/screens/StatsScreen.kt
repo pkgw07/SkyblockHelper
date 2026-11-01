@@ -313,7 +313,8 @@ private val LocalTileWidth = androidx.compose.runtime.staticCompositionLocalOf<a
 private fun TileFlow(minWidth: androidx.compose.ui.unit.Dp, gap: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
         val cols = ((maxWidth + gap) / (minWidth + gap)).toInt().coerceAtLeast(1)
-        val w = (maxWidth - gap * (cols - 1)) / cols
+        // 반올림 때문에 마지막 칸이 다음 줄로 밀리지 않게 조금 덜어 낸다
+        val w = (maxWidth - gap * (cols - 1)) / cols - 1.dp
         androidx.compose.runtime.CompositionLocalProvider(LocalTileWidth provides w) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(gap), verticalArrangement = Arrangement.spacedBy(gap)) { content() }
         }
