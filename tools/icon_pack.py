@@ -71,6 +71,31 @@ def page_images(titles):
     return out
 
 
+def file_thumbs(titles):
+    """아이템 이름과 같은 위키 파일(리소스팩 그림) → 64px 그림 주소 (50개씩)"""
+    out = {}
+    titles = list(dict.fromkeys(titles))
+    for i in range(0, len(titles), 50):
+        chunk = titles[i:i + 50]
+        q = urllib.parse.urlencode({"action": "query", "titles": "|".join("File:" + t + ".png" for t in chunk),
+                                    "prop": "imageinfo", "iiprop": "url", "iiurlwidth": 64, "format": "json"})
+        raw = get(API + "?" + q)
+        if not raw:
+            continue
+        d = json.loads(raw).get("query", {})
+        alias = {}
+        for r in d.get("normalized", []):
+            alias[r["to"]] = r["from"]
+        for p in d.get("pages", {}).values():
+            info = (p.get("imageinfo") or [{}])[0]
+            src = info.get("thumburl") or info.get("url")
+            if src and "missing" not in p:
+                title = alias.get(p["title"], p["title"])
+                out[title[len("File:"):-len(".png")]] = src
+        time.sleep(0.2)
+    return out
+
+
 def shrink(data):
     """첫 장면만, 32×32 안으로 (픽셀 그림은 뭉개지지 않게)"""
     try:
@@ -126,8 +151,11 @@ def main():
             for p in pets:
                 entries.setdefault("pet:" + p["name"], (p["name"] + " Pet", None))
 
-    images = page_images([t for t, _ in entries.values()])
-    print(f"items {len(entries)}, wiki page images {len(images)}")
+    titles = [t for t, _ in entries.values()]
+    # 1) 아이템 이름과 같은 파일 (게임 리소스팩 그림)  2) 없으면 문서 대표 그림
+    files = file_thumbs(titles)
+    images = page_images([t for t in titles if t not in files])
+    print(f"items {len(entries)}, item files {len(files)}, page images {len(images)}")
 
     # 이전 묶음 (바뀌지 않은 그림은 다시 받지 않는다)
     prev_bytes, prev_urls = {}, {}
@@ -143,10 +171,12 @@ def main():
 
     def fetch(item):
         iid, (title, skin) = item
-        url = images.get(title) or (WIKI + "/w/Special:FilePath/" + urllib.parse.quote(title.replace(" ", "_")) + ".png?width=64")
+        url = files.get(title) or images.get(title)
+        if url is None and not skin:
+            return iid, None, None
         if prev_urls.get(iid) == url and iid in prev_bytes:
             return iid, url, prev_bytes[iid]
-        raw = get(url)
+        raw = get(url) if url else None
         png = shrink(raw) if raw else None
         if png is None and skin:
             png, url = skull_face(skin), "skin"

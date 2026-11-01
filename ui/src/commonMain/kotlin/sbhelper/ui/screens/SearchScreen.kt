@@ -281,13 +281,19 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
         d.accessories.firstOrNull { it.id == id }?.let { a ->
             if (a.source.isNotBlank()) { any = true; Label("장신구 · ${a.category}"); Text(a.source, style = SbText.body(13, Sb.TextDim)) }
         }
-        if (!any) Text("위키 제작·구매 데이터에 없어요. 아래 위키 설명을 확인해 주세요.", style = SbText.body(13, Sb.TextFaint))
+        val wikiObtain = blocks != null && hasSections(blocks, OBTAINING_SECTIONS)
+        if (wikiObtain) {
+            Label("위키 설명")
+            WikiBlocks(controller, blocks!!, sections = OBTAINING_SECTIONS, max = 60)
+        }
+        if (!any && !wikiObtain) Text("위키에 얻는 법 정보가 없어요.", style = SbText.body(13, Sb.TextFaint))
     }
 
     // 쓰이는 곳 + 다음 단계
     val used = index.usedIn[id].orEmpty()
     val next = index.nextUpgrades[id].orEmpty()
-    if (used.isNotEmpty() || next.isNotEmpty()) {
+    val wikiUsage = blocks != null && hasSections(blocks, USAGE_SECTIONS)
+    if (used.isNotEmpty() || next.isNotEmpty() || wikiUsage) {
         Panel(Modifier.fillMaxWidth(), caption = "Usage", title = "쓰이는 곳", accent = Sb.Aqua) {
             if (next.isNotEmpty()) {
                 Label("다음 단계로 업그레이드")
@@ -301,13 +307,18 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
                     used.take(80).forEach { ItemLink(controller, state, it) }
                 }
             }
+            if (wikiUsage) {
+                Label("위키 설명")
+                WikiBlocks(controller, blocks!!, sections = USAGE_SECTIONS, max = 60)
+            }
         }
     }
 
     // 위키 설명 (링크를 누르면 그 문서/아이템으로)
     Panel(Modifier.fillMaxWidth().widthIn(max = 1100.dp), caption = "Wiki", title = "위키 설명", accent = Sb.TextDim) {
         when {
-            blocks != null -> WikiBlocks(controller, blocks, max = 120)
+            // 얻는 법·쓰이는 곳은 위 칸에 나눠 넣었으므로 여기서는 뺀다
+            blocks != null -> WikiBlocks(controller, blocks, max = 120, exclude = OBTAINING_SECTIONS + USAGE_SECTIONS)
             WikiPages.errors[page] != null -> Text("위키 문서가 없거나 불러오지 못했어요.", style = SbText.body(13, Sb.TextFaint))
             else -> Text("공식 위키에서 불러오는 중…", style = SbText.body(13, Sb.TextFaint))
         }

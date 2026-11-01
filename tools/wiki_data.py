@@ -730,7 +730,14 @@ def bestiary():
                 for b in range(1, 9):
                     brackets.setdefault(str(b), []).append(num(row[b]) or 0)
             break
-    return {"families": list(fams.values()), "brackets": brackets}
+    # 몹 이름 → 가족 (API 도감 키는 가족 이름이 아니라 몹 이름인 경우가 많다: chillblade → Chill)
+    mobs = {}
+    for r in rows:
+        fam = r.get("family") or r.get("name")
+        name = r.get("name")
+        if fam and name:
+            mobs[re.sub(r"[^a-z0-9]+", "_", str(name).lower().replace("'", "")).strip("_")] = fam
+    return {"families": list(fams.values()), "brackets": brackets, "mobs": mobs}
 
 
 AREA_PAGES = ["Spider's Den", "The End", "Dwarven Mines", "Crystal Hollows", "Glacite Tunnels",

@@ -57,12 +57,27 @@ fun linkedText(text: String, links: List<WikiLink>, onLink: (String) -> Unit): A
     }
 }
 
+/** 위키 절 이름 묶음 */
+val OBTAINING_SECTIONS = setOf("Obtaining", "Obtain", "How to Obtain", "Acquisition", "Sources")
+val USAGE_SECTIONS = setOf("Usage", "Uses", "Use")
+
+/** 이 절들 안에 내용이 있는지 */
+fun hasSections(blocks: List<DocBlock>, sections: Set<String>): Boolean {
+    var cur: String? = null
+    return blocks.any { b ->
+        if (b is DocBlock.Heading && b.level <= 1) { cur = b.text; false }
+        else cur in sections && b !is DocBlock.Image
+    }
+}
+
 /**
  * 위키 문서 본문. 파란 글자(링크)를 누르면 그 문서/아이템으로 이동한다.
- * @param sections 이 제목들의 절만 (null = 전부)
+ * @param sections 이 절들만 보여 준다 (절 제목은 숨김). null = 전부
+ * @param exclude 이 절들은 빼고 보여 준다
  */
 @Composable
-fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<String>? = null, max: Int = 200) {
+fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<String>? = null, max: Int = 200,
+               exclude: Set<String> = emptySet()) {
     val onLink: (String) -> Unit = { page -> controller.openWikiLink(page) }
     var current: String? = null
     var shown = 0
@@ -73,8 +88,13 @@ fun WikiBlocks(controller: AppController, blocks: List<DocBlock>, sections: Set<
     }.toSet()
     Column {
         blocks.forEachIndexed { i, b ->
-            if (b is DocBlock.Heading && b.level <= 1) current = b.text
-            if (sections != null && current !in sections && !(b is DocBlock.Heading && b.text in sections)) return@forEachIndexed
+            if (b is DocBlock.Heading && b.level <= 1) {
+                current = b.text
+                // 고른 절의 제목은 위에 칸 이름으로 이미 보이므로 숨긴다
+                if (sections != null || b.text in exclude) return@forEachIndexed
+            }
+            if (sections != null && current !in sections) return@forEachIndexed
+            if (current in exclude) return@forEachIndexed
             if (i !in nonEmpty || shown >= max) return@forEachIndexed
             if (b is DocBlock.Heading && b.text in SKIP_SECTIONS) return@forEachIndexed
             if (current in SKIP_SECTIONS) return@forEachIndexed

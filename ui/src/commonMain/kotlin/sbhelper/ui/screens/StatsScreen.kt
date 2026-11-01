@@ -307,62 +307,109 @@ private fun HotmNode(node: GameData.HotmCell, level: Int?, size: Dp) {
     }
 }
 
+// ------------------------------------------------------------------ 카테고리 카드 (도감·컬렉션 공통)
+/** 카테고리 하나: 대표 아이콘 + 이름 + 진행도. 누르면 하위 항목 카드가 펼쳐진다 */
+@Composable
+private fun CategoryCard(title: String, sub: String, progress: Double, done: Boolean, selected: Boolean, accent: Color,
+                         icon: @Composable () -> Unit, onClick: () -> Unit) {
+    Row(
+        Modifier.width(230.dp).clip(RoundedCornerShape(12.dp))
+            .background(if (selected) accent.copy(alpha = 0.15f) else Sb.SurfaceHigh)
+            .border(if (selected) 2.dp else 1.dp, if (selected) accent else Sb.Border, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        icon()
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = SbText.body(14, Sb.Text, FontWeight.SemiBold), maxLines = 1)
+            Text(sub, style = SbText.pixel(11, if (done) Sb.Gold else Sb.TextDim))
+            Spacer(Modifier.height(4.dp))
+            XpBar(progress, Modifier.fillMaxWidth(), if (done) Sb.Gold else accent, 5.dp)
+        }
+    }
+}
+
+/** 하위 항목 카드 (직사각형, 한 줄에 여러 개) */
+@Composable
+private fun ItemTile(title: String, value: String, detail: String, progress: Double, maxed: Boolean, accent: Color, dim: Boolean,
+                     icon: @Composable () -> Unit, tooltip: (@Composable () -> Unit)? = null) {
+    val body: @Composable () -> Unit = {
+        Column(
+            Modifier.width(200.dp).clip(RoundedCornerShape(10.dp)).background(Sb.Surface)
+                .border(1.dp, if (maxed) Sb.Gold.copy(alpha = 0.6f) else Sb.Border, RoundedCornerShape(10.dp)).padding(9.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                icon()
+                Spacer(Modifier.width(8.dp))
+                Text(title, style = SbText.body(13, if (dim) Sb.TextFaint else Sb.Text, FontWeight.Medium), maxLines = 1, modifier = Modifier.weight(1f))
+                Text(value, style = SbText.pixel(12, if (maxed) Sb.Gold else accent))
+            }
+            Spacer(Modifier.height(5.dp))
+            XpBar(progress, Modifier.fillMaxWidth(), if (maxed) Sb.Gold else accent, 5.dp)
+            Spacer(Modifier.height(3.dp))
+            Text(detail, style = SbText.body(11, Sb.TextFaint), maxLines = 1)
+        }
+    }
+    if (tooltip != null) HoverTip(tooltip) { body() } else body()
+}
+
 // ------------------------------------------------------------------ 도감
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BestiaryTab(state: AppState, p: ProfileSummary) {
     var query by remember { mutableStateOf("") }
-    var openAreas by remember { mutableStateOf(setOf<String>()) }
+    var open by remember { mutableStateOf<String?>(null) }
     val entries = remember(state.gameData.bestiary, p.bestiaryKills) { BestiaryCalc.entries(state.gameData, p.bestiaryKills) }
     if (p.bestiaryKills.isEmpty()) {
         Panel { EmptyState("도감 정보가 없어요", "게임 API 설정이 꺼져 있거나 아직 잡은 몹이 없어요.") }
         return
     }
-    val maxed = entries.count { it.maxed }
-    val tiers = entries.sumOf { it.tier }
-    Panel(Modifier.fillMaxWidth(), caption = "Bestiary · Wiki", title = "도감 — 최대 ${maxed}/${entries.size} · 단계 합 $tiers", accent = Sb.Red) {
-        Text("몹 목록과 단계별 처치 수는 공식 위키(Bestiary) 기준, 처치 수는 공식 API 기준이에요.", style = SbText.body(12, Sb.TextFaint))
+    val areas = entries.groupBy { it.section.ifBlank { "기타" } }
+    val q = query.trim()
+    Panel(Modifier.fillMaxWidth(), caption = "Bestiary · Wiki",
+        title = "도감 — 최대 ${entries.count { it.maxed }}/${entries.size} · 단계 합 ${entries.sumOf { it.tier }}", accent = Sb.Red) {
+        Text("지역을 누르면 그 지역 몹이 펼쳐져요. 몹 목록과 단계는 공식 위키, 처치 수는 공식 API 기준이에요.", style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(8.dp))
-        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "몹 검색", Icons.Rounded.Search)
-        Spacer(Modifier.height(8.dp))
-        // 지역별로 접어 두고, 누르면 펼친다 (검색 중이면 맞는 지역은 펼쳐서)
-        entries.filter { query.isBlank() || it.family.contains(query, true) || it.section.contains(query, true) }
-            .groupBy { it.section.ifBlank { "기타" } }.forEach { (section, list) ->
-                val key = section
-                val open = query.isNotBlank() || key in openAreas
-                val areaMax = list.count { it.maxed }
-                Spacer(Modifier.height(6.dp))
-                Row(
-                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Sb.SurfaceHigh)
-                        .clickable { openAreas = if (key in openAreas) openAreas - key else openAreas + key }
-                        .padding(horizontal = 12.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(if (open) "▾" else "▸", style = SbText.body(14, Sb.TextDim))
-                    Spacer(Modifier.width(8.dp))
-                    Text(section, style = SbText.body(14, Sb.Text, FontWeight.SemiBold), modifier = Modifier.weight(1f))
-                    XpBar(if (list.isEmpty()) 0.0 else list.sumOf { it.tier }.toDouble() / list.sumOf { it.maxTier }.coerceAtLeast(1),
-                        Modifier.width(120.dp), if (areaMax == list.size) Sb.Gold else Sb.Red, 6.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("최대 $areaMax/${list.size}", style = SbText.pixel(12, if (areaMax == list.size) Sb.Gold else Sb.TextDim))
-                }
-                if (open) list.forEach { e ->
-                    Row(Modifier.fillMaxWidth().padding(start = 18.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(e.family, style = SbText.body(13, if (e.kills > 0) Sb.Text else Sb.TextFaint), modifier = Modifier.width(170.dp), maxLines = 1)
-                        XpBar(e.progress, Modifier.weight(1f), if (e.maxed) Sb.Gold else Sb.Red, 6.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text("${e.tier}/${e.maxTier}", style = SbText.pixel(12, if (e.maxed) Sb.Gold else Sb.TextDim), modifier = Modifier.width(48.dp))
-                        Text(if (e.maxed) formatNumber(e.kills.toLong()) else "${formatNumber(e.kills.toLong())}/${formatNumber(e.nextKills ?: 0)}",
-                            style = SbText.body(11, Sb.TextFaint), modifier = Modifier.width(110.dp), maxLines = 1)
-                    }
+        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "몹·지역 검색", Icons.Rounded.Search)
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            areas.forEach { (area, list) ->
+                val hits = if (q.isEmpty()) list else list.filter { it.family.contains(q, true) || area.contains(q, true) }
+                if (hits.isEmpty()) return@forEach
+                val tiers = list.sumOf { it.tier }; val maxTiers = list.sumOf { it.maxTier }.coerceAtLeast(1)
+                val maxed = list.count { it.maxed }
+                CategoryCard(area, "최대 $maxed/${list.size}" + if (q.isNotEmpty()) " · 검색 ${hits.size}" else "",
+                    tiers.toDouble() / maxTiers, maxed == list.size, open == area, Sb.Red,
+                    icon = { PixelIcon(WikiIcons.url(list.first().family), list.first().family, null, 32.dp) }) {
+                    open = if (open == area) null else area
                 }
             }
+        }
+    }
+    // 펼친 지역 (검색 중이면 맞는 지역 모두)
+    areas.forEach { (area, list) ->
+        val hits = if (q.isEmpty()) list else list.filter { it.family.contains(q, true) || area.contains(q, true) }
+        if (hits.isEmpty() || (q.isEmpty() && open != area)) return@forEach
+        Panel(Modifier.fillMaxWidth(), title = area, accent = Sb.Red) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                hits.forEach { e ->
+                    ItemTile(e.family, if (e.maxed) "MAX" else "${e.tier}/${e.maxTier}",
+                        if (e.maxed) "${formatNumber(e.kills.toLong())} 처치" else "${formatNumber(e.kills.toLong())} / ${formatNumber(e.nextKills ?: 0)} 처치",
+                        e.progress, e.maxed, Sb.Red, e.kills == 0,
+                        icon = { PixelIcon(WikiIcons.url(e.family), e.family, null, 24.dp) })
+                }
+            }
+        }
     }
 }
 
 // ------------------------------------------------------------------ 컬렉션
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CollectionsTab(state: AppState, p: ProfileSummary) {
     var query by remember { mutableStateOf("") }
+    var open by remember { mutableStateOf<String?>(null) }
     val resource = state.collections
     val amounts = p.collections
     when {
@@ -370,31 +417,43 @@ private fun CollectionsTab(state: AppState, p: ProfileSummary) {
         resource == null -> { Panel { EmptyState("불러오는 중", "") }; return }
     }
     val list = remember(resource, amounts) { CollectionCalc.progress(resource!!, amounts!!) }
-    val maxed = list.count { it.maxed }
-    Panel(Modifier.fillMaxWidth(), caption = "Collections", title = "컬렉션 — 최대 $maxed/${list.size}", accent = Sb.Yellow) {
-        Text("코옵 프로필이면 코옵 멤버 전체 합계예요 (게임과 같은 방식).", style = SbText.body(12, Sb.TextFaint))
+    val cats = list.groupBy { it.category }
+    val q = query.trim()
+    Panel(Modifier.fillMaxWidth(), caption = "Collections", title = "컬렉션 — 최대 ${list.count { it.maxed }}/${list.size}", accent = Sb.Yellow) {
+        Text("분야를 누르면 그 분야 컬렉션이 펼쳐져요. 코옵 프로필이면 코옵 멤버 전체 합계예요 (게임과 같은 방식).", style = SbText.body(12, Sb.TextFaint))
         Spacer(Modifier.height(8.dp))
-        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "컬렉션 검색", Icons.Rounded.Search)
-        list.filter { query.isBlank() || it.name.contains(query, true) }.groupBy { it.category }.forEach { (cat, items) ->
-            Spacer(Modifier.height(10.dp))
-            Text("$cat · 최대 ${items.count { it.maxed }}/${items.size}", style = SbText.pixel(13, Sb.Yellow, bold = true))
-            items.forEach { c ->
-                HoverTip({
-                    LoreTooltip(c.name, if (c.maxed) Sb.Gold else Sb.Yellow,
-                        listOf("§7모은 수: §a${formatNumber(c.amount)}") +
-                            (if (c.maxed) listOf("§6최대 단계") else listOf("§7다음 단계: §e${formatNumber(c.nextRequired ?: 0)}", "") +
-                                c.nextUnlocks.take(6).map { "§7· $it" }))
-                }) {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        PixelIcon(WikiIcons.url(c.name), c.name, null, 24.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(c.name, style = SbText.body(13), modifier = Modifier.width(170.dp), maxLines = 1)
-                        XpBar(c.progress, Modifier.weight(1f), if (c.maxed) Sb.Gold else Sb.Yellow, 6.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(if (c.maxed) "MAX" else toRomanStats(c.tier), style = SbText.pixel(12, if (c.maxed) Sb.Gold else Sb.TextDim),
-                            modifier = Modifier.width(44.dp))
-                        Text(formatNumber(c.amount), style = SbText.body(11, Sb.TextFaint), modifier = Modifier.width(100.dp), maxLines = 1)
-                    }
+        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "컬렉션·분야 검색", Icons.Rounded.Search)
+        Spacer(Modifier.height(10.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            cats.forEach { (cat, items) ->
+                val hits = if (q.isEmpty()) items else items.filter { it.name.contains(q, true) || cat.contains(q, true) }
+                if (hits.isEmpty()) return@forEach
+                val maxed = items.count { it.maxed }
+                val prog = items.sumOf { it.tier }.toDouble() / items.sumOf { it.maxTier }.coerceAtLeast(1)
+                CategoryCard(nice(cat), "최대 $maxed/${items.size}" + if (q.isNotEmpty()) " · 검색 ${hits.size}" else "",
+                    prog, maxed == items.size, open == cat, Sb.Yellow,
+                    icon = { sbhelper.ui.components.ItemIcon(state, items.maxByOrNull { it.amount }?.itemId ?: items.first().itemId, 32.dp) }) {
+                    open = if (open == cat) null else cat
+                }
+            }
+        }
+    }
+    cats.forEach { (cat, items) ->
+        val hits = if (q.isEmpty()) items else items.filter { it.name.contains(q, true) || cat.contains(q, true) }
+        if (hits.isEmpty() || (q.isEmpty() && open != cat)) return@forEach
+        Panel(Modifier.fillMaxWidth(), title = nice(cat), accent = Sb.Yellow) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                hits.forEach { c ->
+                    ItemTile(c.name, if (c.maxed) "MAX" else toRomanStats(c.tier),
+                        if (c.maxed) "${formatNumber(c.amount)}개" else "${formatNumber(c.amount)} / ${formatNumber(c.nextRequired ?: 0)}",
+                        c.progress, c.maxed, Sb.Yellow, c.amount == 0L,
+                        icon = { sbhelper.ui.components.ItemIcon(state, c.itemId, 24.dp) },
+                        tooltip = {
+                            LoreTooltip(c.name, if (c.maxed) Sb.Gold else Sb.Yellow,
+                                listOf("§7모은 수: §a${formatNumber(c.amount)}") +
+                                    (if (c.maxed) listOf("§6최대 단계") else listOf("§7다음 단계: §e${formatNumber(c.nextRequired ?: 0)}", "") +
+                                        c.nextUnlocks.take(6).map { "§7· $it" }))
+                        })
                 }
             }
         }

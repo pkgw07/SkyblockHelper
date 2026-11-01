@@ -19,16 +19,49 @@ data class BestiaryEntry(val family: String, val section: String, val kills: Int
 object BestiaryCalc {
     private fun norm(s: String) = s.lowercase().replace("'", "").replace(Regex("[^a-z0-9]+"), "_").trim('_')
 
-    /** API 키(zombie_1, magma_cube_75 …)를 위키 가족 이름에 맞춰 합친다 */
+    /** 앞에 붙는 말 (mayor_jerry_green, farming_chicken, pond_squid …) */
+    private val PREFIXES = setOf("mayor", "farming", "pond", "master")
+
+    private fun words(s: String) = s.split('_').filter { it.isNotEmpty() }.toSet()
+
+    /**
+     * API 키(zombie_1, magma_cube_75, chillblade_31 …)를 위키 가족에 맞춰 합친다.
+     * 순서: 가족 이름과 같음 → 위키 몹 이름과 같음 → 단어가 같음(순서 무관, 앞말 무시) → 끝이 같음
+     */
+    /** API 이름이 위키 가족 이름과 많이 다른 몹 (게임 안 이름 기준) */
+    private val ALIASES = mapOf(
+        "obsidian_wither" to "Obsidian Defender", "corrupted_protector" to "End Stone Protector",
+        "ice_walker" to "Glacite Walker", "crystal_sentry" to "Star Sentry", "zombie_deep" to "Miner Zombie",
+        "sea_guardian" to "Guardian Defender", "bal_boss" to "Bal", "tentaclees" to "Tentacle", "master_tentaclees" to "Tentacle",
+        "pest_worm" to "Earthworm", "horseman_horse" to "Headless Horseman", "frosty_the_snowman" to "Frosty",
+        "diamond_guy" to "Angry Archaeologist", "master_diamond_guy" to "Angry Archaeologist",
+    )
+
+    fun familyOf(data: GameData, base: String, famNorm: Map<String, String>): String? {
+        famNorm[base]?.let { return it }
+        ALIASES[base]?.let { a -> if (famNorm.containsValue(a)) return a }
+        // 고블린 계열 (goblin_knife_thrower, goblin_weakling_bow …) → Goblin
+        if (base.startsWith("goblin_") && famNorm.containsValue("Goblin")) return "Goblin"
+        data.bestiary.mobs[base]?.let { return it }
+        val w = words(base)
+        val core = w - PREFIXES
+        famNorm.entries.firstOrNull { (n, _) -> words(n) == w || words(n) == core || words(n.replace("_s_", "_")) == core }?.let { return it.value }
+        // 아포스트로피 가족 (Arachne's Brood → arachnes_brood, 키는 arachne_brood)
+        famNorm.entries.firstOrNull { (n, _) -> n.replace("s_", "_") == base }?.let { return it.value }
+        return famNorm.entries.firstOrNull { (n, _) -> base.endsWith("_$n") }?.value
+    }
+
     fun entries(data: GameData, kills: Map<String, Int>): List<BestiaryEntry> {
-        val byBase = HashMap<String, Int>()
+        val famNorm = data.bestiary.families.associate { norm(it.family) to it.family }
+        val byFamily = HashMap<String, Int>()
         kills.forEach { (k, v) ->
+            if (k == "last_killed_mob") return@forEach
             val base = if (k.substringAfterLast('_').all { it.isDigit() }) k.substringBeforeLast('_') else k
-            byBase[base] = (byBase[base] ?: 0) + v
+            val fam = familyOf(data, base, famNorm) ?: return@forEach
+            byFamily[fam] = (byFamily[fam] ?: 0) + v
         }
         return data.bestiary.families.map { f ->
-            val n = norm(f.family)
-            val k = byBase[n] ?: byBase.filterKeys { it == n || it.endsWith("_$n") }.values.sum()
+            val k = byFamily[f.family] ?: 0
             val table = data.bestiary.brackets[f.bracket.toString()].orEmpty().take(f.maxTier)
             val tier = table.count { k >= it }
             BestiaryEntry(f.family, f.section, k, tier, f.maxTier, table.getOrNull(tier), table.getOrNull(tier - 1) ?: 0)

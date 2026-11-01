@@ -77,7 +77,12 @@ data class GameData(
                          val coins: Double? = null, val npc: String? = null, val from: String? = null, val to: String? = null)
 
     @Serializable
-    data class Bestiary(val families: List<BestiaryFamily> = emptyList(), val brackets: Map<String, List<Long>> = emptyMap())
+    data class Bestiary(
+        val families: List<BestiaryFamily> = emptyList(),
+        val brackets: Map<String, List<Long>> = emptyMap(),
+        /** 몹 이름(소문자_밑줄) → 가족 이름 (위키 Bucket:Mob bestiary) */
+        val mobs: Map<String, String> = emptyMap(),
+    )
 
     @Serializable
     data class BestiaryFamily(val family: String, val section: String = "", val bracket: Int = 1, val maxTier: Int = 1)
