@@ -86,8 +86,9 @@ jobs:
         shell: bash
         run: |
           # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
-          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:" gradle-*.log 2>/dev/null \
-            | grep -vE "^> Task|^--$" | head -80)
+          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
+            | grep -vE "^> Task|^--$" | head -80 || true)
+          if [ -z "$msg" ]; then msg=$(tail -n 40 gradle-*.log 2>/dev/null || echo "no log"); fi
           msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
           echo "::error title=Build errors::${msg}"
       - uses: actions/upload-artifact@v4
@@ -134,8 +135,9 @@ jobs:
         shell: bash
         run: |
           # 오류 줄만 모아 하나의 주석(annotation)으로 남긴다 (로그를 내려받지 않고 API 로 확인 가능)
-          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:" gradle-*.log 2>/dev/null \
-            | grep -vE "^> Task|^--$" | head -80)
+          msg=$(grep -hE -A6 "^e: |What went wrong|There were failing tests|AssertionError|expected:|Error|error:" gradle-*.log 2>/dev/null \
+            | grep -vE "^> Task|^--$" | head -80 || true)
+          if [ -z "$msg" ]; then msg=$(tail -n 40 gradle-*.log 2>/dev/null || echo "no log"); fi
           msg="${msg//'%'/'%25'}"; msg="${msg//$'\n'/'%0A'}"; msg="${msg//$'\r'/}"
           echo "::error title=Build errors::${msg}"
       - uses: actions/upload-artifact@v4
