@@ -54,7 +54,7 @@ object Boom {
         val rnd = java.util.Random(7)
         var low = 0.0; var low2 = 0.0
         for (i in 0 until n) {
-            val t = i / rate
+            val t = (i / rate).toDouble()
             val noise = rnd.nextDouble() * 2 - 1
             // 두 번 거른 노이즈 = 둔탁한 저음 + 약간의 지글거림
             low += (noise - low) * 0.08
