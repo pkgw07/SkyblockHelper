@@ -39,7 +39,9 @@ object Boot {
                 Thread.currentThread().contextClassLoader = Boot::class.java.classLoader
             }
         }
-        sbhelper.desktop.main(rest)
+        // 설치된 버전 실행 (같은 패키지에 main 이 여러 개라 이름으로 찾는다)
+        Boot::class.java.classLoader.loadClass("sbhelper.desktop.MainKt")
+            .getMethod("main", Array<String>::class.java).invoke(null, rest)
     }
 
     /** 설치된 jar 들이 있는 폴더 (개발 중 실행이면 null) */
