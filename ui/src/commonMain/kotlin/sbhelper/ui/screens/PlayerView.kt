@@ -73,7 +73,7 @@ private fun ViewingBanner(controller: AppController, v: sbhelper.core.ViewedPlay
             .border(1.dp, Sb.Aqua.copy(alpha = 0.6f), RoundedCornerShape(12.dp)).padding(horizontal = 12.dp, vertical = 8.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("👤 ${v.name} 님의 프로필을 보는 중", style = SbText.body(14, Sb.Aqua, FontWeight.Bold), modifier = Modifier.weight(1f))
+            Text("👤 ${v.name} 님 프로필 보는 중", style = SbText.body(14, Sb.Aqua, FontWeight.Bold), modifier = Modifier.weight(1f).padding(end = 6.dp), maxLines = 2)
             if (controller.viewingBusy) Text("불러오는 중… ", style = SbText.body(12, Sb.TextDim))
             SbButton("내 프로필로", { controller.stopViewing() }, outlined = true, color = Sb.Gold)
         }
