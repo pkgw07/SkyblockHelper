@@ -3,9 +3,18 @@ name: Diagnostics
 # 진단용 (수동 실행): 패치노트 번역을 실제로 해 보고 결과를 주석으로 남긴다
 on:
   workflow_dispatch:
+    inputs:
+      player:
+        description: "프로필 구조를 확인할 닉네임 (비우면 프로필 확인 안 함)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
 
 jobs:
   translate:
+    if: inputs.player == ''
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -17,3 +26,26 @@ jobs:
         run: |
           LIVE_TRANSLATE=1 ./gradlew -q :core:desktopTest --tests '*TranslateDiag*' || true
           while IFS= read -r line; do echo "::notice title=Translate diag::${line//%/%25}"; done < core/translate-diag.txt
+
+  profile:
+    if: inputs.player != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: { distribution: temurin, java-version: "17" }
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Profile structure (항목 이름만, 값 없음)
+        shell: bash
+        env:
+          HYPIXEL_API_KEY: ${{ secrets.HYPIXEL_API_KEY }}
+          PLAYER: ${{ inputs.player }}
+        run: |
+          mkdir -p probe-out
+          LIVE_PROFILE=1 PROBE_OUT="$PWD/probe-out" ./gradlew -q :core:desktopTest --tests '*ProfileProbe*' || true
+          while IFS= read -r line; do echo "::notice title=Profile probe::${line//%/%25}"; done < probe-out/report.txt
+          # 구조 파일은 ci-diag 브랜치에 (값·UUID·닉네임 없음)
+          cd probe-out && git init -q && git checkout -q -b ci-diag
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -q -m "profile structure (names only)"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-diag
