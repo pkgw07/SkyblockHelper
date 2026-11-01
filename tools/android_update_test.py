@@ -94,7 +94,9 @@ class Run:
             xml = self.ui()
             nodes = self.nodes(xml)
             texts = [n.get("text", "") for n in nodes]
-            key = hashlib.md5("|".join(texts).encode()).hexdigest()
+            # 시계·날짜처럼 계속 바뀌는 글자는 빼고 비교 (같은 화면을 여러 번 찍지 않게)
+            stable = [t for t in texts if not re.search(r"\d{1,2}:\d{2}|YEAR|\d+(st|nd|rd|th)$", t)]
+            key = hashlib.md5("|".join(stable).encode()).hexdigest()
             if key not in self.seen:
                 self.seen.add(key)
                 self.shot(label)
@@ -149,7 +151,8 @@ def main():
     adb("shell", "am", "start", "-n", ACT)
     time.sleep(6)
     r.shot("1-app")
-    adb("shell", "am", "start", "-n", ACT, "--es", "sbhelper.selftest_update", f"http://127.0.0.1:{PORT}/b.apk",
+    # -S: 앱을 새로 띄우면서 신호를 넘긴다 (이미 떠 있으면 Android 가 신호를 전달하지 않음)
+    adb("shell", "am", "start", "-S", "-W", "-n", ACT, "--es", "sbhelper.selftest_update", f"http://127.0.0.1:{PORT}/b.apk",
         "--es", "sbhelper.selftest_version", "99.0.0")
     ok1, d1 = r.drive("99.0.0", "1")
     ok_all &= ok1
@@ -160,7 +163,7 @@ def main():
         time.sleep(4)
         adb("shell", "am", "start", "-n", ACT)
         time.sleep(4)
-        adb("shell", "am", "start", "-n", ACT, "--es", "sbhelper.selftest_update", f"http://127.0.0.1:{PORT}/c.apk",
+        adb("shell", "am", "start", "-S", "-W", "-n", ACT, "--es", "sbhelper.selftest_update", f"http://127.0.0.1:{PORT}/c.apk",
             "--es", "sbhelper.selftest_version", "99.0.1")
         ok2, d2 = r.drive("99.0.1", "2")
         ok_all &= ok2
