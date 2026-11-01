@@ -128,7 +128,7 @@ jobs:
           ./gradlew :desktopApp:createDistributable "-PappVersion=${{ steps.ver.outputs.v }}" 2>&1 | tee gradle-windows.log
           ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           if [ ! -f "$ISCC" ]; then choco install innosetup -y --no-progress; fi
-          "$ISCC" "/DMyAppVersion=${{ steps.ver.outputs.v }}" desktopApp/installer/SkyblockHelper.iss 2>&1 | tee -a gradle-windows.log
+          MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*" "$ISCC" "/DMyAppVersion=${{ steps.ver.outputs.v }}" desktopApp/installer/SkyblockHelper.iss 2>&1 | tee -a gradle-windows.log
           ls -la desktopApp/build/installer
       - name: Report build errors as annotations
         if: failure()
