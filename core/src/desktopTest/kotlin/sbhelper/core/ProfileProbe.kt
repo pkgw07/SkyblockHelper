@@ -125,6 +125,16 @@ class ProfileProbe {
                     val garden = get("/v2/skyblock/garden?profile=$pid")
                     val gl = mutableListOf<String>(); tree(garden["garden"], "garden", gl)
                     File(dir, "garden.txt").writeText("success=${garden["success"]}\n" + gl.joinToString("\n"))
+                    // 컴포스터: 항목 이름과 종류만 (값 없음) + 앱 계산이 되는지
+                    val g = garden["garden"] as? JsonObject
+                    val comp = g?.get("composter_data") as? JsonObject
+                    report.appendLine("  garden 최상위: " + (g?.keys?.sorted()?.joinToString(",") ?: "없음"))
+                    report.appendLine("  composter_data: " + (comp?.entries?.joinToString(",") { (k, v) ->
+                        k + "=" + when (v) { is JsonObject -> "{" + v.keys.joinToString("/") + "}"; is JsonArray -> "[${v.size}]"; is JsonPrimitive -> if (v.isString) "str" else "num"; else -> "?" }
+                    } ?: "없음"))
+                    val gd = sbhelper.core.data.GameData(timerRules = sbhelper.core.data.GameData.TimerRules(composter = sbhelper.core.data.GameData.Composter()))
+                    val t = sbhelper.core.calc.ExtraTimers.all(System.currentTimeMillis(), gd, null, g).firstOrNull { it.key == "composter" }
+                    report.appendLine("  컴포스터 계산: " + if (t != null) "됨 (남은 시간 있음)" else "안 됨 (재료 없음 또는 항목 없음)")
                 }.onFailure { report.appendLine("garden 실패: ${it.message}") }
             }
         }
