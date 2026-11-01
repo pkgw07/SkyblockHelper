@@ -51,12 +51,17 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          e=$(curl -sS --max-time 20 https://api.elitebot.dev/contests/at/now | head -c 900 | tr '\n' ' ')
+          set +e +o pipefail
+          curl -sS --max-time 20 -o elite.json https://api.elitebot.dev/contests/at/now
+          e=$(head -c 400 elite.json | tr '\n' ' ')
           echo "::notice title=EliteBot::${e//%/%25}"
-          g=$(curl -sS --max-time 20 "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=Hello%20world%0AGood%20bye" | head -c 400 | tr '\n' ' ')
+          curl -sS --max-time 20 -o tr1.json "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=Hello%20world%0AGood%20bye"
+          g=$(head -c 300 tr1.json | tr '\n' ' ')
           echo "::notice title=GoogleTranslate::${g//%/%25}"
-          c=$(curl -sS --max-time 20 "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=ko&q=Hello%20world" | head -c 300 | tr '\n' ' ')
+          curl -sS --max-time 20 -o tr2.json "https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=en&tl=ko&q=Hello%20world"
+          c=$(head -c 300 tr2.json | tr '\n' ' ')
           echo "::notice title=GoogleTranslate backup::${c//%/%25}"
+          exit 0
       - name: Screenshots (화면 미리보기 → ci-screenshots 브랜치)
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         continue-on-error: true
