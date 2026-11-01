@@ -152,4 +152,38 @@ object Requirements {
         else -> Requirement(r.entries.filter { it.key != "type" }.joinToString(", ") { (k, v) -> "$k ${(v as? JsonPrimitive)?.content ?: v}" }
             .let { (r.s("type")?.let(::nice) ?: "조건") + if (it.isNotBlank()) " ($it)" else "" })
     }
+
+    // ---------------------------------------------------------------- 가이드 조건 글 → 조건
+    private fun req(vararg kv: Pair<String, Any>) = JsonObject(kv.associate { (k, v) -> k to (if (v is Number) JsonPrimitive(v) else JsonPrimitive(v.toString())) })
+
+    /**
+     * "HotM 5", "Fishing 24, Lily Pad VII", "F7 클리어", "Cata 27", "Enderman Slayer VII" 같은 글을 조건으로.
+     * @param isCollection 이 이름이 컬렉션인지 ("Lily Pad VII" 처럼 이름 + 로마 숫자일 때)
+     * @return 알아본 조건들 (못 알아본 부분은 빠짐)
+     */
+    fun parseGuide(cond: String, isCollection: (String) -> Boolean): List<JsonObject> {
+        val out = mutableListOf<JsonObject>()
+        for (raw in cond.split(',', '·')) {
+            val part = raw.trim()
+            val hotm = Regex("""^HotM\s+(\d+)""", RegexOption.IGNORE_CASE).find(part)
+            val skill = Regex("""^(Mining|Farming|Foraging|Fishing|Combat|Hunting)\s+(\d+)""").find(part)
+            val floor = Regex("""^(?:Catacombs\s+)?F(\d)\s*클리어""").find(part)
+            val cata = Regex("""^Cata(?:combs)?\s+(\d+)""").find(part)
+            val slayer = Regex("""^(Zombie|Spider|Wolf|Enderman|Blaze|Vampire)\s+Slayer\s+([IVXLC]+|\d+)""").find(part)
+            val coll = Regex("""^([A-Z][A-Za-z' ]+?)\s+([IVXLC]+)$""").find(part)
+            when {
+                hotm != null -> out += req("type" to "HEART_OF_THE_MOUNTAIN", "tier" to hotm.groupValues[1].toInt())
+                skill != null -> out += req("type" to "SKILL", "skill" to skill.groupValues[1].uppercase(), "level" to skill.groupValues[2].toInt())
+                floor != null -> out += req("type" to "DUNGEON_TIER", "dungeon_type" to "CATACOMBS", "tier" to floor.groupValues[1].toInt())
+                cata != null -> out += req("type" to "DUNGEON_SKILL", "dungeon_type" to "CATACOMBS", "level" to cata.groupValues[1].toInt())
+                slayer != null -> (slayer.groupValues[2].toIntOrNull() ?: fromRoman(slayer.groupValues[2]))?.let { lv ->
+                    out += req("type" to "SLAYER", "slayer_boss_type" to slayer.groupValues[1].lowercase(), "level" to lv)
+                }
+                coll != null && isCollection(coll.groupValues[1].trim()) -> fromRoman(coll.groupValues[2])?.let { t ->
+                    out += req("type" to "COLLECTION", "collection" to coll.groupValues[1].trim(), "tier" to t)
+                }
+            }
+        }
+        return out
+    }
 }

@@ -144,6 +144,8 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     /** 테크트리: 고른 스킬 탭, 넓은 화면에서 정보창에 띄운 아이템 */
     var gearTab by mutableStateOf(0)
     var gearSelected by mutableStateOf<String?>(null)
+    /** 테크트리: 스킬별로 고른 갈래 탭 (낚시 일반 물/용암, 전투 무기/방어구 …) */
+    val gearSubTabs = androidx.compose.runtime.mutableStateMapOf<String, Int>()
     /** 화면·탭별 스크롤 위치 (다른 화면에 갔다 와도 유지) */
     private val scrolls = HashMap<String, androidx.compose.foundation.ScrollState>()
     fun scrollState(key: String) = scrolls.getOrPut(key) { androidx.compose.foundation.ScrollState(0) }
@@ -152,7 +154,7 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
         Screen.STATS -> ":$statsTab"
         Screen.INVENTORY -> ":$inventoryTab"
         Screen.IRONMAN -> ":$ironmanTab"
-        Screen.GEAR -> ":$gearTab"
+        Screen.GEAR -> ":$gearTab:" + (gearSubTabs[sbhelper.core.data.SkillGuide.skills.getOrNull(gearTab)?.key] ?: 0)
         Screen.EVENTS -> ":$eventsTab"
         Screen.SEARCH -> ":" + (wiki?.toString() ?: "results")
         else -> ""

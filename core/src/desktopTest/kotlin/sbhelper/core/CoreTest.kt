@@ -407,4 +407,17 @@ class CoreTest {
         val r = sbhelper.core.calc.Requirements.item(st, SbJson.parseToJsonElement("""{"type":"DUNGEON_TIER","dungeon_type":"CATACOMBS","tier":7}""").jsonObject)
         assertEquals("카타콤 F7 클리어", r.text)
     }
+
+    @Test
+    fun guideConditions() {
+        val r = sbhelper.core.calc.Requirements.parseGuide("Fishing 24, Lily Pad VII") { it == "Lily Pad" }
+        assertEquals(listOf("SKILL", "COLLECTION"), r.map { it["type"].toString().trim('"') })
+        val t = sbhelper.core.calc.Requirements.parseGuide("Enderman Slayer VII, Cata 27") { false }
+        assertEquals(listOf("SLAYER", "DUNGEON_SKILL"), t.map { it["type"].toString().trim('"') })
+        assertEquals(1, sbhelper.core.calc.Requirements.parseGuide("F7 클리어") { false }.size)
+        assertEquals(0, sbhelper.core.calc.Requirements.parseGuide("Necron VI, 해당 보스 층에서 사용") { false }.size)
+        // 가이드에 나오는 이름이 300개 이상, 모든 스킬에 탭이 있음
+        assertTrue(sbhelper.core.data.SkillGuide.allNames().size > 300)
+        assertTrue(sbhelper.core.data.SkillGuide.skills.all { it.tabs.isNotEmpty() })
+    }
 }

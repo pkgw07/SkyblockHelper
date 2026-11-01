@@ -107,17 +107,20 @@ fun main(args: Array<String>) {
     controller.wiki = null; controller.searchQuery = "mithril"; shot("22-search", Screen.SEARCH)
     controller.openEvent("Dark Auction"); shot("23-events", Screen.EVENTS)
     controller.openJacob(); shot("24-jacob", Screen.EVENTS)
-    shot("25-mobile-gear", Screen.GEAR, 412, 900)
     controller.statsTab = 5; shot("26-dungeons-slayer", Screen.STATS)
     controller.inventoryTab = 3; shot("27-wardrobe", Screen.INVENTORY)
     shot("28-mobile-wardrobe", Screen.INVENTORY, 412, 900)
     controller.statsTab = 5; shot("29-mobile-dungeons", Screen.STATS, 412, 900)
     controller.statsTab = 8; shot("30-mobile-bestiary", Screen.STATS, 412, 900)
     controller.statsTab = 0; shot("31-mobile-stats", Screen.STATS, 412, 900)
-    controller.gearTab = 0; controller.gearSelected = "MITHRIL_PICKAXE"
-    controller.scrollState("GEAR:0").let { runBlocking { it.scrollTo(900) } }
-    shot("32-gear-floating-info", Screen.GEAR)
-    controller.gearSelected = null
+    // 스킬 가이드 테크트리: 스킬마다 다른 구성
+    listOf("40-guide-mining" to 0, "41-guide-farming" to 1, "42-guide-foraging" to 2, "43-guide-fishing" to 3, "44-guide-hunting" to 4, "45-guide-combat" to 5, "46-guide-common" to 6)
+        .forEach { (n, t) -> controller.gearTab = t; shot(n, Screen.GEAR, 1320, 3000) }
+    controller.gearTab = 3; controller.gearSubTabs["FISHING"] = 2; shot("47-guide-fishing-lava", Screen.GEAR, 1320, 1600)
+    controller.gearTab = 5; controller.gearSubTabs["COMBAT"] = 1; shot("48-guide-combat-armor", Screen.GEAR, 1320, 2400)
+    controller.gearSubTabs["COMBAT"] = 4; shot("49-guide-combat-slayer", Screen.GEAR, 1320, 2600)
+    controller.gearTab = 0; shot("50-mobile-guide-mining", Screen.GEAR, 412, 3000)
+    controller.gearTab = 1; shot("51-mobile-guide-farming", Screen.GEAR, 412, 3000)
     shot("33-mobile-settings", Screen.SETTINGS, 412, 900)
     controller.go(Screen.SEARCH); controller.openItem("HYPERION"); shot("35-search-hyperion", Screen.SEARCH, 1320, 2000)
     controller.openItem("ENCHANTED_DIAMOND"); shot("36-search-enchanted-diamond", Screen.SEARCH, 1320, 2400)
