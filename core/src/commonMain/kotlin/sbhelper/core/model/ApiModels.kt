@@ -162,6 +162,8 @@ data class Auction(
     val bin: Boolean = false,
     val claimed: Boolean = false,
     val bids: List<Bid> = emptyList(),
+    /** 아이템 NBT (base64). 응답에 따라 문자열 또는 {data} 객체 */
+    @SerialName("item_bytes") val itemBytes: kotlinx.serialization.json.JsonElement? = null,
 )
 
 @Serializable

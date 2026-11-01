@@ -44,6 +44,7 @@ import kotlinx.coroutines.launch
 import sbhelper.core.AppState
 import sbhelper.core.calc.EventLabels
 import sbhelper.ui.AppController
+import sbhelper.ui.LocalController
 import sbhelper.ui.LocalPlatform
 import sbhelper.ui.components.Divider
 import sbhelper.ui.components.Panel
@@ -250,6 +251,13 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
                 enabled = d.runInBackground)
         }
         Spacer(Modifier.height(8.dp))
+        Text("글자 크기", style = SbText.caption(Sb.TextDim))
+        Spacer(Modifier.height(6.dp))
+        val scales = listOf(1.0f to "작게", 1.15f to "보통", 1.3f to "크게", 1.45f to "아주 크게")
+        Segmented(scales.map { it.second }, scales.indexOfFirst { kotlin.math.abs(it.first - d.textScale) < 0.01f }.coerceAtLeast(0), { i ->
+            controller.repo.updateDevice { it.copy(textScale = scales[i].first) }
+        })
+        Spacer(Modifier.height(12.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
         Spacer(Modifier.height(6.dp))
         val options = listOf(1, 2, 5, 10)
@@ -344,5 +352,12 @@ private fun AboutPanel(state: AppState) {
         }
         Text("• 글꼴: Pretendard, Galmuri (SIL Open Font License)", style = SbText.body(12, Sb.TextDim))
         Text("• Hypixel 과 무관한 비공식 팬 도구예요. 게임 규칙상 허용되지 않는 자동화 기능은 없어요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(10.dp))
+        val controllerRef = LocalController.current
+        SbButton("프로필 구조 복사 (문제 신고용)", {
+            platform.copyToClipboard(controllerRef.repo.profileStructure())
+            controllerRef.showToast("복사했어요. 개발자에게 붙여 넣어 주세요 (키 이름만, 값은 없어요)")
+        }, outlined = true, color = Sb.TextDim)
+        Text("API 키·코인 같은 값은 빼고 항목 이름만 복사해요. HotM·인벤토리 항목 이름을 맞추는 데 써요.", style = SbText.body(11, Sb.TextFaint))
     }
 }

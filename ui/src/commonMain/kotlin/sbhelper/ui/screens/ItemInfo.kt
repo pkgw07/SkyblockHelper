@@ -32,6 +32,7 @@ import sbhelper.ui.AppController
 import sbhelper.ui.LocalPlatform
 import sbhelper.ui.Screen
 import sbhelper.ui.components.ItemGlyph
+import sbhelper.ui.components.McText
 import sbhelper.ui.components.McTooltip
 import sbhelper.ui.components.RarityName
 import sbhelper.ui.components.SbButton
@@ -55,7 +56,15 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
         if (tier != null) Text(McColors.rarityLabel(tier), style = SbText.pixel(11, McColors.rarity(tier)))
         Spacer(Modifier.height(8.dp))
 
+        val pet = if (isPet) data.pets.values.flatten().firstOrNull { it.name == id.removePrefix("pet:") } else null
+        pet?.lore?.take(16)?.forEach { McText("§7$it", size = 12) }
+        if (pet != null) Spacer(Modifier.height(6.dp))
         state.items[id]?.npcSellPrice?.let { Line("NPC 판매가", formatCoins(it), Sb.Gold) }
+        val acc = data.accessories.firstOrNull { it.id == id }
+        val npc = data.npcBuy[id]
+        if (npc != null) Line("NPC 구매", npc.npc + if (npc.coins > 0) " · ${formatCoins(npc.coins)}" else "", Sb.Yellow)
+        else if (acc?.npc != null) Line("NPC 구매", acc.npc + (acc.coins?.let { " · ${formatCoins(it)}" } ?: ""), Sb.Yellow)
+        if (acc != null && acc.source.isNotBlank() && acc.npc == null) Line("얻는 법", acc.source, Sb.Purple)
         data.forge[id]?.firstOrNull()?.let { f ->
             Line("포지", "${formatDuration(f.sec * 1000)} · HotM ${f.hotm}", Sb.Aqua)
             Inputs(state, f.`in`)
@@ -66,7 +75,8 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
         }
         data.sources.drops[id]?.let { mobs -> Line("드롭", mobs.take(5).joinToString(", "), Sb.Red) }
         data.sources.minions[id]?.let { Line("미니언", it, Sb.Yellow) }
-        if (data.forge[id] == null && data.crafting[id] == null && data.sources.drops[id] == null && data.sources.minions[id] == null && !isPet) {
+        if (data.forge[id] == null && data.crafting[id] == null && data.sources.drops[id] == null && data.sources.minions[id] == null &&
+            npc == null && acc == null && pet == null) {
             Text("위키 데이터에 제작·드롭 정보가 없어요. 위키 문서를 확인해 주세요.", style = SbText.body(12, Sb.Gray))
         }
         Spacer(Modifier.height(10.dp))

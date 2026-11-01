@@ -43,6 +43,8 @@ import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Gavel
 import androidx.compose.material.icons.rounded.Handyman
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.material.icons.rounded.Inventory2
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
@@ -97,6 +99,8 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     HOME("홈", "대시보드", Icons.Rounded.Dashboard),
     PLAN("추천", "진행 방향 추천", Icons.Rounded.AccountTree),
     PROFILE("프로필", "프로필", Icons.Rounded.Person),
+    INVENTORY("인벤토리", "인벤토리 · 장신구 · 자루", Icons.Rounded.Inventory2),
+    STATS("기록", "순자산 · HotM · 도감 · 미니언", Icons.Rounded.Insights),
     GEAR("테크트리", "장비 · 펫 테크트리", Icons.Rounded.Category),
     TIMERS("타이머", "타이머 & 알림", Icons.Rounded.Timer),
     BAZAAR("바자", "바자", Icons.Rounded.ShowChart),
@@ -106,6 +110,8 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     MORE("더보기", "더보기", Icons.Rounded.Apps),
     SETTINGS("설정", "설정", Icons.Rounded.Settings),
 }
+
+val LocalController = androidx.compose.runtime.staticCompositionLocalOf<AppController> { error("no controller") }
 
 /** 화면 상태 + 저장소 */
 class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
@@ -129,9 +135,9 @@ fun SkyblockApp(
     modifier: Modifier = Modifier,
     titleBar: (@Composable () -> Unit)? = null,
 ) {
-    SkyblockTheme {
-        CompositionLocalProvider(LocalPlatform provides platform) {
-            val state by controller.repo.state.collectAsState()
+    val state by controller.repo.state.collectAsState()
+    SkyblockTheme(textScale = state.device.textScale) {
+        CompositionLocalProvider(LocalPlatform provides platform, LocalController provides controller) {
             Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)) {
                 titleBar?.invoke()
                 BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -167,6 +173,8 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
             when (screen) {
                 Screen.HOME -> HomeScreen(controller, state, wide)
                 Screen.PROFILE -> ProfileScreen(controller, state, wide)
+                Screen.INVENTORY -> sbhelper.ui.screens.InventoryScreen(controller, state, wide)
+                Screen.STATS -> sbhelper.ui.screens.StatsScreen(controller, state, wide)
                 Screen.TIMERS -> TimersScreen(controller, state, wide)
                 Screen.BAZAAR, Screen.AUCTION -> if (wide) {
                     if (screen == Screen.BAZAAR) BazaarScreen(controller, state, wide) else AuctionScreen(controller, state, wide)
@@ -200,7 +208,7 @@ private fun SideRail(controller: AppController, state: AppState) {
     ) {
         Logo()
         Spacer(Modifier.height(18.dp))
-        val main = listOf(Screen.HOME, Screen.PLAN, Screen.GEAR, Screen.PROFILE, Screen.TIMERS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
+        val main = listOf(Screen.HOME, Screen.PLAN, Screen.GEAR, Screen.PROFILE, Screen.INVENTORY, Screen.STATS, Screen.TIMERS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             main.forEach { s ->
                 val dim = (s == Screen.BAZAAR || s == Screen.AUCTION) && state.selectedProfile?.gameMode?.canTrade == false
@@ -258,7 +266,7 @@ private fun BottomNav(controller: AppController, state: AppState) {
     ) {
         items.forEach { s ->
             val selected = controller.screen == s || (s == Screen.BAZAAR && controller.screen == Screen.AUCTION) ||
-                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
+                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.INVENTORY, Screen.STATS, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
             Column(
                 Modifier.clip(RoundedCornerShape(12.dp)).clickable { controller.go(s) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

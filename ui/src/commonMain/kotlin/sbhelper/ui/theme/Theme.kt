@@ -81,21 +81,31 @@ fun rememberFonts(): SbFonts = SbFonts(
 )
 
 /** 자주 쓰는 글자 스타일 */
-object SbText {
-    @Composable fun pixel(size: Int = 12, color: Color = Sb.Text, bold: Boolean = false) =
-        TextStyle(fontFamily = LocalFonts.current.pixel, fontSize = size.sp, color = color,
-            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, lineHeight = (size * 1.35).sp)
+/** 글자 크기 배율 (설정 → 글자 크기). 1.0 = 작게, 1.15 = 보통(기본), 1.3 = 크게 */
+val LocalTextScale = staticCompositionLocalOf { 1.15f }
 
-    @Composable fun body(size: Int = 14, color: Color = Sb.Text, weight: FontWeight = FontWeight.Normal) =
-        TextStyle(fontFamily = LocalFonts.current.body, fontSize = size.sp, color = color, fontWeight = weight,
-            lineHeight = (size * 1.45).sp)
+object SbText {
+    /** 크기를 정수로 맞춰서 픽셀 글꼴이 뭉개지지 않게 한다 */
+    @Composable private fun scaled(size: Int): Int = kotlin.math.round(size * LocalTextScale.current).toInt()
+
+    @Composable fun pixel(size: Int = 12, color: Color = Sb.Text, bold: Boolean = false): TextStyle {
+        val s = scaled(size)
+        return TextStyle(fontFamily = LocalFonts.current.pixel, fontSize = s.sp, color = color,
+            fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal, lineHeight = kotlin.math.ceil(s * 1.35).sp)
+    }
+
+    @Composable fun body(size: Int = 14, color: Color = Sb.Text, weight: FontWeight = FontWeight.Normal): TextStyle {
+        val s = scaled(size)
+        return TextStyle(fontFamily = LocalFonts.current.body, fontSize = s.sp, color = color, fontWeight = weight,
+            lineHeight = kotlin.math.ceil(s * 1.45).sp)
+    }
 
     @Composable fun caption(color: Color = Sb.TextFaint) =
-        TextStyle(fontFamily = LocalFonts.current.pixel, fontSize = 11.sp, color = color, letterSpacing = 0.5.sp)
+        TextStyle(fontFamily = LocalFonts.current.pixel, fontSize = scaled(11).sp, color = color, letterSpacing = 0.5.sp)
 }
 
 @Composable
-fun SkyblockTheme(content: @Composable () -> Unit) {
+fun SkyblockTheme(textScale: Float = 1.15f, content: @Composable () -> Unit) {
     val fonts = rememberFonts()
     val scheme = darkColorScheme(
         primary = Sb.Gold,
@@ -121,7 +131,7 @@ fun SkyblockTheme(content: @Composable () -> Unit) {
         titleMedium = base.titleMedium.copy(fontFamily = fonts.body),
         titleSmall = base.titleSmall.copy(fontFamily = fonts.body),
     )
-    androidx.compose.runtime.CompositionLocalProvider(LocalFonts provides fonts) {
+    androidx.compose.runtime.CompositionLocalProvider(LocalFonts provides fonts, LocalTextScale provides textScale) {
         MaterialTheme(colorScheme = scheme, typography = typography, content = content)
     }
 }

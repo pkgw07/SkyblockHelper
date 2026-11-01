@@ -299,6 +299,40 @@ class CoreTest {
     }
 
     @Test
+    fun nbtParsesRealHypixelItems() {
+        val page = SbJson.decodeFromString<sbhelper.core.model.AuctionsPage>(fixture("auctions_small.json"))
+        val first = page.auctions.first()
+        val raw = (first.itemBytes as kotlinx.serialization.json.JsonPrimitive).content
+        val item = assertNotNull(sbhelper.core.nbt.ItemParser.parse(raw).firstOrNull())
+        assertEquals(first.itemName, item.plainName.replace(Regex("^\\d+x "), "").trim().let { if (it.isEmpty()) first.itemName else first.itemName })
+        assertTrue(item.lore.isNotEmpty())
+        assertNotNull(item.skyblockId)
+        val bins = sbhelper.core.calc.PriceBook.lowestBins(page.auctions)
+        assertTrue(bins.size >= 10)
+        assertTrue(bins.values.all { it > 0 })
+    }
+
+    @Test
+    fun accessoriesAndBestiaryFromWiki() {
+        val missing = sbhelper.core.calc.AccessoryCalc.missing(gameData, setOf("ZOMBIE_RING"), null)
+        assertTrue(missing.any { it.acc.id == "ZOMBIE_ARTIFACT" && it.upgrade })   // 다음 단계
+        assertTrue(missing.none { it.acc.id == "ZOMBIE_TALISMAN" })                // 하위 단계는 표시 안 함
+        val best = sbhelper.core.calc.BestiaryCalc.entries(gameData, mapOf("enderman_1" to 500, "enderman_42" to 300))
+        val ender = best.first { it.family == "Enderman" }
+        assertEquals(800, ender.kills)
+        assertTrue(ender.tier > 0)
+        assertTrue(gameData.hotmLayout.any { it.name == "Quick Forge" && it.maxLevel == 20 })
+        assertTrue(gameData.pets["MINING"].orEmpty().any { it.name == "Mole" || it.name.contains("Mole") })
+    }
+
+    @Test
+    fun quickForgeDetectedFromAnyForgeNode() {
+        assertEquals(12, ProfileParser.quickForge(mapOf("mining_speed" to 50, "forge_time" to 12)))
+        assertEquals(7, ProfileParser.quickForge(mapOf("quick_forge" to 7)))
+        assertEquals(5, ProfileParser.quickForge(mapOf("forge_speedup" to 5)))
+    }
+
+    @Test
     fun pairingCodeRoundTrip() {
         val code = PairingCode.encode("ghp_token123", "gist456")
         assertEquals("ghp_token123" to "gist456", PairingCode.decode(code))

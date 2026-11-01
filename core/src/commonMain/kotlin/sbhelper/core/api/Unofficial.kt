@@ -42,25 +42,32 @@ class EliteBotApi(private val client: HttpClient = defaultHttpClient()) {
 /** 패치노트 번역 — Google 번역 공개 주소 (키 없음) */
 class Translator(private val client: HttpClient = defaultHttpClient()) {
 
-    /** 여러 줄을 한국어로. 실패한 줄은 원문 그대로 */
-    suspend fun toKorean(lines: List<String>): List<String> {
-        val out = lines.toMutableList()
-        var start = 0
-        while (start < lines.size) {
-            // 한 번에 약 1500자씩 묶어서 보낸다 (각 줄은 줄바꿈 없는 한 덩어리)
-            var end = start
+    /**
+     * 여러 줄을 한국어로. 실패한 줄은 null (나중에 그 줄만 다시 시도).
+     * 요청 제한에 걸리지 않도록 묶음 사이에 잠깐 쉬고, 실패하면 한 번 더 시도한다.
+     */
+    suspend fun toKorean(lines: List<String>, only: Set<Int>? = null): List<String?> {
+        val out = MutableList<String?>(lines.size) { null }
+        val todo = lines.indices.filter { (only == null || it in only) && lines[it].isNotBlank() }
+        lines.indices.filter { lines[it].isBlank() }.forEach { out[it] = lines[it] }
+        var i = 0
+        while (i < todo.size) {
+            var j = i
             var size = 0
-            while (end < lines.size && (end == start || size + lines[end].length < 1500)) { size += lines[end].length + 1; end++ }
-            val chunk = lines.subList(start, end)
-            val translated = translate(chunk.joinToString("\n"))?.split('\n')
-            if (translated != null && translated.size == chunk.size) {
-                translated.forEachIndexed { i, t -> out[start + i] = t }
-            } else if (chunk.size > 1) {
-                chunk.forEachIndexed { i, line -> translate(line)?.let { out[start + i] = it.replace("\n", " ") } }
+            while (j < todo.size && (j == i || size + lines[todo[j]].length < 1200)) { size += lines[todo[j]].length + 1; j++ }
+            val idx = todo.subList(i, j)
+            val joined = idx.joinToString("\n") { lines[it].replace('\n', ' ') }
+            val parts = (translate(joined) ?: run { kotlinx.coroutines.delay(1200); translate(joined) })?.split('\n')
+            if (parts != null && parts.size == idx.size) {
+                idx.forEachIndexed { k, line -> out[line] = parts[k] }
             } else {
-                translated?.joinToString(" ")?.let { out[start] = it }
+                for (line in idx) {
+                    out[line] = translate(lines[line]) ?: run { kotlinx.coroutines.delay(800); translate(lines[line]) }
+                    kotlinx.coroutines.delay(120)
+                }
             }
-            start = end
+            kotlinx.coroutines.delay(250)
+            i = j
         }
         return out
     }

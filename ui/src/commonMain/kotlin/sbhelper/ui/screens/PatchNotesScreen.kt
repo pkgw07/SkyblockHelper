@@ -131,7 +131,7 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
         if (translateOn && blocks != null && n.page !in s.translated) {
             val lines = listOf(n.title) + blocks.map { it.text() }
             runCatching { controller.repo.translatePatch(n.page, lines) }.getOrNull()
-                ?.takeIf { it != lines }?.let { s.translated[n.page] = it }
+                ?.let { t -> s.translated[n.page] = lines.indices.map { i -> t[i] ?: lines[i] } }
         }
     }
     val tr = s.translated[n.page]?.takeIf { translateOn && !s.showOriginal }

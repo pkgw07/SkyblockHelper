@@ -76,7 +76,13 @@ data class AppState(
     val updateMessage: String? = null,
     /** 제이콥 농사대회 시작 시각 → 작물 (비공식: EliteBot) */
     val jacobCrops: Map<Long, List<String>> = emptyMap(),
+    /** 경매장 아이템별 최저 BIN (순자산·장신구 가격용) */
+    val lowestBin: Map<String, Double> = emptyMap(),
+    val lowestBinAt: Long = 0,
+    val loadingPrices: Boolean = false,
 ) {
+    val priceBook get() = sbhelper.core.calc.PriceBook(bazaar?.products.orEmpty(), lowestBin, npcPrices)
+
     /** 이 대회의 작물 (시작 시각이 1분 안으로 맞는 것) */
     fun cropsAt(start: Long): List<String>? =
         jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - start) < 60_000 }?.value
@@ -137,6 +143,8 @@ class SkyblockRepository(
     private val appVersion: String = "0.0.0",
 ) {
     private val _state = MutableStateFlow(AppState())
+    /** 진단용 원본 (화면 상태에는 넣지 않음) */
+    private var lastRawProfiles: List<kotlinx.serialization.json.JsonObject> = emptyList()
     val state: StateFlow<AppState> = _state.asStateFlow()
     private val saveLock = Mutex()
     private var loops: List<Job> = emptyList()
@@ -178,19 +186,21 @@ class SkyblockRepository(
         if (crops.isNotEmpty()) _state.update { it.copy(jacobCrops = crops) }
     }
 
-    /** 패치노트 본문 한국어 번역 (비공식: Google 번역). 한 번 번역한 글은 저장해 둔다 */
-    suspend fun translatePatch(page: String, lines: List<String>): List<String> {
-        val cacheText = storage.read(TRANSLATION_FILE)
-        val cache = cacheText?.let {
-            runCatching { SbJson.decodeFromString<Map<String, List<String>>>(it) }.getOrNull()
-        }.orEmpty()
-        cache[page]?.takeIf { it.size == lines.size }?.let { return it }
-        val result = translator.toKorean(lines)
-        if (result != lines) {
-            val updated = (cache + (page to result)).entries.toList().takeLast(60).associate { it.toPair() }
-            storage.write(TRANSLATION_FILE, SbJson.encodeToString(kotlinx.serialization.serializer<Map<String, List<String>>>(), updated))
-        }
-        return result
+    /**
+     * 패치노트 본문 한국어 번역 (비공식: Google 번역).
+     * 번역된 줄만 저장하고, 실패한 줄(null)은 다음에 다시 시도한다. 돌려주는 목록의 null = 원문 그대로 보여 줄 줄.
+     */
+    suspend fun translatePatch(page: String, lines: List<String>): List<String?> {
+        val ser = kotlinx.serialization.serializer<Map<String, List<String?>>>()
+        val cache = storage.read(TRANSLATION_FILE)?.let { runCatching { SbJson.decodeFromString(ser, it) }.getOrNull() }.orEmpty()
+        val prev = cache[page]?.takeIf { it.size == lines.size }
+        val missing = lines.indices.filter { prev?.getOrNull(it) == null && lines[it].isNotBlank() }.toSet()
+        if (prev != null && missing.isEmpty()) return prev
+        val fresh = translator.toKorean(lines, if (prev == null) null else missing)
+        val merged = lines.indices.map { prev?.getOrNull(it) ?: fresh[it] }
+        val updated = (cache + (page to merged)).entries.toList().takeLast(60).associate { it.toPair() }
+        storage.write(TRANSLATION_FILE, SbJson.encodeToString(ser, updated))
+        return merged
     }
 
     /** 위키 Changelog 의 최신 패치노트 */
@@ -244,6 +254,7 @@ class SkyblockRepository(
             every(30 * 60_000L) { refreshContests() },
             every(30 * 60_000L) { refreshPatchNotes() },
             every(6 * 3_600_000L) { refreshGameData() },
+            every(30 * 60_000L) { if (state.value.accountLinked) refreshLowestBins() },
         )
     }
 
@@ -304,7 +315,9 @@ class SkyblockRepository(
         _state.update { it.copy(loadingProfile = true) }
         try {
             val uuid = s.synced.playerUuid
-            val profiles = api.profiles(uuid).mapNotNull { ProfileParser.parse(it, uuid) }
+            val raw = api.profiles(uuid)
+            lastRawProfiles = raw
+            val profiles = raw.mapNotNull { ProfileParser.parse(it, uuid) }
                 .sortedByDescending { it.selected }
             val selected = profiles.firstOrNull { it.profileId == s.synced.selectedProfileId }
                 ?: profiles.firstOrNull { it.selected }
@@ -323,6 +336,27 @@ class SkyblockRepository(
     /** 화면 미리보기·스크린샷 전용: 예시 프로필을 넣는다 */
     fun previewProfiles(profiles: List<ProfileSummary>) {
         _state.update { it.copy(profiles = profiles, lastProfileSync = Clock.now()) }
+    }
+
+    /** 경매장 전체를 읽어 아이템별 최저 BIN 을 만든다 (무거워서 30분마다) */
+    suspend fun refreshLowestBins(force: Boolean = false) {
+        if (!force && Clock.now() - state.value.lowestBinAt < 30 * 60_000L) return
+        _state.update { it.copy(loadingPrices = true) }
+        try {
+            val bins = sbhelper.core.calc.PriceBook.lowestBins(api.allAuctions())
+            _state.update { it.copy(lowestBin = bins, lowestBinAt = Clock.now(), loadingPrices = false) }
+        } catch (e: Exception) {
+            _state.update { it.copy(loadingPrices = false) }
+        }
+    }
+
+    /** 진단: 마지막으로 받은 내 프로필의 키 구조 (값은 빼고) */
+    fun profileStructure(): String {
+        val uuid = state.value.synced.playerUuid.replace("-", "")
+        val profile = lastRawProfiles.firstOrNull { (it["profile_id"] as? kotlinx.serialization.json.JsonPrimitive)?.content == state.value.selectedProfile?.profileId }
+            ?: lastRawProfiles.firstOrNull() ?: return "프로필을 아직 불러오지 못했어요."
+        val member = (profile["members"] as? kotlinx.serialization.json.JsonObject)?.get(uuid)
+        return "SkyblockHelper ${appVersion} profile structure\n" + ProfileParser.structure(member, maxDepth = 4)
     }
 
     // ------------------------------------------------------------------ 계정

@@ -27,14 +27,47 @@ data class GameData(
     val ironmanGuide: List<GuideStage> = emptyList(),
     /** 재료 출처 (위키 Bucket:Mob drops, Bucket:Minions) */
     val sources: Sources = Sources(),
+    /** 스킬 종류별 펫 (위키 Module:Pet/UI). 키: MINING, FARMING … */
+    val pets: Map<String, List<WikiPet>> = emptyMap(),
+    /** HotM 칸 배치 (위키 Template:Heart of the Mountain/UI) */
+    val hotmLayout: List<HotmCell> = emptyList(),
+    /** 장신구 목록 (위키 Accessories 하위 문서) */
+    val accessories: List<Accessory> = emptyList(),
+    val bestiary: Bestiary = Bestiary(),
+    /** NPC 구매처 (위키 아이템 정보 상자 merchant/buy) */
+    val npcBuy: Map<String, NpcBuy> = emptyMap(),
 ) {
+    @Serializable
+    data class WikiPet(val name: String, val rarity: String = "", val lore: List<String> = emptyList())
+
+    @Serializable
+    data class HotmCell(val row: Int, val col: Int, val name: String, val maxLevel: Int = 1,
+                        val ability: Boolean = false, val lore: List<String> = emptyList())
+
+    @Serializable
+    data class Accessory(val id: String, val name: String, val category: String = "", val source: String = "",
+                         val coins: Double? = null, val npc: String? = null, val from: String? = null, val to: String? = null)
+
+    @Serializable
+    data class Bestiary(val families: List<BestiaryFamily> = emptyList(), val brackets: Map<String, List<Long>> = emptyMap())
+
+    @Serializable
+    data class BestiaryFamily(val family: String, val section: String = "", val bracket: Int = 1, val maxTier: Int = 1)
+
+    @Serializable
+    data class NpcBuy(val npc: String = "", val coins: Double = 0.0)
+
+    @Serializable
+    data class Sack(val name: String, val capacity: Long = 0, val items: List<String> = emptyList())
+
     /** 위키 가이드의 한 단계. items: 공식 아이템 ID 또는 "pet:이름" */
     @Serializable
     data class GuideStage(val group: String = "", val title: String = "", val desc: String = "",
                           val items: List<String> = emptyList(), val page: String = "")
 
     @Serializable
-    data class Sources(val drops: Map<String, List<String>> = emptyMap(), val minions: Map<String, String> = emptyMap())
+    data class Sources(val drops: Map<String, List<String>> = emptyMap(), val minions: Map<String, String> = emptyMap(),
+                       val sacks: Map<String, Sack> = emptyMap())
 
     /** 진행 단계 (위키: 지역 정보 상자, Slayer, HotM 표, The Catacombs) */
     @Serializable

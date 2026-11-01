@@ -10,7 +10,11 @@
   - 진행 단계        : 지역 정보 상자(해금 조건), Slayer(해금 순서), HotM 표(포지 슬롯), The Catacombs(층)
   - 장비·펫 테크트리 : 위키 가이드(Tutorial:Mining/Farming/Foraging/Fishing/Hunting Guide, Armor/Melee Weapon Guide)
   - 아이언맨 가이드   : Tutorial:Ironman Guide
-  - 재료 출처        : Bucket:Mob drops, Bucket:Minions
+  - 재료 출처        : Bucket:Mob drops, Bucket:Minions, 아이템 정보 상자(merchant/buy)
+  - 펫              : Module:Pet/UI (종류별 펫, 게임 툴팁)
+  - HotM 배치도      : Template:Heart of the Mountain/UI
+  - 장신구          : Accessories/* 하위 문서 + 정보 상자(upgrades_from/to)
+  - 도감            : Bucket:Mob bestiary + Bestiary(단계별 처치 수)
   - 규칙            : Bazaar(수수료), The Forge(시간 감소), Heart of the Mountain(Quick Forge 공식), Bank(이자), Cole
 아이템 이름 → ID 매칭에는 Hypixel 공식 API(/v2/resources/skyblock/items)를 쓴다.
 
@@ -154,11 +158,16 @@ class Ids:
         self.by_name = {}
         self.names = {}
         self.category = {}
+        self.names_by_id = {}
         for i in items:
             name = re.sub("§.", "", i.get("name", "")).strip()
+            self.names_by_id[i["id"]] = name
             self.by_name.setdefault(name.lower(), i["id"])
             if i.get("category"):
                 self.category[i["id"]] = i["category"]
+
+    def name_of(self, key):
+        return self.names_by_id.get(key)
 
     def id(self, name):
         """공식 ID 가 있으면 ID, 없으면 'name:이름'"""
@@ -429,7 +438,175 @@ def sources(ids):
         if key and page.endswith(" Minion"):
             minions[key] = page
     PAGES_USED.append({"page": "Bucket:Minions", "revid": None})
-    return {"drops": drops, "minions": minions}
+    sacks = {}
+    for row in bucket("bucket('sacks').select('sack','capacity','items').limit(500).run()"):
+        name = row.get("sack") or ""
+        key = ids.by_name.get(name.lower())
+        items = [ids.by_name.get(i.lower()) for i in row.get("items") or []]
+        if key:
+            sacks[key] = {"name": name, "capacity": row.get("capacity") or 0, "items": [i for i in items if i]}
+    PAGES_USED.append({"page": "Bucket:Sacks", "revid": None})
+    return {"drops": drops, "minions": minions, "sacks": sacks}
+
+
+def mc_clean(text):
+    """&a/§a 색 코드 제거"""
+    return re.sub(r"[&§][0-9a-fk-or]", "", text).strip()
+
+
+def infoboxes(titles):
+    """여러 위키 문서의 정보 상자(Infobox/...) 값을 한 번에 읽는다 → {제목: {키: 값}}"""
+    out = {}
+    titles = list(dict.fromkeys(t for t in titles if t))
+    for i in range(0, len(titles), 50):
+        chunk = titles[i:i + 50]
+        d = get_json(API, {"action": "query", "prop": "revisions", "rvprop": "content", "rvslots": "main",
+                           "redirects": 1, "titles": "|".join(chunk), "format": "json"})
+        alias = {r["to"]: r["from"] for r in d.get("query", {}).get("redirects", [])}
+        for page in d.get("query", {}).get("pages", {}).values():
+            revs = page.get("revisions")
+            if not revs:
+                continue
+            text = revs[0]["slots"]["main"]["*"]
+            m = re.search(r"\{\{Infobox/[^\n]*\n(.*?)\n\}\}", text, flags=re.S)
+            fields = {}
+            if m:
+                for k, v in re.findall(r"^\|\s*([\w_]+)\s*=\s*(.*?)(?=^\||\Z)", m.group(1) + "\n|", flags=re.M | re.S):
+                    fields[k.strip()] = v.strip()
+            out[alias.get(page["title"], page["title"])] = fields
+    return out
+
+
+def coins(text):
+    m = re.search(r"\{\{c\|([\d,.]+)\s*([kKmM]?)", text or "") or re.match(r"^\s*([\d,.]+)\s*([kKmM]?)\s*$", text or "")
+    if not m:
+        return None
+    v = float(m.group(1).replace(",", ""))
+    return v * {"": 1, "k": 1e3, "m": 1e6}[m.group(2).lower()]
+
+
+def npc_buy(ids, names):
+    """정보 상자의 merchant/buy → NPC 구매처와 가격"""
+    out = {}
+    for title, f in infoboxes(names).items():
+        key = f.get("id", "").strip() or ids.by_name.get(title.lower())
+        price = coins(f.get("buy", ""))
+        merchant = clean(f.get("merchant", "")).lstrip("*").replace(" *", ", ").strip()
+        if key and (price or merchant):
+            out[key] = {"npc": merchant, "coins": price or 0}
+    return out
+
+
+PET_TYPES = ["Farming", "Mining", "Combat", "Foraging", "Fishing", "Hunting", "Alchemy", "Enchanting", "Taming"]
+
+
+def pets_by_type():
+    """위키 펫 표 (Module:Pet/UI): 종류별 펫 이름, 등급, 게임 툴팁"""
+    out = {}
+    for t in PET_TYPES:
+        d = get_json(API, {"action": "expandtemplates", "text": "{{#invoke:Pet/UI|petTableType|type=%s}}" % t,
+                           "prop": "wikitext", "format": "json"})
+        text = d["expandtemplates"]["wikitext"]
+        pets = []
+        for style, title, lore in re.findall(
+                r'data-minetip-style="(\w+)" data-minetip-title="([^"]*)" data-minetip-text="([^"]*)"', text):
+            name = mc_clean(re.sub(r"\[[^\]]*\]", "", title.replace("&amp;", "&"))).strip()
+            if not name or any(p["name"] == name for p in pets):
+                continue
+            lines = [l for l in lore.replace("&amp;", "&").replace("&quot;", '"').split("/")]
+            pets.append({"name": name, "rarity": style.upper(), "lore": lines[:30]})
+        out[t.upper()] = pets
+    PAGES_USED.append({"page": "Module:Pet/UI", "revid": None})
+    return out
+
+
+def hotm_layout():
+    """위키 Template:Heart of the Mountain/UI → HotM 칸 배치 (행 1 = 가장 위 = 10단계)"""
+    text = wikitext("Template:Heart of the Mountain/UI")
+    cells = []
+    for r, c, body in re.findall(r"^\|(\d+),\s*(\d+)=(.*)$", text, flags=re.M):
+        parts = body.split(", ", 3)
+        if len(parts) < 3:
+            continue
+        name = mc_clean(parts[2])
+        if not name or name.startswith("Tier "):
+            continue
+        lore = parts[3] if len(parts) > 3 else ""
+        mx = re.search(r"Level \d+&8\\?/(\d+)", lore)
+        ability = "Pickaxe Ability" in lore
+        cells.append({"row": int(r), "col": int(c), "name": name, "maxLevel": int(mx.group(1)) if mx else 1,
+                      "ability": ability, "lore": [mc_clean(x) for x in lore.split("/")
+                                                    if x and not x.startswith("&5&o") and "Cost" not in x][:8]})
+    if len(cells) < 20:
+        raise RuntimeError("hotm layout looks wrong")
+    return cells
+
+
+ACCESSORY_TABS = ["Obtained From Collections or Recipes", "Misc_Crafts", "Dungeons_Loot", "Mob_Drop",
+                  "Obtained From NPC Shop", "Quests_and_Trials", "Slayer_Recipes", "Other"]
+ACCESSORY_LABEL = {"Obtained From Collections or Recipes": "컬렉션 제작", "Misc_Crafts": "기타 제작",
+                   "Dungeons_Loot": "던전", "Mob_Drop": "몹 드롭", "Obtained From NPC Shop": "NPC 상점",
+                   "Quests_and_Trials": "퀘스트", "Slayer_Recipes": "슬레이어", "Other": "기타"}
+
+
+def accessories(ids):
+    """위키 Accessories 하위 문서 + 각 장신구 정보 상자(upgrades_from/to, merchant/buy)"""
+    found = {}
+    for tab in ACCESSORY_TABS:
+        text = wikitext("Accessories/" + tab)
+        for row in re.split(r"\n\|-", text):
+            m = re.search(r"\[\[([^\]|#]+)(?:\|[^\]]*)?\]\]", row)
+            if not m or "{{Slot|" not in row:
+                continue
+            name = m.group(1).strip()
+            last = row.split("\n|")[-1] if "\n|" in row else ""
+            last = re.sub(r'^\s*class="[^"]*"\s*\|', "", last)
+            source = clean(last.split("----")[0])
+            found.setdefault(name, {"name": name, "category": ACCESSORY_LABEL[tab], "source": source[:120],
+                                    "coins": coins(row.split("\n|")[-1]) if "\n|" in row else None})
+    boxes = infoboxes(list(found))
+    out = []
+    for name, a in found.items():
+        f = boxes.get(name, {})
+        key = f.get("id", "").strip() or ids.by_name.get(name.lower())
+        if not key:
+            continue
+        up_from = clean(f.get("upgrades_from", "")) or None
+        up_to = clean(f.get("upgrades_to", "")) or None
+        a.update({"id": key, "from": ids.by_name.get(up_from.lower()) if up_from else None,
+                  "to": ids.by_name.get(up_to.lower()) if up_to else None})
+        if f.get("merchant"):
+            a["npc"] = clean(f["merchant"]).lstrip("*").replace(" *", ", ")
+        if coins(f.get("buy", "")):
+            a["coins"] = coins(f.get("buy", ""))
+        out.append(a)
+    if len(out) < 100:
+        raise RuntimeError(f"accessory list looks wrong ({len(out)})")
+    return out
+
+
+def bestiary():
+    """위키 Bucket:Mob bestiary + Bestiary 페이지의 단계별 누적 처치 수 표"""
+    rows = bucket("bucket('mob_bestiary').select('name','family','section','bracket','max_tier').limit(5000).run()")
+    PAGES_USED.append({"page": "Bucket:Mob bestiary", "revid": None})
+    fams = {}
+    for r in rows:
+        fam = r.get("family") or r.get("name")
+        if fam and fam not in fams and r.get("max_tier"):
+            b = re.match(r"\d+", str(r.get("bracket") or "1"))
+            fams[fam] = {"family": fam, "section": r.get("section", ""), "bracket": int(b.group(0)) if b else 1,
+                         "maxTier": int(r["max_tier"])}
+    brackets = {}
+    for table in parse_tables(wikitext("Bestiary")):
+        rows_ok = [row for row in table if row and clean(row[0]).isdigit() and len(row) >= 9
+                   and all((num(c) or 0) > 0 for c in row[1:9])
+                   and [num(c) for c in row[1:9]] != list(range(1, 9))]
+        if len(rows_ok) >= 20:
+            for row in rows_ok[-25:]:
+                for b in range(1, 9):
+                    brackets.setdefault(str(b), []).append(num(row[b]) or 0)
+            break
+    return {"families": list(fams.values()), "brackets": brackets}
 
 
 AREA_PAGES = ["Spider's Den", "The End", "Dwarven Mines", "Crystal Hollows", "Glacite Tunnels",
@@ -521,7 +698,17 @@ def main(out_path):
         "techTrees": tech_trees(ids),
         "ironmanGuide": ironman_guide(ids),
         "sources": sources(ids),
+        "pets": pets_by_type(),
+        "hotmLayout": hotm_layout(),
+        "accessories": accessories(ids),
+        "bestiary": bestiary(),
     }
+    # 테크트리·아이언맨 가이드·장신구 아이템의 NPC 구매처 (정보 상자 merchant/buy)
+    item_ids = {i for st in data["ironmanGuide"] for i in st["items"]}
+    for stages in data["techTrees"].values():
+        item_ids.update(i for st in stages for i in st["items"])
+    names = [ids.name_of(i) for i in item_ids if not i.startswith(("pet:", "name:"))]
+    data["npcBuy"] = npc_buy(ids, [n for n in names if n])
     data["names"] = ids.names
     data["source"]["pages"] = PAGES_USED
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)

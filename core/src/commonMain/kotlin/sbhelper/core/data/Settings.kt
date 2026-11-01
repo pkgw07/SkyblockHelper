@@ -71,6 +71,8 @@ data class DeviceSettings(
     val showContestCrops: Boolean = true,
     /** 패치노트를 한국어로 번역해서 보기 */
     val translatePatchNotes: Boolean = true,
+    /** 글자 크기 배율 */
+    val textScale: Float = 1.15f,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

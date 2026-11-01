@@ -65,6 +65,16 @@ data class ProfileSummary(
     val masterCompletions: Map<Int, Int> = emptyMap(),
     /** 슬레이어 보스별, 단계(1~5)별 처치 수 */
     val slayerBossKills: Map<String, Map<Int, Int>> = emptyMap(),
+    /** 인벤토리 원본 (키 → base64 NBT). 키: inv_contents, talisman_bag, backpack_0 … */
+    val inventories: Map<String, String> = emptyMap(),
+    /** HotM 트리 노드 → 레벨 (API 의 노드 키 그대로) */
+    val hotmNodes: Map<String, Int> = emptyMap(),
+    /** 도감 처치 수 (API 키 그대로, 예: zombie_1) */
+    val bestiaryKills: Map<String, Int> = emptyMap(),
+    /** 만든 미니언 (예: COBBLESTONE_5) */
+    val craftedMinions: List<String> = emptyList(),
+    /** 파우더 (mithril, gemstone, glacite) 현재 보유량 */
+    val powders: Map<String, Long> = emptyMap(),
 ) {
     val skyblockLevel: Double? get() = skyblockXp?.div(100.0)
 
@@ -141,10 +151,7 @@ object ProfileParser {
                 member.num("skill_tree", "experience", "mining"),
                 member.num("mining_core", "experience"),
             ).maxOrNull(),
-            quickForgeLevel = listOfNotNull(
-                member.num("skill_tree", "nodes", "mining", "forge_time"),
-                member.num("mining_core", "nodes", "forge_time"),
-            ).maxOrNull()?.toInt() ?: 0,
+            quickForgeLevel = quickForge(hotmNodes(member)),
             forge = forge,
             sacks = member.obj("inventory", "sacks_counts")?.mapNotNull { (k, v) ->
                 v.num()?.toLong()?.takeIf { it > 0 }?.let { k to it }
@@ -157,6 +164,15 @@ object ProfileParser {
             pets = pets,
             floorCompletions = completions(member, "catacombs"),
             masterCompletions = completions(member, "master_catacombs"),
+            inventories = inventories(member),
+            hotmNodes = hotmNodes(member),
+            bestiaryKills = member.obj("bestiary", "kills")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
+            craftedMinions = (member.path("player_data", "crafted_generators") as? JsonArray)
+                ?.mapNotNull { (it as? JsonPrimitive)?.content }.orEmpty(),
+            powders = listOf("mithril", "gemstone", "glacite").mapNotNull { t ->
+                (member.num("mining_core", "powder_$t") ?: member.num("skill_tree", "powder", t)
+                    ?: member.num("currencies", "powder_$t"))?.let { t to it.toLong() }
+            }.toMap(),
             slayerBossKills = member.obj("slayer", "slayer_bosses")?.mapNotNull { (boss, v) ->
                 val o = v as? JsonObject ?: return@mapNotNull null
                 val kills = o.entries.mapNotNull { (k, n) ->
@@ -165,6 +181,47 @@ object ProfileParser {
                 boss to kills
             }?.toMap().orEmpty(),
         )
+    }
+
+    /** HotM 노드: 새 구조(skill_tree.nodes.mining) 와 옛 구조(mining_core.nodes) 를 합친다 (큰 값) */
+    fun hotmNodes(member: JsonObject): Map<String, Int> {
+        val out = HashMap<String, Int>()
+        listOfNotNull(member.obj("skill_tree", "nodes", "mining"), member.obj("mining_core", "nodes")).forEach { o ->
+            o.forEach { (k, v) ->
+                val n = (v as? JsonPrimitive)?.let { it.doubleOrNull?.toInt() ?: it.booleanOrNull?.let { b -> if (b) 1 else 0 } }
+                if (n != null && !k.startsWith("toggle_")) out[k] = maxOf(out[k] ?: 0, n)
+            }
+        }
+        return out
+    }
+
+    /** Quick Forge 노드 레벨. 키 이름이 바뀌어도 찾도록 forge 가 들어간 키를 찾는다 */
+    fun quickForge(nodes: Map<String, Int>): Int =
+        nodes["forge_time"] ?: nodes["quick_forge"]
+            ?: nodes.entries.firstOrNull { it.key.contains("forge", ignoreCase = true) }?.value ?: 0
+
+    private fun inventories(member: JsonObject): Map<String, String> {
+        val inv = member.obj("inventory") ?: return emptyMap()
+        val out = HashMap<String, String>()
+        fun data(o: JsonElement?) = ((o as? JsonObject)?.get("data") as? JsonPrimitive)?.content
+        listOf("inv_contents", "inv_armor", "equipment_contents", "ender_chest_contents", "wardrobe_contents", "personal_vault_contents")
+            .forEach { k -> data(inv[k])?.let { out[k] = it } }
+        inv.obj("bag_contents")?.forEach { (k, v) -> data(v)?.let { out[k] = it } }
+        inv.obj("backpack_contents")?.forEach { (k, v) -> data(v)?.let { out["backpack_$k"] = it } }
+        return out
+    }
+
+    /** 진단용: JSON 의 키 구조만 (값 없이) */
+    fun structure(e: JsonElement?, depth: Int = 0, maxDepth: Int = 5): String = when {
+        e is JsonObject && depth < maxDepth -> e.entries.joinToString(", ", "{", "}") { (k, v) ->
+            if (k.length > 24 && k.all { it.isLetterOrDigit() }) "<id>:${structure(v, depth + 1, maxDepth)}"
+            else "$k:${structure(v, depth + 1, maxDepth)}"
+        }.let { if (it.length > 2000) it.take(2000) + "…}" else it }
+        e is JsonObject -> "{…${e.size}}"
+        e is JsonArray -> "[${e.size}]"
+        e is JsonPrimitive && e.isString -> if (e.content.length > 40) "str(${e.content.length})" else "str"
+        e is JsonPrimitive -> "num"
+        else -> "null"
     }
 
     private fun coopCollections(members: JsonObject, me: JsonObject): Map<String, Long>? {

@@ -31,6 +31,8 @@ fun MoreScreen(controller: AppController) {
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         listOf(
             Screen.PROFILE to "스킬 · 슬레이어 · 던전 · 컬렉션",
+            Screen.INVENTORY to "인벤토리 · 엔더 상자 · 백팩 · 옷장 · 장신구 · 자루",
+            Screen.STATS to "순자산 · HotM 트리 · 도감 · 컬렉션 · 미니언",
             Screen.GEAR to "스킬별 장비 · 펫 순서 (공식 위키 가이드)",
             Screen.IRONMAN to "진행 가이드 · 제작 플래너 · 재료 출처 · 자루 가치",
             Screen.PATCH to "공식 위키 최신 패치노트",
