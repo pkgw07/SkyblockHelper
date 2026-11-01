@@ -138,7 +138,8 @@ private fun EventDetail(controller: AppController, state: AppState, name: String
         }
         if (occ != null) {
             Spacer(Modifier.height(8.dp))
-            Text("다음: ${localTime(occ.start, true)} ~ ${localTime(occ.end, true)} (진행 ${formatDuration(occ.end - occ.start)})",
+            Text(if (occ.end - occ.start < 60_000) "다음: ${localTime(occ.start, true)}"
+                else "다음: ${localTime(occ.start, true)} ~ ${localTime(occ.end, true)} (진행 ${formatDuration(occ.end - occ.start)})",
                 style = SbText.body(13, Sb.TextDim))
             state.cropsFor(occ)?.let { CropLine(it) }
         }

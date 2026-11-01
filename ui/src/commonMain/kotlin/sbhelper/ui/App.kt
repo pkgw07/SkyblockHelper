@@ -107,7 +107,7 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     SEARCH("검색", "위키 검색", Icons.Rounded.Search),
     EVENTS("이벤트", "이벤트", Icons.Rounded.Event),
     INVENTORY("인벤토리", "인벤토리 · 장신구 · 자루", Icons.Rounded.Inventory2),
-    STATS("기록", "순자산 · HotM · 도감 · 미니언", Icons.Rounded.Insights),
+    STATS("기록", "순자산 · HotM · HotF · 도감 · 미니언", Icons.Rounded.Insights),
     GEAR("테크트리", "장비 · 펫 테크트리", Icons.Rounded.Category),
     TIMERS("타이머", "타이머 & 알림", Icons.Rounded.Timer),
     BAZAAR("바자", "바자", Icons.Rounded.ShowChart),

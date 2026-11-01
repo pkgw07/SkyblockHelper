@@ -3,7 +3,6 @@ package sbhelper.core.api
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.isSuccess
@@ -101,12 +100,12 @@ class Translator(private val client: HttpClient = defaultHttpClient()) {
         }
     }
 
-    /** translate.googleapis.com (POST: 긴 글도 주소 길이 제한 없음) */
+    /** translate.googleapis.com (CI 에서 응답 형식 확인) */
     private suspend fun primary(text: String): String? = runCatching {
-        val res = client.submitForm(
-            "https://translate.googleapis.com/translate_a/single",
-            io.ktor.http.parameters { append("client", "gtx"); append("sl", "en"); append("tl", "ko"); append("dt", "t"); append("q", text) },
-        ) { header("User-Agent", "Mozilla/5.0") }
+        val res = client.get("https://translate.googleapis.com/translate_a/single") {
+            header("User-Agent", "Mozilla/5.0")
+            parameter("client", "gtx"); parameter("sl", "en"); parameter("tl", "ko"); parameter("dt", "t"); parameter("q", text)
+        }
         if (!res.status.isSuccess()) return null
         val root = SbJson.parseToJsonElement(res.bodyAsText()) as? JsonArray ?: return null
         val segments = root.firstOrNull() as? JsonArray ?: return null
@@ -116,10 +115,10 @@ class Translator(private val client: HttpClient = defaultHttpClient()) {
 
     /** 예비 주소 (clients5.google.com) — 응답: ["번역"] 또는 [["번역","en"]] */
     private suspend fun backup(text: String): String? = runCatching {
-        val res = client.submitForm(
-            "https://clients5.google.com/translate_a/t",
-            io.ktor.http.parameters { append("client", "dict-chrome-ex"); append("sl", "en"); append("tl", "ko"); append("q", text) },
-        ) { header("User-Agent", "Mozilla/5.0") }
+        val res = client.get("https://clients5.google.com/translate_a/t") {
+            header("User-Agent", "Mozilla/5.0")
+            parameter("client", "dict-chrome-ex"); parameter("sl", "en"); parameter("tl", "ko"); parameter("q", text)
+        }
         if (!res.status.isSuccess()) return null
         val root = SbJson.parseToJsonElement(res.bodyAsText()) as? JsonArray ?: return null
         when (val first = root.firstOrNull()) {
