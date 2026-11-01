@@ -1,6 +1,7 @@
 package sbhelper.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,7 +65,7 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
     ScreenColumn(wide) {
         val p = state.selectedProfile
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Segmented(listOf("제작 플래너", "자루 NPC 가치"), tab, { tab = it })
+            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { tab = it })
             Spacer(Modifier.weight(1f))
             if (p?.gameMode == GameMode.IRONMAN) Pill("♲ Ironman · ${p.cuteName}", Sb.Gray, filled = true)
         }
@@ -72,8 +73,11 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
             "Ironman 은 거래를 할 수 없어서 직접 만들고 NPC 에게 팔아야 해요. 일반 프로필에서도 똑같이 쓸 수 있어요.",
             style = SbText.body(13, Sb.TextFaint),
         )
+        CookieBanner(state)
         when (tab) {
-            0 -> Planner(controller, state, wide)
+            0 -> IronmanGuide(controller, state, wide)
+            1 -> Planner(controller, state, wide)
+            2 -> MaterialSources(controller, state, wide)
             else -> SackValues(state, wide)
         }
         Text("제작법·포지 시간: 공식 Hypixel SkyBlock 위키 (${state.gameData.source.generated} 기준, 매일 자동 갱신)",
@@ -279,3 +283,94 @@ private fun SackValues(state: AppState, wide: Boolean) {
     Text("💡 NPC 판매가는 Hypixel 공식 아이템 정보(npc_sell_price) 기준이에요.", style = SbText.body(12, Sb.TextFaint))
 }
 
+
+
+/** 위키 Ironman 페이지: 아이언맨도 바자에서 Booster Cookie 는 즉시 구매할 수 있다 */
+@Composable
+private fun CookieBanner(state: AppState) {
+    val q = state.bazaar?.products?.get("BOOSTER_COOKIE")?.quickStatus ?: return
+    if (state.selectedProfile?.gameMode != GameMode.IRONMAN) return
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Sb.Gold.copy(alpha = 0.08f))
+            .border(1.dp, Sb.Gold.copy(alpha = 0.35f), RoundedCornerShape(12.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🍪", style = SbText.body(18))
+        Spacer(Modifier.width(10.dp))
+        Text("아이언맨도 바자에서 Booster Cookie 는 즉시 구매할 수 있어요 (공식 위키)", style = SbText.body(13, Sb.Text), modifier = Modifier.weight(1f))
+        Text("현재 ${formatCoins(q.buyPrice)}", style = SbText.pixel(13, Sb.Gold, bold = true))
+    }
+}
+
+/** 위키 Tutorial:Ironman Guide 단계별 체크리스트 (체크는 기기 간 동기화) */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun IronmanGuide(controller: AppController, state: AppState, wide: Boolean) {
+    val stages = state.gameData.ironmanGuide
+    var selected by remember { mutableStateOf<String?>(null) }
+    val checked = state.synced.ironmanChecked
+    if (stages.isEmpty()) {
+        Panel(Modifier.fillMaxWidth()) { EmptyState("가이드 데이터가 없어요", "위키 데이터를 받는 중이에요.") }
+        return
+    }
+    val total = stages.sumOf { it.items.size }
+    val done = stages.sumOf { st -> st.items.count { "${st.title}|$it" in checked } }
+    Panel(Modifier.fillMaxWidth(), caption = "Ironman Guide · Wiki", title = "아이언맨 진행 체크리스트", accent = Sb.Gray,
+        trailing = { Pill("$done / $total", Sb.Green) }) {
+        XpBar(if (total == 0) 0.0 else done.toDouble() / total, Modifier.fillMaxWidth(), Sb.Green, 7.dp)
+        Spacer(Modifier.height(6.dp))
+        Text("공식 위키 Ironman Guide 의 순서예요. ☐ 를 눌러 끝낸 항목을 표시하고, 이름을 누르면 제작법·드롭을 볼 수 있어요.",
+            style = SbText.body(12, Sb.TextFaint))
+    }
+    selected?.let { ItemInfo(controller, state, it, onClose = { selected = null }) }
+    stages.forEach { st ->
+        Panel(Modifier.fillMaxWidth(), caption = st.group, title = st.title, accent = Sb.Gray) {
+            if (st.desc.isNotBlank()) {
+                Text(st.desc, style = SbText.body(12, Sb.TextDim), maxLines = 3)
+                Spacer(Modifier.height(8.dp))
+            }
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                st.items.forEach { id ->
+                    val key = "${st.title}|$id"
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (key in checked) "☑" else "☐", style = SbText.body(16, if (key in checked) Sb.Green else Sb.TextFaint),
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable {
+                                controller.repo.updateSynced { s ->
+                                    s.copy(ironmanChecked = if (key in s.ironmanChecked) s.ironmanChecked - key else s.ironmanChecked + key)
+                                }
+                            }.padding(4.dp))
+                        ItemChip(state, id, id == selected) { selected = id }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 재료 출처: 공식 위키의 몹 드롭·미니언·제작·포지 정보 검색 */
+@Composable
+private fun MaterialSources(controller: AppController, state: AppState, wide: Boolean) {
+    var query by remember { mutableStateOf("") }
+    var selected by remember { mutableStateOf<String?>(null) }
+    val data = state.gameData
+    Panel(Modifier.fillMaxWidth(), caption = "Sources · Wiki", title = "재료를 어디서 얻나요?", accent = Sb.Red) {
+        SbTextField(query, { query = it }, Modifier.fillMaxWidth(), "재료 이름 (예: Enchanted Ender Pearl, Mithril)", Icons.Rounded.Search)
+        val q = query.trim()
+        if (q.length >= 2) {
+            val ids = (data.sources.drops.keys + data.sources.minions.keys + data.crafting.keys + data.forge.keys).toSet()
+            val hits = ids.asSequence().filter { state.itemName(it).contains(q, true) }.sortedBy { state.itemName(it).length }.take(10).toList()
+            Spacer(Modifier.height(6.dp))
+            hits.forEach { id ->
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { selected = id; query = "" }.padding(6.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    ItemGlyph(state.itemName(id), state.itemTier(id), 24.dp)
+                    Spacer(Modifier.width(10.dp))
+                    RarityName(state.itemName(id), state.itemTier(id), Modifier.weight(1f), size = 13)
+                    if (id in data.sources.drops) Pill("드롭", Sb.Red)
+                    if (id in data.sources.minions) Pill("미니언", Sb.Yellow)
+                }
+            }
+        }
+    }
+    selected?.let { ItemInfo(controller, state, it, onClose = { selected = null }) }
+}

@@ -262,6 +262,43 @@ class CoreTest {
     }
 
     @Test
+    fun profileReadsSkillTreeCoopCollectionsAndCaps() {
+        val json = SbJson.parseToJsonElement(
+            """
+            {"profile_id":"p","members":{
+              "me":{"skill_tree":{"experience":{"mining":40000},"nodes":{"mining":{"forge_time":20}}},
+                    "mining_core":{"experience":100,"nodes":{"forge_time":1}},
+                    "collection":{"WHEAT":100,"COAL":5},
+                    "pets_data":{"pet_care":{"pet_types_sacrificed":["A","B","C"]}}},
+              "friend":{"collection":{"WHEAT":50}}}}
+            """.trimIndent(),
+        ).jsonObject
+        val p = assertNotNull(ProfileParser.parse(json, "me"))
+        assertEquals(40000.0, p.hotmXp)                 // 새 구조(skill_tree) 우선
+        assertEquals(20, p.quickForgeLevel)
+        assertEquals(150L, p.collections?.get("WHEAT"))  // 협동원 합계
+        assertEquals(53, p.skillCap("TAMING", 60))       // 50 + George 에게 준 펫 3종
+        assertEquals(50, p.skillCap("FARMING", 60))
+        val f = ForgeCalc.status(ForgeProcess("forge_1", 1, "REFINED_DIAMOND", 0), gameData, "", p.quickForgeLevel, null, null)
+        assertEquals(0.30, f.reduction, 1e-9)
+    }
+
+    @Test
+    fun eliteBotParsing() {
+        val crops = sbhelper.core.api.EliteBotApi.parse(SbJson.parseToJsonElement(
+            """{"year":523,"contests":{"1793452500":["Wheat","Carrot","Potato"],"bad":["x"]}}"""))
+        assertEquals(listOf("Wheat", "Carrot", "Potato"), crops[1_793_452_500_000L])
+        assertEquals(1, crops.size)
+    }
+
+    @Test
+    fun wikiTechTreesAndIronmanGuide() {
+        assertTrue(gameData.techTrees["MINING"].orEmpty().any { it.items.contains("MITHRIL_DRILL_1") })
+        assertTrue(gameData.ironmanGuide.isNotEmpty())
+        assertTrue(gameData.sources.drops["ENDER_PEARL"].orEmpty().contains("Enderman"))
+    }
+
+    @Test
     fun pairingCodeRoundTrip() {
         val code = PairingCode.encode("ghp_token123", "gist456")
         assertEquals("ghp_token123" to "gist456", PairingCode.decode(code))

@@ -45,6 +45,33 @@ def icon(size):
     return img.resize((size, size), Image.LANCZOS)
 
 
+def wizard_images(out_dir):
+    """설치 프로그램(Inno Setup) 화면 그림: 왼쪽 큰 그림 164x314, 오른쪽 위 작은 그림 55x55 (+2배 크기)"""
+    from PIL import ImageFont
+    font_path = os.path.join(ROOT, "ui", "src", "commonMain", "composeResources", "font", "pretendard_bold.ttf")
+    pixel_path = os.path.join(ROOT, "ui", "src", "commonMain", "composeResources", "font", "galmuri11_bold.ttf")
+    for scale, suffix in ((1, ""), (2, "_2x")):
+        w, h = 164 * scale, 314 * scale
+        img = Image.new("RGB", (w, h), (15, 17, 23))
+        d = ImageDraw.Draw(img)
+        for y in range(h):  # 위쪽 금색 빛
+            t = max(0.0, 1 - y / (h * 0.55))
+            d.line([(0, y), (w, y)], fill=(int(15 + 60 * t), int(17 + 40 * t), int(23 + 2 * t)))
+        logo = icon(96 * scale)
+        img.paste(logo, ((w - logo.width) // 2, 48 * scale), logo)
+        f1 = ImageFont.truetype(pixel_path, 16 * scale)
+        f2 = ImageFont.truetype(font_path, 11 * scale)
+        for text, f, y, color in (("SkyblockHelper", f1, 168, (255, 170, 0)),
+                                  ("Hypixel SkyBlock 도우미", f2, 196, (162, 168, 186))):
+            tw = d.textlength(text, font=f)
+            d.text(((w - tw) / 2, y * scale), text, font=f, fill=color)
+        img.save(os.path.join(out_dir, f"wizard_large{suffix}.bmp"))
+        small = Image.new("RGB", (55 * scale, 55 * scale), (255, 255, 255))
+        s_logo = icon(51 * scale)
+        small.paste(s_logo, (2 * scale, 2 * scale), s_logo)
+        small.save(os.path.join(out_dir, f"wizard_small{suffix}.bmp"))
+
+
 def main():
     icons = os.path.join(ROOT, "desktopApp", "icons")
     os.makedirs(icons, exist_ok=True)
@@ -60,6 +87,9 @@ def main():
         d = os.path.join(ROOT, "androidApp", "src", "main", "res", f"mipmap-{density}")
         os.makedirs(d, exist_ok=True)
         icon(px).save(os.path.join(d, "ic_launcher.png"))
+    inst = os.path.join(ROOT, "desktopApp", "installer")
+    os.makedirs(inst, exist_ok=True)
+    wizard_images(inst)
     print("icons written")
 
 

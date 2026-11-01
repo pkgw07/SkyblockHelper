@@ -43,6 +43,7 @@ fun main(args: Array<String>) {
         runCatching { repo.refreshElectionAndNews() }
         runCatching { repo.refreshBazaar() }
         runCatching { repo.refreshPatchNotes() }
+        runCatching { repo.refreshContests() }
     }
     val now = Clock.now()
     val hour = 3_600_000L
@@ -84,6 +85,7 @@ fun main(args: Array<String>) {
     }
     shot("01-home", Screen.HOME)
     shot("10-plan", Screen.PLAN)
+    shot("13-gear", Screen.GEAR)
     shot("11-patch", Screen.PATCH)
     shot("02-profile", Screen.PROFILE)
     shot("03-timers", Screen.TIMERS)

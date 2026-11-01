@@ -45,7 +45,8 @@ class DesktopPlatform : Platform {
     override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {
         val file = java.io.File(System.getProperty("java.io.tmpdir"), fileName)
         file.writeBytes(bytes)
-        ProcessBuilder(file.absolutePath).start()
+        // 조용히 설치하고, 설치가 끝나면 설치 프로그램이 앱을 다시 실행한다
+        ProcessBuilder(file.absolutePath, "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS").start()
         Thread { Thread.sleep(1500); onQuitForUpdate() }.start()
         true
     }.getOrDefault(false)

@@ -191,7 +191,7 @@ private fun SkillsPanel(state: AppState, p: ProfileSummary, modifier: Modifier, 
             else -> {
                 val entries = defs.entries.filter { it.key in SKILL_STYLES }
                 val rows = entries.map { (key, def) ->
-                    val cap = if (key == "FARMING") (50 + p.farmingCapBonus).coerceAtMost(def.maxLevel) else null
+                    val cap = p.skillCap(key, def.maxLevel)
                     key to Leveling.skill(skillXp[key] ?: 0.0, def, cap)
                 }
                 val columns = if (wide) 2 else 1

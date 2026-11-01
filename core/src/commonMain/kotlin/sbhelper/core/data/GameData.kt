@@ -21,7 +21,21 @@ data class GameData(
     val events: List<WikiEvent> = emptyList(),
     val rules: Rules = Rules(),
     val progression: Progression = Progression(),
+    /** 스킬별 장비·펫 테크트리 (위키 가이드). 키: MINING, FARMING, FORAGING, FISHING, HUNTING, COMBAT */
+    val techTrees: Map<String, List<GuideStage>> = emptyMap(),
+    /** 위키 Tutorial:Ironman Guide 단계 */
+    val ironmanGuide: List<GuideStage> = emptyList(),
+    /** 재료 출처 (위키 Bucket:Mob drops, Bucket:Minions) */
+    val sources: Sources = Sources(),
 ) {
+    /** 위키 가이드의 한 단계. items: 공식 아이템 ID 또는 "pet:이름" */
+    @Serializable
+    data class GuideStage(val group: String = "", val title: String = "", val desc: String = "",
+                          val items: List<String> = emptyList(), val page: String = "")
+
+    @Serializable
+    data class Sources(val drops: Map<String, List<String>> = emptyMap(), val minions: Map<String, String> = emptyMap())
+
     /** 진행 단계 (위키: 지역 정보 상자, Slayer, HotM 표, The Catacombs) */
     @Serializable
     data class Progression(

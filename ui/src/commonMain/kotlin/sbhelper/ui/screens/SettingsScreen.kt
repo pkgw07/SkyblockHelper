@@ -183,6 +183,14 @@ private fun SyncPanel(controller: AppController, state: AppState) {
         } else {
             Text(state.syncMessage ?: "", style = SbText.body(13, if (state.syncMessage?.startsWith("⚠") == true) Sb.Negative else Sb.Green))
             if (sync.lastSyncAt > 0) Text("마지막 동기화 ${localTime(sync.lastSyncAt, true)}", style = SbText.body(12, Sb.TextFaint))
+            Spacer(Modifier.height(10.dp))
+            Text("자동 동기화 주기", style = SbText.caption(Sb.TextDim))
+            Spacer(Modifier.height(6.dp))
+            val syncOptions = listOf(1, 2, 5, 15, 30)
+            Segmented(syncOptions.map { "${it}분" }, syncOptions.indexOf(state.device.syncMinutes).coerceAtLeast(0), { i ->
+                controller.repo.updateDevice { it.copy(syncMinutes = syncOptions[i]) }
+            })
+            Text("설정을 바꾸면 3초 뒤 바로 올리고, 이 주기마다 다른 기기의 변경을 받아요.", style = SbText.body(12, Sb.TextFaint))
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SbButton("지금 동기화", { scope.launch { controller.repo.syncDevices() } }, Modifier.weight(1f), icon = Icons.Rounded.CloudSync)
@@ -244,12 +252,21 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
         Spacer(Modifier.height(8.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
         Spacer(Modifier.height(6.dp))
-        val options = listOf(1, 3, 5, 10)
+        val options = listOf(1, 2, 5, 10)
         Segmented(options.map { "${it}분" }, options.indexOf(d.pollMinutes).coerceAtLeast(0), { i ->
             controller.repo.updateDevice { it.copy(pollMinutes = options[i]) }
         })
         Spacer(Modifier.height(6.dp))
-        Text("포지·이벤트 알림은 정해진 시각에 바로 울리고, 이 주기는 새 포지/경매를 발견하는 간격이에요.", style = SbText.body(12, Sb.TextFaint))
+        Text("포지·이벤트 알림은 정해진 시각에 바로 울리고, 이 주기는 새 포지/경매/스탯을 가져오는 간격이에요. " +
+            "Hypixel 서버가 프로필을 저장해야 값이 바뀌어서, 게임과 1~3분 정도 차이가 날 수 있어요.", style = SbText.body(12, Sb.TextFaint))
+        if (state.lastProfileSync > 0) Text("마지막 프로필 갱신 ${localTime(state.lastProfileSync, true)}", style = SbText.body(12, Sb.TextDim))
+        Divider(Modifier.padding(vertical = 10.dp))
+        SwitchRow("🌱 농사대회 작물 표시", d.showContestCrops, { on ->
+            controller.repo.updateDevice { it.copy(showContestCrops = on) }
+            controller.scope.launch { controller.repo.refreshContests() }
+        }, "비공식 출처(EliteBot, 농사 커뮤니티)예요. 공식 API·위키에는 작물 정보가 없어요.")
+        SwitchRow("🌐 패치노트 한국어 번역", d.translatePatchNotes, { on -> controller.repo.updateDevice { it.copy(translatePatchNotes = on) } },
+            "비공식 Google 번역을 써요. 번역이 안 되면 원문을 보여 줘요.")
         Divider(Modifier.padding(vertical = 10.dp))
         SwitchRow("자동 업데이트", d.autoUpdate, { on -> controller.repo.updateDevice { it.copy(autoUpdate = on) } },
             if (platform.isDesktop) "새 버전이 나오면 프로그램을 켤 때 자동으로 내려받아 설치해요."

@@ -212,13 +212,13 @@ private fun EventsPanel(state: AppState, now: Long, modifier: Modifier, onMore: 
     Panel(modifier, caption = "Calendar", title = "다가오는 이벤트", accent = Sb.Aqua,
         trailing = { Text("전체 보기", style = SbText.body(12, Sb.Aqua), modifier = Modifier.clickable(onClick = onMore)) }) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            events.forEach { EventLine(it, now) }
+            events.forEach { EventLine(it, now, state.cropsAt(it.start)) }
         }
     }
 }
 
 @Composable
-fun EventLine(e: EventOccurrence, now: Long) {
+fun EventLine(e: EventOccurrence, now: Long, crops: List<String>? = null) {
     val active = e.isActive(now)
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
@@ -228,13 +228,23 @@ fun EventLine(e: EventOccurrence, now: Long) {
     ) {
         Text(EventLabels.emoji(e.name), style = SbText.body(16))
         Spacer(Modifier.width(10.dp))
-        Text(EventLabels.label(e.name), style = SbText.body(14, weight = FontWeight.Medium), modifier = Modifier.weight(1f), maxLines = 1)
+        Column(Modifier.weight(1f)) {
+            Text(EventLabels.label(e.name), style = SbText.body(14, weight = FontWeight.Medium), maxLines = 1)
+            if (crops != null) CropLine(crops)
+        }
         if (active) {
             Pill("진행 중 · ${formatDuration(e.end - now)}", Sb.Aqua, filled = true)
         } else {
             Text(formatDuration(e.start - now), style = SbText.pixel(12, Sb.TextDim))
         }
     }
+}
+
+/** 농사대회 작물 (비공식 출처 EliteBot 표시) */
+@Composable
+fun CropLine(crops: List<String>) {
+    Text("🌱 " + crops.joinToString(" · ") { EventLabels.crop(it) } + "  (EliteBot)",
+        style = SbText.body(12, Sb.Green), maxLines = 1)
 }
 
 @Composable
@@ -245,7 +255,7 @@ private fun StatsRow(state: AppState, wide: Boolean) {
     val avg = if (skills != null && skillXp != null) {
         val counted = listOf("FARMING", "MINING", "COMBAT", "FORAGING", "FISHING", "ENCHANTING", "ALCHEMY", "TAMING", "CARPENTRY")
         val levels = counted.mapNotNull { k -> skills[k]?.let { def ->
-            val cap = if (k == "FARMING") 50 + p.farmingCapBonus else null
+            val cap = p.skillCap(k, def.maxLevel)
             Leveling.skill(skillXp[k] ?: 0.0, def, cap).let { it.level + it.progress }
         } }
         if (levels.isEmpty()) null else levels.average()

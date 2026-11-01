@@ -40,6 +40,14 @@ jobs:
         run: |
           set -o pipefail
           ./gradlew :core:desktopTest :ui:compileKotlinDesktop :desktopApp:compileKotlin 2>&1 | tee gradle-test.log
+      - name: Unofficial sources check (EliteBot, Google 번역 응답 형식)
+        continue-on-error: true
+        shell: bash
+        run: |
+          e=$(curl -sS --max-time 20 https://api.elitebot.dev/contests/at/now | head -c 900 | tr '\n' ' ')
+          echo "::notice title=EliteBot::${e//%/%25}"
+          g=$(curl -sS --max-time 20 "https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ko&dt=t&q=Hello%20world%0AGood%20bye" | head -c 400 | tr '\n' ' ')
+          echo "::notice title=GoogleTranslate::${g//%/%25}"
       - name: Screenshots (화면 미리보기 → ci-screenshots 브랜치)
         if: github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/')
         continue-on-error: true
@@ -112,11 +120,15 @@ jobs:
           if [ -n "${{ inputs.release_version }}" ]; then echo "v=${{ inputs.release_version }}" >> "$GITHUB_OUTPUT";
           elif [[ "$GITHUB_REF" == refs/tags/v* ]]; then echo "v=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT";
           else grep appVersion gradle.properties | cut -d= -f2 | sed 's/^/v=/' >> "$GITHUB_OUTPUT"; fi
-      - name: Package
+      - name: Package (Inno Setup 설치 프로그램)
         shell: bash
         run: |
           set -o pipefail
-          ./gradlew :desktopApp:packageExe "-PappVersion=${{ steps.ver.outputs.v }}" 2>&1 | tee gradle-windows.log
+          ./gradlew :desktopApp:createDistributable "-PappVersion=${{ steps.ver.outputs.v }}" 2>&1 | tee gradle-windows.log
+          ISCC="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
+          if [ ! -f "$ISCC" ]; then choco install innosetup -y --no-progress; fi
+          "$ISCC" "/DMyAppVersion=${{ steps.ver.outputs.v }}" desktopApp/installer/SkyblockHelper.iss 2>&1 | tee -a gradle-windows.log
+          ls -la desktopApp/build/installer
       - name: Report build errors as annotations
         if: failure()
         shell: bash
@@ -129,7 +141,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: desktopApp/build/compose/binaries/main/exe/*.exe
+          path: desktopApp/build/installer/*.exe
 
   # 태그(v1.0.0 등)를 올리거나, Actions 에서 release_version 을 넣고 실행하면 GitHub Releases 에 설치 파일을 올린다
   release:

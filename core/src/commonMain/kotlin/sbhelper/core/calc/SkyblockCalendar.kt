@@ -169,6 +169,16 @@ object EventLabels {
         else -> "📅"
     }
 
+    private val crops = mapOf(
+        "wheat" to "밀", "carrot" to "당근", "potato" to "감자", "pumpkin" to "호박", "melon" to "수박",
+        "melon slice" to "수박", "mushroom" to "버섯", "cocoa beans" to "코코아 콩", "cactus" to "선인장",
+        "sugar cane" to "사탕수수", "nether wart" to "네더 와트", "sunflower" to "해바라기",
+        "moonflower" to "달맞이꽃", "wild rose" to "들장미",
+    )
+
+    /** 작물 이름 한국어 (모르는 이름은 그대로) */
+    fun crop(name: String): String = crops[name.lowercase().trim()] ?: name
+
     /** 처음 설치했을 때 알림이 켜져 있는 이벤트 */
     fun enabledByDefault(name: String): Boolean = when {
         name == "Dark Auction" || name == "Fallen Star Meeting" || name == "Bank Interest" -> false

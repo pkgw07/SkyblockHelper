@@ -15,6 +15,9 @@ import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CropSquare
+import androidx.compose.material.icons.rounded.FilterNone
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -150,13 +153,24 @@ fun main(args: Array<String>) {
             undecorated = true,
         ) {
             LaunchedEffect(Unit) { window.minimumSize = Dimension(900, 620) }
+            // 테두리 없는 창은 OS 최대화가 작업 표시줄까지 덮으므로, 작업 영역(작업 표시줄 제외)에 직접 맞춘다
+            var maximized by remember { mutableStateOf(false) }
+            var restore by remember { mutableStateOf<java.awt.Rectangle?>(null) }
+            val toggleMaximize = {
+                if (!maximized) {
+                    restore = window.bounds
+                    window.bounds = workArea(window)
+                    maximized = true
+                } else {
+                    restore?.let { window.bounds = it }
+                    maximized = false
+                }
+            }
             SkyblockApp(controller, platform, titleBar = {
                 TitleBar(
+                    maximized = maximized,
                     onMinimize = { window.extendedState = Frame.ICONIFIED },
-                    onMaximize = {
-                        windowState.placement = if (windowState.placement == WindowPlacement.Maximized)
-                            WindowPlacement.Floating else WindowPlacement.Maximized
-                    },
+                    onMaximize = toggleMaximize,
                     onClose = {
                         if (repo.state.value.device.runInBackground) visible = false else quit()
                     },
@@ -164,6 +178,14 @@ fun main(args: Array<String>) {
             })
         }
     }
+}
+
+/** 창이 있는 모니터의 작업 영역 (작업 표시줄 제외) */
+private fun workArea(window: java.awt.Window): java.awt.Rectangle {
+    val gc = window.graphicsConfiguration
+    val b = gc.bounds
+    val i = java.awt.Toolkit.getDefaultToolkit().getScreenInsets(gc)
+    return java.awt.Rectangle(b.x + i.left, b.y + i.top, b.width - i.left - i.right, b.height - i.top - i.bottom)
 }
 
 private fun bringToFront() {
@@ -176,16 +198,17 @@ private fun bringToFront() {
 
 /** 런처 스타일의 테두리 없는 창 제목 표시줄 */
 @Composable
-private fun WindowScope.TitleBar(onMinimize: () -> Unit, onMaximize: () -> Unit, onClose: () -> Unit) {
+private fun WindowScope.TitleBar(maximized: Boolean, onMinimize: () -> Unit, onMaximize: () -> Unit, onClose: () -> Unit) {
     WindowDraggableArea {
         Row(
-            Modifier.fillMaxWidth().height(34.dp).background(Sb.Window).padding(start = 14.dp),
+            Modifier.fillMaxWidth().height(34.dp).background(Sb.Window).padding(start = 14.dp)
+                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { onMaximize() }) },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text("SKYBLOCK HELPER", style = SbText.caption(Sb.TextFaint))
             Spacer(Modifier.weight(1f))
             TitleButton(Icons.Rounded.Remove, Sb.SurfaceHigh, onMinimize)
-            TitleButton(Icons.Rounded.CropSquare, Sb.SurfaceHigh, onMaximize)
+            TitleButton(if (maximized) Icons.Rounded.FilterNone else Icons.Rounded.CropSquare, Sb.SurfaceHigh, onMaximize)
             TitleButton(Icons.Rounded.Close, Color(0xFFC42B1C), onClose)
         }
     }

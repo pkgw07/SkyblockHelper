@@ -45,6 +45,8 @@ data class ProfileSummary(
     /** 키: FARMING, MINING ... (공식 skills 리소스 키와 같음). null 이면 스킬 API 꺼짐 */
     val skillXp: Map<String, Double>?,
     val farmingCapBonus: Int,
+    /** George 에게 준 펫 종류 수 → Taming 최대 레벨 50 + n (위키 Taming). null = 정보 없음 */
+    val tamingCapBonus: Int? = null,
     val slayerXp: Map<String, Double>,
     val catacombsXp: Double?,
     val classXp: Map<String, Double>,
@@ -65,6 +67,17 @@ data class ProfileSummary(
     val slayerBossKills: Map<String, Map<Int, Int>> = emptyMap(),
 ) {
     val skyblockLevel: Double? get() = skyblockXp?.div(100.0)
+
+    /**
+     * 사람마다 다른 스킬 최대 레벨 (공식 위키):
+     *  - Farming: 기본 50, 제이콥 대회 보상(Anita)으로 최대 60
+     *  - Taming: 기본 50, George 에게 펫을 주면 최대 60
+     */
+    fun skillCap(key: String, maxLevel: Int): Int? = when (key) {
+        "FARMING" -> (50 + farmingCapBonus).coerceAtMost(maxLevel)
+        "TAMING" -> tamingCapBonus?.let { (50 + it).coerceAtMost(maxLevel) }
+        else -> null
+    }
     val activePet get() = pets.firstOrNull { it.active }
 }
 
@@ -114,6 +127,7 @@ object ProfileParser {
             fairySouls = member.num("fairy_soul", "total_collected")?.toInt(),
             skillXp = skillXp,
             farmingCapBonus = member.num("jacobs_contest", "perks", "farming_level_cap")?.toInt() ?: 0,
+            tamingCapBonus = (member.path("pets_data", "pet_care", "pet_types_sacrificed") as? JsonArray)?.size,
             slayerXp = member.obj("slayer", "slayer_bosses")?.mapNotNull { (boss, v) ->
                 (v as? JsonObject)?.num("xp")?.let { boss to it }
             }?.toMap().orEmpty(),
@@ -122,13 +136,21 @@ object ProfileParser {
                 (v as? JsonObject)?.num("experience")?.let { c to it }
             }?.toMap().orEmpty(),
             selectedClass = member.str("dungeons", "selected_dungeon_class"),
-            hotmXp = member.num("mining_core", "experience"),
-            quickForgeLevel = member.num("mining_core", "nodes", "forge_time")?.toInt() ?: 0,
+            // HotM 데이터는 skill_tree(새 구조)와 mining_core(옛 구조) 중 있는 쪽, 둘 다 있으면 큰 값
+            hotmXp = listOfNotNull(
+                member.num("skill_tree", "experience", "mining"),
+                member.num("mining_core", "experience"),
+            ).maxOrNull(),
+            quickForgeLevel = listOfNotNull(
+                member.num("skill_tree", "nodes", "mining", "forge_time"),
+                member.num("mining_core", "nodes", "forge_time"),
+            ).maxOrNull()?.toInt() ?: 0,
             forge = forge,
             sacks = member.obj("inventory", "sacks_counts")?.mapNotNull { (k, v) ->
                 v.num()?.toLong()?.takeIf { it > 0 }?.let { k to it }
             }?.toMap(),
-            collections = member.obj("collection")?.mapNotNull { (k, v) -> v.num()?.toLong()?.let { k to it } }?.toMap(),
+            // 컬렉션은 협동 프로필이면 모든 멤버의 합계 (게임 안 표시와 같게)
+            collections = coopCollections(members, member),
             essence = member.obj("currencies", "essence")?.mapNotNull { (k, v) ->
                 (v as? JsonObject)?.num("current")?.toLong()?.let { k to it }
             }?.toMap().orEmpty(),
@@ -143,6 +165,17 @@ object ProfileParser {
                 boss to kills
             }?.toMap().orEmpty(),
         )
+    }
+
+    private fun coopCollections(members: JsonObject, me: JsonObject): Map<String, Long>? {
+        if (me.obj("collection") == null) return null
+        val total = HashMap<String, Long>()
+        members.values.forEach { m ->
+            (m as? JsonObject)?.obj("collection")?.forEach { (k, v) ->
+                v.num()?.toLong()?.let { total[k] = (total[k] ?: 0L) + it }
+            }
+        }
+        return total
     }
 
     private fun completions(member: JsonObject, type: String): Map<Int, Int> =

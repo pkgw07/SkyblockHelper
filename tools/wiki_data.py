@@ -8,6 +8,9 @@
   - 경험치표        : Catacombs/Levels, Slayer, Template:Heart of the Mountain/Leveling Table
   - 이벤트 일정      : Events (위키 LiveCountdown 타이머)
   - 진행 단계        : 지역 정보 상자(해금 조건), Slayer(해금 순서), HotM 표(포지 슬롯), The Catacombs(층)
+  - 장비·펫 테크트리 : 위키 가이드(Tutorial:Mining/Farming/Foraging/Fishing/Hunting Guide, Armor/Melee Weapon Guide)
+  - 아이언맨 가이드   : Tutorial:Ironman Guide
+  - 재료 출처        : Bucket:Mob drops, Bucket:Minions
   - 규칙            : Bazaar(수수료), The Forge(시간 감소), Heart of the Mountain(Quick Forge 공식), Bank(이자), Cole
 아이템 이름 → ID 매칭에는 Hypixel 공식 API(/v2/resources/skyblock/items)를 쓴다.
 
@@ -150,9 +153,12 @@ class Ids:
         items = get_json(ITEMS)["items"]
         self.by_name = {}
         self.names = {}
+        self.category = {}
         for i in items:
             name = re.sub("§.", "", i.get("name", "")).strip()
             self.by_name.setdefault(name.lower(), i["id"])
+            if i.get("category"):
+                self.category[i["id"]] = i["category"]
 
     def id(self, name):
         """공식 ID 가 있으면 ID, 없으면 'name:이름'"""
@@ -343,6 +349,89 @@ def rules():
     return r
 
 
+# 스킬별 장비·펫 테크트리: (키, 위키 가이드 페이지, 포함할 큰 제목 정규식)
+GUIDES = [
+    ("MINING", "Tutorial:Mining Guide", r"Gear"),
+    ("FARMING", "Tutorial:Farming Guide", r"Progression|Pets"),
+    ("FORAGING", "Tutorial:Foraging Guide", r"General Progression"),
+    ("FISHING", "Tutorial:Fishing Guide", r"Recommended Progression"),
+    ("HUNTING", "Tutorial:Hunting Guide", r"Information"),
+    ("COMBAT", "Tutorial:Armor Guide", r"."),
+    ("COMBAT", "Tutorial:Melee Weapon Guide", r"."),
+]
+LINK = re.compile(r"\{\{(?:Item|ItemSprite|Slot)\|([^}|]+)|\[\[([^\]|#]+)")
+
+
+def guide_stages(page, include, ids, keep):
+    """위키 가이드에서 (단계 제목, 설명 한 줄, 아이템 목록) 을 순서대로 뽑는다."""
+    text = re.sub(r"<ref[^>]*>.*?</ref>|<ref[^/]*/>", "", wikitext(page), flags=re.S)
+    stages, take, top, stage = [], False, None, None
+    for line in text.split("\n"):
+        h = re.match(r"^(=+)\s*(.*?)\s*=+\s*$", line)
+        if h:
+            level, title = len(h.group(1)), clean(h.group(2))
+            if level == 2:
+                take, top = bool(re.search(include, title, re.I)), title
+            if take:
+                stage = {"group": top, "title": title, "desc": "", "items": []}
+                stages.append(stage)
+            continue
+        if not take or stage is None:
+            continue
+        if not stage["desc"] and line.strip() and not line.startswith(("{|", "|", "!", "[[File", "{{")):
+            stage["desc"] = clean(line)[:240]
+        for a, b in LINK.findall(line):
+            name = (a or b).strip()
+            if name.endswith(" Pet"):
+                key = "pet:" + name[:-4]
+            else:
+                key = ids.by_name.get(name.lower())
+                if not key or not keep(key):
+                    continue
+            if key not in stage["items"]:
+                stage["items"].append(key)
+    return [s for s in stages if s["items"]]
+
+
+def tech_trees(ids):
+    trees = {}
+    gear = lambda k: k in ids.category  # 장비(카테고리가 있는 아이템)만
+    for skill, page, include in GUIDES:
+        stages = guide_stages(page, include, ids, gear)
+        for s in stages:
+            s["page"] = page
+        trees.setdefault(skill, []).extend(stages)
+    return trees
+
+
+def ironman_guide(ids):
+    stages = guide_stages("Tutorial:Ironman Guide", r"Getting Started|Next Steps", ids, lambda k: True)
+    for s in stages:
+        s["page"] = "Tutorial:Ironman Guide"
+    return stages
+
+
+def sources(ids):
+    """재료 출처: 드롭하는 몹(Bucket:Mob drops), 미니언(Bucket:Minions)"""
+    drops = {}
+    for row in bucket("bucket('mob_drops').select('mob','drops').limit(5000).run()"):
+        mob = row.get("mob") or ""
+        for d in row.get("drops") or []:
+            name = re.sub(r"^\$\w\$\s*", "", d).strip()
+            key = ids.by_name.get(name.lower())
+            if key and mob and mob not in drops.setdefault(key, []) and len(drops[key]) < 8:
+                drops[key].append(mob)
+    PAGES_USED.append({"page": "Bucket:Mob drops", "revid": None})
+    minions = {}
+    for row in bucket("bucket('minions').select('page_name').limit(500).run()"):
+        page = row.get("page_name", "")
+        key = ids.by_name.get(page.replace(" Minion", "").lower())
+        if key and page.endswith(" Minion"):
+            minions[key] = page
+    PAGES_USED.append({"page": "Bucket:Minions", "revid": None})
+    return {"drops": drops, "minions": minions}
+
+
 AREA_PAGES = ["Spider's Den", "The End", "Dwarven Mines", "Crystal Hollows", "Glacite Tunnels",
               "Crimson Isle", "Garden", "The Rift"]
 
@@ -429,6 +518,9 @@ def main(out_path):
         "events": events(),
         "rules": rules(),
         "progression": progression(),
+        "techTrees": tech_trees(ids),
+        "ironmanGuide": ironman_guide(ids),
+        "sources": sources(ids),
     }
     data["names"] = ids.names
     data["source"]["pages"] = PAGES_USED

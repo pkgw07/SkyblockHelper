@@ -74,7 +74,12 @@ data class AppState(
     /** 업데이트 다운로드 진행도 (null = 진행 안 함) */
     val updateProgress: Double? = null,
     val updateMessage: String? = null,
+    /** 제이콥 농사대회 시작 시각 → 작물 (비공식: EliteBot) */
+    val jacobCrops: Map<Long, List<String>> = emptyMap(),
 ) {
+    /** 이 대회의 작물 (시작 시각이 1분 안으로 맞는 것) */
+    fun cropsAt(start: Long): List<String>? =
+        jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - start) < 60_000 }?.value
     val synced get() = stored.synced
     val device get() = stored.device
     val accountLinked get() = synced.playerUuid.isNotBlank()
@@ -83,7 +88,11 @@ data class AppState(
         get() = profiles.firstOrNull { it.profileId == synced.selectedProfileId }
             ?: profiles.firstOrNull { it.selected } ?: profiles.firstOrNull()
 
-    fun itemName(id: String): String = items[id]?.name ?: gameData.names[id] ?: if (id.startsWith("name:")) id.removePrefix("name:") else prettifyId(id)
+    fun itemName(id: String): String = items[id]?.name ?: gameData.names[id] ?: when {
+        id.startsWith("name:") -> id.removePrefix("name:")
+        id.startsWith("pet:") -> id.removePrefix("pet:") + " Pet"
+        else -> prettifyId(id)
+    }
     fun itemTier(id: String): String? = items[id]?.tier
 
     val npcPrices: Map<String, Double>
@@ -118,6 +127,8 @@ class SkyblockRepository(
     private val scope: CoroutineScope,
     private val loadGameData: suspend () -> String,
     val wiki: WikiApi = WikiApi(),
+    private val eliteBot: sbhelper.core.api.EliteBotApi = sbhelper.core.api.EliteBotApi(),
+    private val translator: sbhelper.core.api.Translator = sbhelper.core.api.Translator(),
     private val updates: Updates = Updates(),
     /** 이 앱의 버전 (업데이트 비교용) */
     private val appVersion: String = "0.0.0",
@@ -155,6 +166,28 @@ class SkyblockRepository(
             storage.write(GAMEDATA_FILE, text)
             applyGameData(data)
         }
+    }
+
+    /** 농사대회 작물 (비공식 출처, 설정에서 끌 수 있음) */
+    suspend fun refreshContests() {
+        if (!state.value.device.showContestCrops) { _state.update { it.copy(jacobCrops = emptyMap()) }; return }
+        val crops = eliteBot.upcomingContests()
+        if (crops.isNotEmpty()) _state.update { it.copy(jacobCrops = crops) }
+    }
+
+    /** 패치노트 본문 한국어 번역 (비공식: Google 번역). 한 번 번역한 글은 저장해 둔다 */
+    suspend fun translatePatch(page: String, lines: List<String>): List<String> {
+        val cacheText = storage.read(TRANSLATION_FILE)
+        val cache = cacheText?.let {
+            runCatching { SbJson.decodeFromString<Map<String, List<String>>>(it) }.getOrNull()
+        }.orEmpty()
+        cache[page]?.takeIf { it.size == lines.size }?.let { return it }
+        val result = translator.toKorean(lines)
+        if (result != lines) {
+            val updated = (cache + (page to result)).entries.toList().takeLast(60).associate { it.toPair() }
+            storage.write(TRANSLATION_FILE, SbJson.encodeToString(kotlinx.serialization.serializer<Map<String, List<String>>>(), updated))
+        }
+        return result
     }
 
     /** 위키 Changelog 의 최신 패치노트 */
@@ -199,7 +232,13 @@ class SkyblockRepository(
                 }
             },
             every(10_000L) { checkAlerts() },
-            every(5 * 60_000L) { if (state.value.device.sync.enabled) syncDevices() },
+            scope.launch {
+                while (isActive) {
+                    if (state.value.device.sync.enabled) runCatching { syncDevices() }
+                    delay(state.value.device.syncMinutes.coerceIn(1, 60) * 60_000L)
+                }
+            },
+            every(30 * 60_000L) { refreshContests() },
             every(30 * 60_000L) { refreshPatchNotes() },
             every(6 * 3_600_000L) { refreshGameData() },
         )
@@ -225,6 +264,7 @@ class SkyblockRepository(
         runCatching { refreshProfile() }
         if (state.value.device.sync.enabled) runCatching { syncDevices() }
         runCatching { refreshPatchNotes() }
+        runCatching { refreshContests() }
         checkAlerts()
         return AlertEngine.nextWakeUp(alertInputs(state.value, Clock.now()), state.value.synced.notify, Clock.now())
     }
@@ -389,6 +429,7 @@ class SkyblockRepository(
         priceAlerts = s.synced.priceAlerts,
         itemName = s::itemName,
         patchNotes = s.patchNotes,
+        jacobCrops = s.jacobCrops,
     )
 
     suspend fun checkAlerts() {
@@ -428,6 +469,7 @@ class SkyblockRepository(
     companion object {
         const val STATE_FILE = "state.json"
         const val GAMEDATA_FILE = "gamedata.json"
+        const val TRANSLATION_FILE = "translations.json"
         private const val MAX_KEYS = 3000
         private const val MAX_HISTORY = 200
     }

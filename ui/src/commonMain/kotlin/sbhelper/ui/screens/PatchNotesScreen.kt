@@ -54,6 +54,16 @@ class PatchNotesState {
     var selected by mutableStateOf<String?>(null)
     val bodies = mutableStateMapOf<String, List<DocBlock>>()
     val errors = mutableStateMapOf<String, String>()
+    /** 페이지 → [제목, 블록1, 블록2 …] 한국어 번역 */
+    val translated = mutableStateMapOf<String, List<String>>()
+    var showOriginal by mutableStateOf(false)
+}
+
+private fun DocBlock.text(): String = when (this) {
+    is DocBlock.Heading -> text
+    is DocBlock.Paragraph -> text
+    is DocBlock.Bullet -> text
+    is DocBlock.Image -> ""
 }
 
 @Composable
@@ -116,6 +126,15 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
         }
     }
     val blocks = s.bodies[n.page]
+    val translateOn = controller.repo.state.value.device.translatePatchNotes
+    LaunchedEffect(n.page, blocks, translateOn) {
+        if (translateOn && blocks != null && n.page !in s.translated) {
+            val lines = listOf(n.title) + blocks.map { it.text() }
+            runCatching { controller.repo.translatePatch(n.page, lines) }.getOrNull()
+                ?.takeIf { it != lines }?.let { s.translated[n.page] = it }
+        }
+    }
+    val tr = s.translated[n.page]?.takeIf { translateOn && !s.showOriginal }
     LazyColumn(
         Modifier.fillMaxHeight().fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Sb.Surface)
             .border(1.dp, Sb.Border, RoundedCornerShape(14.dp)),
@@ -132,31 +151,44 @@ private fun NoteDetail(controller: AppController, n: PatchNote, wide: Boolean, o
             }
             Text("${n.year}. ${n.date}" + if (n.alpha) " · 알파 서버" else "", style = SbText.caption(if (n.alpha) Sb.Pink else Sb.Green))
             Spacer(Modifier.height(6.dp))
-            Text(n.title, style = SbText.pixel(if (wide) 20 else 16, Sb.Text, bold = true))
+            Text(tr?.getOrNull(0) ?: n.title, style = SbText.pixel(if (wide) 20 else 16, Sb.Text, bold = true))
             Spacer(Modifier.height(12.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (n.link.isNotBlank()) SbButton("공식 포럼 원문", { platform.openUrl(n.link) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true)
                 SbButton("위키에서 보기", { platform.openUrl(WikiApi.pageUrl(n.page)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua)
+                if (translateOn && s.translated[n.page] != null) {
+                    SbButton(if (s.showOriginal) "번역 보기" else "원문 보기", { s.showOriginal = !s.showOriginal }, outlined = true, color = Sb.Pink)
+                }
+            }
+            if (translateOn) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    when {
+                        blocks != null && s.translated[n.page] == null -> "번역 중… (Google 번역, 비공식)"
+                        tr != null -> "Google 번역(비공식)으로 옮긴 글이에요. 정확한 내용은 원문을 확인하세요."
+                        else -> ""
+                    }, style = SbText.body(11, Sb.TextFaint),
+                )
             }
             Spacer(Modifier.height(10.dp))
         }
         when {
             blocks == null && s.errors[n.page] != null -> item { Text("⚠ ${s.errors[n.page]}", style = SbText.body(13, Sb.Negative)) }
             blocks == null -> item { Text("본문을 불러오는 중…", style = SbText.body(13, Sb.TextFaint)) }
-            else -> items(blocks.size) { i -> Block(blocks[i]) }
+            else -> items(blocks.size) { i -> Block(blocks[i], tr?.getOrNull(i + 1)) }
         }
     }
 }
 
 @Composable
-private fun Block(b: DocBlock) {
+private fun Block(b: DocBlock, translated: String? = null) {
     when (b) {
-        is DocBlock.Heading -> Text(b.text, Modifier.padding(top = if (b.level == 1) 12.dp else 6.dp),
+        is DocBlock.Heading -> Text(translated ?: b.text, Modifier.padding(top = if (b.level == 1) 12.dp else 6.dp),
             style = SbText.pixel(if (b.level == 1) 16 else 14, if (b.level == 1) Sb.Gold else Sb.Yellow, bold = true))
-        is DocBlock.Paragraph -> Text(b.text, style = SbText.body(14, Sb.TextDim))
+        is DocBlock.Paragraph -> Text(translated ?: b.text, style = SbText.body(14, Sb.TextDim))
         is DocBlock.Bullet -> Row(Modifier.padding(start = (18 * (b.depth - 1)).dp)) {
             Text(if (b.depth == 1) "•" else "–", style = SbText.body(14, Sb.Gold), modifier = Modifier.width(16.dp))
-            Text(b.text, style = SbText.body(14, Sb.Text))
+            Text(translated ?: b.text, style = SbText.body(14, Sb.Text))
         }
         is DocBlock.Image -> Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
             RemoteImage(b.url, Modifier.widthIn(max = 620.dp).clip(RoundedCornerShape(8.dp)))

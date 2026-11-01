@@ -19,6 +19,8 @@ data class SyncedSettings(
     val priceAlerts: List<PriceAlert> = emptyList(),
     val watchlist: List<String> = emptyList(),
     val craftTargets: List<CraftTarget> = emptyList(),
+    /** 아이언맨 진행 가이드에서 체크한 항목 (기기 간 동기화) */
+    val ironmanChecked: Set<String> = emptySet(),
     val updatedAt: Long = 0,
 )
 
@@ -62,7 +64,13 @@ data class DeviceSettings(
     val startMinimized: Boolean = false,
     /** 이 기기에서 알림을 받을지 */
     val notificationsOnThisDevice: Boolean = true,
-    val pollMinutes: Int = 3,
+    val pollMinutes: Int = 1,
+    /** 기기 간 동기화 주기(분) */
+    val syncMinutes: Int = 2,
+    /** 농사대회 작물 표시 (비공식 출처 EliteBot) */
+    val showContestCrops: Boolean = true,
+    /** 패치노트를 한국어로 번역해서 보기 */
+    val translatePatchNotes: Boolean = true,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

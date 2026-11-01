@@ -42,7 +42,7 @@ object ProgressionPlanner {
         val skillLevel: (String) -> Int? = { key ->
             val def = skills?.skills?.get(key)
             val xp = profile.skillXp?.get(key)
-            if (def != null && xp != null) Leveling.skill(xp, def).level else null
+            if (def != null && xp != null) Leveling.skill(xp, def, profile.skillCap(key, def.maxLevel)).level else null
         }
         val hotmTier = profile.hotmXp?.takeIf { data.leveling.hotm.isNotEmpty() }?.let { Leveling.hotm(it, data.leveling.hotm) }
         val sbLevel = profile.skyblockLevel

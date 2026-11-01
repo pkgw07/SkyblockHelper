@@ -124,13 +124,13 @@ class HypixelApi(
     // ----- 키 필요 -----
     /** 프로필 원본(JSON). 내부 구조는 공식 문서에 자세히 나와 있지 않아 ProfileParser 에서 유연하게 읽는다. */
     suspend fun profiles(uuid: String): List<JsonObject> {
-        val root = SbJson.parseToJsonElement(getText("$BASE/skyblock/profiles?uuid=$uuid", 60_000, needsKey = true)).jsonObject
+        val root = SbJson.parseToJsonElement(getText("$BASE/skyblock/profiles?uuid=$uuid", 25_000, needsKey = true)).jsonObject
         val arr = root["profiles"] as? JsonArray ?: return emptyList()
         return arr.mapNotNull { it as? JsonObject }
     }
 
     suspend fun playerAuctions(uuid: String): List<Auction> =
-        get<PlayerAuctionsResponse>("/skyblock/auction?player=$uuid", 60_000, needsKey = true).auctions
+        get<PlayerAuctionsResponse>("/skyblock/auction?player=$uuid", 25_000, needsKey = true).auctions
 
     suspend fun garden(profileId: String): JsonObject? {
         val root = SbJson.parseToJsonElement(getText("$BASE/skyblock/garden?profile=$profileId", 2 * MINUTE, needsKey = true)).jsonObject

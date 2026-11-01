@@ -15,6 +15,8 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.CloudSync
@@ -94,6 +97,7 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     HOME("홈", "대시보드", Icons.Rounded.Dashboard),
     PLAN("추천", "진행 방향 추천", Icons.Rounded.AccountTree),
     PROFILE("프로필", "프로필", Icons.Rounded.Person),
+    GEAR("테크트리", "장비 · 펫 테크트리", Icons.Rounded.Category),
     TIMERS("타이머", "타이머 & 알림", Icons.Rounded.Timer),
     BAZAAR("바자", "바자", Icons.Rounded.ShowChart),
     AUCTION("경매장", "경매장", Icons.Rounded.Gavel),
@@ -177,6 +181,7 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
                 }
                 Screen.IRONMAN -> IronmanScreen(controller, state, wide)
                 Screen.PLAN -> ProgressionScreen(controller, state, wide)
+                Screen.GEAR -> sbhelper.ui.screens.TechTreeScreen(controller, state, wide)
                 Screen.PATCH -> PatchNotesScreen(controller, state, wide)
                 Screen.MORE -> MoreScreen(controller)
                 Screen.SETTINGS -> SettingsScreen(controller, state, wide)
@@ -195,12 +200,13 @@ private fun SideRail(controller: AppController, state: AppState) {
     ) {
         Logo()
         Spacer(Modifier.height(18.dp))
-        val main = listOf(Screen.HOME, Screen.PLAN, Screen.PROFILE, Screen.TIMERS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
-        main.forEach { s ->
-            val dim = (s == Screen.BAZAAR || s == Screen.AUCTION) && state.selectedProfile?.gameMode?.canTrade == false
-            RailItem(s, controller.screen == s, dim) { controller.go(s) }
+        val main = listOf(Screen.HOME, Screen.PLAN, Screen.GEAR, Screen.PROFILE, Screen.TIMERS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+            main.forEach { s ->
+                val dim = (s == Screen.BAZAAR || s == Screen.AUCTION) && state.selectedProfile?.gameMode?.canTrade == false
+                RailItem(s, controller.screen == s, dim) { controller.go(s) }
+            }
         }
-        Spacer(Modifier.weight(1f))
         if (state.device.sync.enabled) {
             Icon(Icons.Rounded.CloudSync, "기기 연동", tint = if (state.syncingDevices) Sb.Aqua else Sb.TextFaint,
                 modifier = Modifier.size(18.dp))
@@ -222,7 +228,7 @@ private fun Logo() {
 
 @Composable
 private fun RailItem(screen: Screen, selected: Boolean, dim: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().height(52.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.width(3.dp).height(if (selected) 28.dp else 0.dp).clip(RoundedCornerShape(topEnd = 3.dp, bottomEnd = 3.dp)).background(Sb.Gold))
         Column(
             Modifier.weight(1f).padding(horizontal = 8.dp).clip(RoundedCornerShape(12.dp))
@@ -252,7 +258,7 @@ private fun BottomNav(controller: AppController, state: AppState) {
     ) {
         items.forEach { s ->
             val selected = controller.screen == s || (s == Screen.BAZAAR && controller.screen == Screen.AUCTION) ||
-                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
+                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
             Column(
                 Modifier.clip(RoundedCornerShape(12.dp)).clickable { controller.go(s) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

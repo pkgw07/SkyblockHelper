@@ -129,6 +129,7 @@ private fun EventSchedule(controller: AppController, state: AppState, now: Long,
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Text(EventLabels.label(e.name), style = SbText.body(14, weight = FontWeight.Medium))
+                    state.cropsAt(e.start)?.let { CropLine(it) }
                     Text(
                         if (active) "진행 중 · ${formatDuration(e.end - now)} 남음"
                         else "${formatDuration(e.start - now)} 후 · ${localTime(e.start, true)}",
