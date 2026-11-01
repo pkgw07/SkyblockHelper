@@ -17,6 +17,8 @@ interface Platform {
     fun requestNotificationPermission() {}
     /** 백그라운드 설정이 바뀌었을 때 (Android: WorkManager 예약/취소) */
     fun onBackgroundSettingChanged(enabled: Boolean) {}
+    /** 알림 설정이 바뀌었을 때 (휴대폰: 정시 알람 다시 예약/취소) */
+    fun onAlertSettingsChanged() {}
     /** 이 플랫폼용 업데이트 파일 이름 끝 (예: ".exe", ".apk"). null 이면 자동 업데이트 미지원 */
     val updateAssetSuffix: String? get() = null
     /** 내려받은 업데이트 설치를 시작한다. 성공하면 true */

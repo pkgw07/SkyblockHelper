@@ -228,22 +228,49 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
         }
     }
 
-    // 시세
+    // 시세 (작게 한 줄)
     val bz = state.bazaar?.products?.get(id)?.quickStatus
     val npc = state.items[id]?.npcSellPrice
     val bin = state.lowestBin[id]
     if (bz != null || npc != null || bin != null) {
-        Panel(Modifier.fillMaxWidth(), caption = "Price", title = "시세", accent = Sb.Gold) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                bz?.let {
-                    sbhelper.ui.components.StatTile("바자 즉시 구매", formatCoins(it.buyPrice), color = Sb.Gold)
-                    sbhelper.ui.components.StatTile("바자 즉시 판매", formatCoins(it.sellPrice), color = Sb.Gold)
-                }
-                bin?.let { sbhelper.ui.components.StatTile("경매장 최저 BIN", formatCoins(it), color = Sb.Gold) }
-                npc?.let { sbhelper.ui.components.StatTile("NPC 판매가", formatCoins(it), color = Sb.Yellow) }
-            }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("시세", style = SbText.caption(Sb.TextDim), modifier = Modifier.padding(top = 4.dp, end = 4.dp))
+            bz?.takeIf { it.buyPrice > 0 }?.let { PriceChip("바자 구매", it.buyPrice) }
+            bz?.takeIf { it.sellPrice > 0 }?.let { PriceChip("바자 판매", it.sellPrice) }
+            bin?.let { PriceChip("최저 BIN", it) }
+            npc?.let { PriceChip("NPC 판매", it, Sb.Yellow) }
         }
     }
+
+    // 게임 툴팁 모양: 스탯·능력·세트 효과 (위키 → 없으면 공식 API 스탯)
+    val tooltip = rememberItemTooltip(controller, page, name)
+    val apiLines = remember(id, state.items) { apiTooltip(state, id) }
+    val tipLines = tooltip?.lines ?: apiLines
+    val gems = state.items[id]?.gemstoneSlots.orEmpty()
+    if (!tipLines.isNullOrEmpty() || gems.isNotEmpty()) {
+        Panel(Modifier.fillMaxWidth(), caption = "Stats", title = "능력치 · 효과", accent = Sb.Purple) {
+            sbhelper.ui.components.McTooltip(Modifier.widthIn(max = 560.dp)) {
+                sbhelper.ui.components.McText(name, size = 15, default = McColors.rarity(tier))
+                Spacer(Modifier.height(6.dp))
+                tipLines.orEmpty().forEach { line ->
+                    if (line.isBlank()) Spacer(Modifier.height(6.dp)) else sbhelper.ui.components.McText(line, size = 13)
+                }
+                if (gems.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    sbhelper.ui.components.McText("§7Gemstone Slots: " + gems.joinToString(" ") { "§8[§f" + gemName(it.type) + "§8]" }, size = 12)
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(if (tooltip != null) "기본 아이템 기준 (공식 위키). 내 아이템의 별·리포지·인챈트 수치는 인벤토리에서 마우스를 올려 보세요."
+                else "공식 아이템 API 의 기본 스탯이에요.", style = SbText.body(12, Sb.TextFaint))
+        }
+    }
+
+    // 직접 만들면 얼마? (재료 시세: 바자 즉시 구매가 → 없으면 최저 BIN)
+    val price: (String) -> Double? = { k -> state.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: state.lowestBin[k] }
+    val direct = remember(id, state.bazaar, state.lowestBin, d) { sbhelper.core.calc.CraftCost.direct(d, id, price) }
+    val cheapest = remember(id, state.bazaar, state.lowestBin, d) { sbhelper.core.calc.CraftCost.cheapest(d, id, price) }
+    if (direct != null) CraftCostPanel(controller, state, id, direct, cheapest, price(id))
 
     val slot = if (wide) 40.dp else 34.dp
     val grids = d.craftGrids[id].orEmpty()
@@ -430,3 +457,119 @@ private fun PagePanel(controller: AppController, title: String) {
         }
     }
 }
+
+@Composable
+private fun PriceChip(label: String, v: Double, color: androidx.compose.ui.graphics.Color = Sb.Gold) {
+    Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Sb.SurfaceHigh).border(1.dp, Sb.Border, RoundedCornerShape(8.dp))
+        .padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = SbText.body(11, Sb.TextDim))
+        Spacer(Modifier.width(6.dp))
+        Text(formatCoins(v), style = SbText.pixel(12, color, bold = true))
+    }
+}
+
+private fun gemName(t: String) = t.lowercase().replaceFirstChar(Char::uppercase)
+
+/** 위키 게임 툴팁 (받아 둔 것은 다시 받지 않음) */
+@Composable
+private fun rememberItemTooltip(controller: AppController, page: String, name: String): List<String>? {
+    val key = "$page|$name"
+    LaunchedEffect(key) {
+        if (key !in WikiPages.tooltips) {
+            runCatching { controller.repo.wiki.itemTooltip(page, name) }.onSuccess { WikiPages.tooltips[key] = it?.lines.orEmpty() }
+        }
+    }
+    return WikiPages.tooltips[key]?.takeIf { it.isNotEmpty() }
+}
+
+/** 공식 아이템 API 의 기본 스탯을 툴팁 줄로 */
+private fun apiTooltip(state: AppState, id: String): List<String>? {
+    val item = state.items[id] ?: return null
+    if (item.stats.isEmpty()) return null
+    val red = setOf("DAMAGE", "STRENGTH", "CRITICAL_CHANCE", "CRITICAL_DAMAGE", "ATTACK_SPEED", "FEROCITY", "CRIT_CHANCE", "CRIT_DAMAGE")
+    val lines = item.stats.map { (k, v) ->
+        val key = k.uppercase()
+        val label = key.split('_').joinToString(" ") { it.lowercase().replaceFirstChar(Char::uppercase) }
+            .replace("Critical", "Crit").replace("Walk Speed", "Speed").replace("Attack Speed", "Bonus Attack Speed")
+        val num = if (v % 1.0 == 0.0) v.toLong().toString() else v.toString()
+        "§7$label: " + (if (key in red) "§c" else "§a") + (if (v >= 0) "+" else "") + num + if (key.contains("CRIT") || key == "ATTACK_SPEED") "%" else ""
+    }
+    return lines + listOfNotNull(
+        "",
+        if (item.soulbound != null) "§8* 소울바운드 (거래 불가) *" else null,
+        item.tier?.let { "§l" + it.replace('_', ' ') + (item.category?.let { c -> " " + c.replace('_', ' ') } ?: "") },
+    )
+}
+
+/** 직접 제작 비용: 재료 사서 만들기 / 원재료부터 가장 싸게 / 시세와 비교 */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CraftCostPanel(controller: AppController, state: AppState, id: String, direct: sbhelper.core.calc.CraftCost.Result,
+                           cheapest: sbhelper.core.calc.CraftCost.Cheapest?, market: Double?) {
+    fun qty(q: Double) = if (q % 1.0 == 0.0) formatNumberLocal(q.toLong()) else fixed(q, 1)
+    @Composable
+    fun Unpriced(list: List<sbhelper.core.calc.CraftCost.Line>) {
+        if (list.isEmpty()) return
+        Spacer(Modifier.height(4.dp))
+        Text("가격 없음 (합계에서 뺐어요)", style = SbText.caption(Sb.Red))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            list.forEach { l ->
+                val why = when { state.items[l.id]?.soulbound != null -> "소울바운드"; l.id.startsWith("name:") || state.items[l.id] == null -> "거래 불가"; else -> "시세 없음" }
+                ItemLink(controller, state, l.id, "${qty(l.qty)}× · $why")
+            }
+        }
+    }
+    Panel(Modifier.fillMaxWidth(), caption = "Craft cost", title = "직접 만들면", accent = Sb.Green) {
+        // 1) 재료를 사서 한 번 만들기
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (direct.forge) "포지 재료를 사서 만들기" else "재료를 사서 만들기", style = SbText.body(14, Sb.Text, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+            Text(formatCoins(direct.total) + if (direct.count > 1) " (1개당)" else "", style = SbText.pixel(15, Sb.Gold, bold = true))
+        }
+        direct.lines.filter { it.unit != null }.forEach { l ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(6.dp)).clickable { controller.openItem(l.id) }, verticalAlignment = Alignment.CenterVertically) {
+                    ItemIcon(state, l.id, 20.dp); Spacer(Modifier.width(6.dp))
+                    RarityName(state.itemName(l.id), state.itemTier(l.id), size = 13)
+                }
+                Text("${qty(l.qty)} × ${formatCoins(l.unit!!)} = ", style = SbText.body(12, Sb.TextDim))
+                Text(formatCoins(l.total!!), style = SbText.pixel(12, Sb.Gold))
+            }
+        }
+        if (direct.coins > 0) Text("포지 코인 ${formatCoins(direct.coins)}", style = SbText.body(12, Sb.TextDim))
+        if (direct.count > 1) Text("한 번에 ${direct.count}개가 나와요 (위 합계는 1개 기준)", style = SbText.body(12, Sb.TextFaint))
+        Unpriced(direct.unpriced)
+
+        // 2) 원재료부터 가장 싸게
+        if (cheapest != null && (cheapest.total < direct.total - 0.5 || cheapest.unpriced.size != direct.unpriced.size)) {
+            sbhelper.ui.components.Divider(Modifier.padding(vertical = 8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("원재료부터 가장 싸게", style = SbText.body(14, Sb.Text, FontWeight.SemiBold), modifier = Modifier.weight(1f))
+                Text(formatCoins(cheapest.total), style = SbText.pixel(15, Sb.Green, bold = true))
+            }
+            Text("재료마다 사는 것과 만드는 것 중 싼 쪽을 끝까지 따라갔어요. 사야 할 것:", style = SbText.body(12, Sb.TextFaint))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                cheapest.buy.take(24).forEach { l -> ItemLink(controller, state, l.id, "${qty(l.qty)}×") }
+            }
+            if (cheapest.coins > 0) Text("포지 코인 ${formatCoins(cheapest.coins)} 포함", style = SbText.body(12, Sb.TextDim))
+            Unpriced(cheapest.unpriced)
+        }
+
+        // 3) 그냥 사는 것과 비교
+        if (market != null) {
+            sbhelper.ui.components.Divider(Modifier.padding(vertical = 8.dp))
+            val best = minOf(direct.total, cheapest?.total ?: direct.total)
+            val diff = market - best
+            val partial = direct.unpriced.isNotEmpty() || (cheapest?.unpriced?.isNotEmpty() == true)
+            Text(
+                (if (diff > 0) "직접 만들면 약 ${formatCoins(diff)} 아껴요" else "그냥 사는 게 약 ${formatCoins(-diff)} 싸요") +
+                    " (완성품 ${formatCoins(market)})" + if (partial) " — 가격 없는 재료는 빼고 계산했어요" else "",
+                style = SbText.body(14, if (diff > 0) Sb.Green else Sb.Gold, FontWeight.SemiBold),
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        Text("재료 값: 바자 즉시 구매가, 없으면 경매장 최저 BIN (계정 연결 시 30분마다 갱신).", style = SbText.body(11, Sb.TextFaint))
+    }
+}
+
+private fun formatNumberLocal(n: Long) = sbhelper.core.util.formatNumber(n)
+

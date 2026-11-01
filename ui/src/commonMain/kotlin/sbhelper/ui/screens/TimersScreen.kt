@@ -130,7 +130,8 @@ private fun ExtraTimersPanel(controller: AppController, state: AppState, now: Lo
                 Column(Modifier.weight(1f)) {
                     Text(t.title, style = SbText.body(14, weight = FontWeight.Medium))
                     Text(t.detail, style = SbText.body(12, Sb.TextDim))
-                    Text("${formatDuration(t.at - now)} 후 · ${localTime(t.at, true)} · ${t.source}", style = SbText.body(11, Sb.TextFaint))
+                    if (t.done) Text("⚠ ${formatDuration(now - t.at)} 전에 멈췄어요 · ${t.source}", style = SbText.body(11, Sb.Red))
+                    else Text("${formatDuration(t.at - now)} 후 · ${localTime(t.at, true)} · ${t.source}", style = SbText.body(11, Sb.TextFaint))
                 }
                 Icon(
                     if (on) Icons.Rounded.Notifications else Icons.Rounded.NotificationsNone, "알림",

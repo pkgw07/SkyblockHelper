@@ -28,6 +28,7 @@ class SyncWorker(context: Context, params: WorkerParameters) : CoroutineWorker(c
         if (!app.repo.state.value.device.runInBackground) return Result.success()
         val next = runCatching { app.repo.backgroundTick() }.getOrNull()
         next?.let { BackgroundScheduler.scheduleAt(applicationContext, it) }
+        AlertAlarm.reschedule(applicationContext)
         return Result.success()
     }
 }

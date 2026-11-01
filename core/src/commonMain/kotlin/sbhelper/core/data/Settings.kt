@@ -69,6 +69,10 @@ data class DeviceSettings(
     val startMinimized: Boolean = false,
     /** 이 기기에서 알림을 받을지 */
     val notificationsOnThisDevice: Boolean = true,
+    /** 알림이 뜰 때 소리 (PC: 차임 소리, 휴대폰: 소리 있는 알림) */
+    val alertSound: Boolean = true,
+    /** 휴대폰: 앱이 꺼져 있어도 정해진 시각에 정확히 알림 (정확한 알람) */
+    val phoneExactAlerts: Boolean = true,
     val pollMinutes: Int = 1,
     /** 기기 간 동기화 주기(분) */
     val syncMinutes: Int = 2,

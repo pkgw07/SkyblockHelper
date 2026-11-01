@@ -327,6 +327,17 @@ private fun NotificationPanel(controller: AppController, state: AppState) {
         SwitchRow("이 기기에서 알림 받기", state.device.notificationsOnThisDevice,
             { on -> controller.repo.updateDevice { it.copy(notificationsOnThisDevice = on) }; if (on) platform.requestNotificationPermission() },
             "PC 와 휴대폰 중 한쪽에서만 받고 싶을 때 끄세요.")
+        SwitchRow("🔊 알림 소리", state.device.alertSound,
+            { on -> controller.repo.updateDevice { it.copy(alertSound = on) }; platform.onAlertSettingsChanged() },
+            if (platform.isDesktop) "알림이 뜰 때 짧은 소리를 내요. 게임을 전체화면으로 해서 알림 창이 가려질 때도 들려요."
+            else "끄면 알림이 소리 없이 와요.")
+        if (!platform.isDesktop) {
+            SwitchRow("📱 정시 알림", state.device.phoneExactAlerts,
+                { on -> controller.repo.updateDevice { it.copy(phoneExactAlerts = on) }; platform.onAlertSettingsChanged() },
+                "앱을 꺼 두어도 포지 완료·이벤트·타이머 시각에 정확히 알려요. 끄면 15분마다 확인하는 방식이라 늦을 수 있어요.")
+        }
+        Text("PC 에서 전체화면 게임 중 알림 창이 안 보이면: Windows 설정 → 시스템 → 알림 → '자동으로 방해 금지 켜기' 에서 " +
+            "'게임을 할 때'·'전체 화면 모드' 를 끄거나, 우선순위 알림에 SkyblockHelper 를 추가하세요.", style = SbText.body(12, Sb.TextFaint))
         Divider(Modifier.padding(vertical = 6.dp))
         SwitchRow("⚒ 포지 완료", n.forge, { on -> update { it.copy(forge = on) } })
         SwitchRow("💰 내 경매 판매/종료", n.auctions, { on -> update { it.copy(auctions = on) } }, "일반 프로필만 해당")

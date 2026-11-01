@@ -44,7 +44,7 @@ class SbApplication : Application() {
             api = HypixelApi(http) { ref?.state?.value?.synced?.apiKey },
             gistSync = GistSync(http),
             storage = AndroidStorage(filesDir),
-            notifier = AndroidNotifier(this),
+            notifier = AndroidNotifier(this) { ref?.state?.value?.device?.alertSound != false },
             scope = scope,
             loadGameData = { Res.readBytes("files/gamedata.json").decodeToString() },
             appVersion = sbhelper.ui.AppInfo.VERSION,
@@ -58,13 +58,19 @@ class SbApplication : Application() {
     }
 
     private fun createChannel() {
+        val nm = getSystemService(NotificationManager::class.java)
         val channel = NotificationChannel(CHANNEL_ID, getString(R.string.channel_alerts), NotificationManager.IMPORTANCE_HIGH)
             .apply { description = getString(R.string.channel_alerts_desc) }
-        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        // 설정에서 '알림 소리' 를 끄면 이 채널로 (화면에는 똑같이 뜨고 소리·진동만 없음)
+        val silent = NotificationChannel(CHANNEL_SILENT, getString(R.string.channel_alerts) + " (무음)", NotificationManager.IMPORTANCE_HIGH)
+            .apply { description = getString(R.string.channel_alerts_desc); setSound(null, null); enableVibration(false) }
+        nm.createNotificationChannel(channel)
+        nm.createNotificationChannel(silent)
     }
 
     companion object {
         const val CHANNEL_ID = "alerts"
+        const val CHANNEL_SILENT = "alerts_silent"
     }
 }
 
@@ -84,7 +90,7 @@ class AndroidStorage(private val dir: File) : KeyValueStorage {
     }
 }
 
-class AndroidNotifier(private val context: Context) : Notifier {
+class AndroidNotifier(private val context: Context, private val sound: () -> Boolean = { true }) : Notifier {
     override fun show(notification: AppNotification) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -96,7 +102,7 @@ class AndroidNotifier(private val context: Context) : Notifier {
                 .putExtra(MainActivity.EXTRA_TARGET, notification.target),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val n = NotificationCompat.Builder(context, SbApplication.CHANNEL_ID)
+        val n = NotificationCompat.Builder(context, if (sound()) SbApplication.CHANNEL_ID else SbApplication.CHANNEL_SILENT)
             .setSmallIcon(R.drawable.ic_stat_sb)
             .setColor(0xFFFFAA00.toInt())
             .setContentTitle(notification.title)

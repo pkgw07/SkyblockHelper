@@ -58,7 +58,15 @@ data class SkyblockItem(
     val requirements: List<kotlinx.serialization.json.JsonObject> = emptyList(),
     /** 던전 안에서 쓰려면 필요한 조건 */
     @SerialName("catacombs_requirements") val catacombsRequirements: List<kotlinx.serialization.json.JsonObject> = emptyList(),
+    /** 기본 스탯 (공식 아이템 API, 키는 대문자 또는 소문자) */
+    val stats: Map<String, Double> = emptyMap(),
+    @SerialName("gemstone_slots") val gemstoneSlots: List<GemSlot> = emptyList(),
+    /** "SOLO" / "COOP" 이면 거래 불가 */
+    val soulbound: String? = null,
 )
+
+@Serializable
+data class GemSlot(@SerialName("slot_type") val type: String = "")
 
 @Serializable
 data class MuseumData(

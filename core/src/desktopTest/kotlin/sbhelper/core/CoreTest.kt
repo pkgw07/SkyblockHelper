@@ -420,4 +420,65 @@ class CoreTest {
         assertTrue(sbhelper.core.data.SkillGuide.allNames().size > 300)
         assertTrue(sbhelper.core.data.SkillGuide.skills.all { it.tabs.isNotEmpty() })
     }
+
+    @Test
+    fun composterStoppedOnce() {
+        val data = sbhelper.core.data.GameData(timerRules = sbhelper.core.data.GameData.TimerRules(composter = sbhelper.core.data.GameData.Composter()))
+        val now = 1_793_500_000_000L
+        val empty = SbJson.parseToJsonElement(
+            """{"composter_data":{"organic_matter":100,"fuel_units":0,"last_save":${now - 3_600_000},"upgrades":{}}}""").jsonObject
+        val t = sbhelper.core.calc.ExtraTimers.all(now, data, null, empty).first { it.key == "composter" }
+        assertTrue(t.done)
+        val prefs = NotifyPrefs()
+        val inputs = AlertInputs(null, emptyList(), emptyList(), emptyList(), emptyMap(), emptyList(), { it }, extraTimers = listOf(t))
+        val first = AlertEngine.evaluate(inputs, prefs, emptySet(), now).notifications
+        assertEquals(1, first.size)
+        // 같은 멈춤은 다시 알리지 않음
+        assertEquals(0, AlertEngine.evaluate(inputs, prefs, first.map { it.key }.toSet(), now + 60_000).notifications.size)
+    }
+
+    @Test
+    fun wikiTooltipAndCraftCost() {
+        val aote = """{{ItemInfo
+|type = Sword
+|rarity = r
+|damage = 100
+|strength = 100
+|item_ability_name = Instant Transmission
+|item_ability_description = Teleports you {{Green|8}} blocks ahead.
+|item_ability_activation = Right Click
+|item_ability_mana_cost = 50
+}}"""
+        val t = assertNotNull(sbhelper.core.api.WikiItemInfo.parse(aote, null))
+        assertTrue("§7Damage: §c+100" in t.lines, t.lines.toString())
+        assertTrue(t.lines.any { it.startsWith("§6Ability: Instant Transmission") })
+        assertTrue(t.lines.any { it.contains("§a8§7") })
+        assertTrue(t.lines.last().contains("RARE SWORD"))
+        val set = """{{SetInfo
+|{{SetInfoPiece
+ |type = Chestplate
+ |name = Necron's Chestplate
+ |rarity = l
+ |strength = 40
+ |crit_damage = 30
+ }}
+|name = Necron's Armor
+|rarity = l
+|full_set_bonus_name = Witherborn
+|full_set_bonus_description = Spawns a wither.
+}}"""
+        val n = assertNotNull(sbhelper.core.api.WikiItemInfo.parse(set, "Necron's Chestplate"))
+        assertTrue("§7Crit Damage: §c+30%" in n.lines, n.lines.toString())
+        assertTrue(n.lines.any { it == "§6Full Set Bonus: Witherborn" })
+        // 제작 비용: A = 2 B + 1 C(소울바운드, 가격 없음), B = 3 D. B 는 사면 10, D 는 2 → B 를 만드는 게 쌈(6)
+        val data = GameData(crafting = mapOf(
+            "A" to listOf(GameData.CraftRecipe(mapOf("B" to 2.0, "C" to 1.0))),
+            "B" to listOf(GameData.CraftRecipe(mapOf("D" to 3.0))),
+        ))
+        val price = mapOf("B" to 10.0, "D" to 2.0)
+        val d = assertNotNull(sbhelper.core.calc.CraftCost.direct(data, "A") { price[it] })
+        assertEquals(20.0, d.total); assertEquals(listOf("C"), d.unpriced.map { it.id })
+        val c = assertNotNull(sbhelper.core.calc.CraftCost.cheapest(data, "A") { price[it] })
+        assertEquals(12.0, c.total); assertEquals(listOf("D"), c.buy.map { it.id }); assertEquals(listOf("C"), c.unpriced.map { it.id })
+    }
 }

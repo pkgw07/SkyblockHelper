@@ -139,11 +139,28 @@ class WikiApi(private val client: HttpClient = defaultHttpClient()) {
         return out
     }
 
-    /** 위키 문서 본문 (패치노트·아이템·NPC·지역 등) */
-    suspend fun page(page: String): List<DocBlock> {
+    /** 받은 문서 원문 (본문·툴팁이 같이 쓴다, 최근 60개) */
+    private val rawCache = object : LinkedHashMap<String, String>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?) = size > 60
+    }
+
+    /** 위키 문서 원문 (위키 문법 그대로) */
+    suspend fun wikitext(page: String): String {
+        rawCache[page]?.let { return it }
         val root = api("action" to "parse", "page" to page, "prop" to "wikitext", "redirects" to "1")
         val text = root["parse"]?.jsonObject?.get("wikitext")?.jsonObject?.get("*")?.jsonPrimitive?.content
             ?: throw ApiException("위키 페이지를 찾을 수 없어요: $page")
+        rawCache[page] = text
+        return text
+    }
+
+    /** 아이템 문서의 게임 툴팁 (스탯·능력·세트 효과). 없으면 null */
+    suspend fun itemTooltip(page: String, itemName: String?): WikiItemInfo.Tooltip? =
+        WikiItemInfo.parse(wikitext(page), itemName)
+
+    /** 위키 문서 본문 (패치노트·아이템·NPC·지역 등) */
+    suspend fun page(page: String): List<DocBlock> {
+        val text = wikitext(page)
         // 탭으로 나뉜 페이지(Tabview)는 첫 번째 탭들을 이어 붙인다
         val tabs = Regex("""\|-\|([^|\n]+)\|""").findAll(text).map { it.groupValues[1].trim() }.toList()
         if (text.contains("{{Tabview") && tabs.isNotEmpty()) {

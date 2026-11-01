@@ -538,6 +538,12 @@ class SkyblockRepository(
         if (s.device.notificationsOnThisDevice) result.notifications.forEach { runCatching { notifier.show(it) } }
     }
 
+    /** 다음에 알림을 확인해야 할 시각 (포지 완료, 이벤트 시작 전, 타이머 1분 전 중 가장 빠른 것) */
+    fun nextAlertAt(): Long? {
+        val now = Clock.now()
+        return AlertEngine.nextWakeUp(alertInputs(state.value, now), state.value.synced.notify, now)
+    }
+
     /** 설정 화면의 "테스트 알림" */
     fun sendTestNotification() {
         notifier.show(AppNotification("test:${Clock.now()}", "🔔 테스트 알림", "알림이 정상적으로 동작해요!",

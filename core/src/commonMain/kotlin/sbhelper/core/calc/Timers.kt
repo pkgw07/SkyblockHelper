@@ -24,6 +24,8 @@ data class ExtraTimer(
     val detail: String,
     /** 근거 (위키 문서 / 공식 API) */
     val source: String,
+    /** 이미 그 시각이 지났는데 계속 보여 줄 상태 (예: 컴포스터가 이미 멈춤) */
+    val done: Boolean = false,
 )
 
 /**
@@ -60,7 +62,7 @@ object ExtraTimers {
         }
         composter(now, r.composter, garden)?.let { out += it }
         timeTower(now, r.timeTower, profile)?.let { out += it }
-        return out.filter { it.at > now }.sortedBy { it.at }
+        return out.filter { it.at > now || it.done }.sortedBy { if (it.done) Long.MIN_VALUE else it.at }
     }
 
     /** "America/New_York 00:00" → 다음 그 시각 */
@@ -101,10 +103,14 @@ object ExtraTimers {
         val omPer = rule.organicPerCompost * (1 - reduce)
         val fuelPer = rule.fuelPerCompost * (1 - reduce)
         val composts = minOf(organic / omPer, fuel / fuelPer)
-        if (composts < 1) return null
         val secondsEach = rule.secondsPerCompost / (1 + speed * rule.speedPerTier)
-        val at = lastSave + (composts * secondsEach * 1000).toLong()
         val what = if (organic / omPer <= fuel / fuelPer) "유기물(Organic Matter)" else "연료(Machine Fuel)"
+        // 재료가 1개 분량도 없으면 마지막 저장 때 이미 멈춘 것
+        val at = if (composts < 1) lastSave else lastSave + (composts.toLong() * secondsEach * 1000).toLong()
+        if (at <= now) {
+            return ExtraTimer("composter", "컴포스터 멈춤", "🌱", at, "$what 이 떨어져 컴포스터가 멈춰 있어요. 가든에서 재료를 넣어 주세요.",
+                "공식 가든 API + 위키 Composter", done = true)
+        }
         return ExtraTimer("composter", "컴포스터 멈춤", "🌱", at, "$what 이 떨어져 컴포스터가 멈춰요 (약 ${composts.toInt()}개 더 만듦)", "공식 가든 API + 위키 Composter")
     }
 

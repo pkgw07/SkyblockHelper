@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
         override fun onBackgroundSettingChanged(enabled: Boolean) {
             BackgroundScheduler.apply(this@MainActivity, enabled)
         }
+        override fun onAlertSettingsChanged() = AlertAlarm.reschedule(this@MainActivity)
         override val updateAssetSuffix: String = ".apk"
         // 앱 안 업데이트: 받아 두고 → "지금 설치하고 다시 시작할까요?" → 설치
         override val inAppUpdater: sbhelper.ui.InAppUpdater by lazy { AndroidUpdater(this@MainActivity) }
@@ -154,5 +155,7 @@ class MainActivity : ComponentActivity() {
         if (s.device.runInBackground) {
             BackgroundScheduler.scheduleNextFromState(this, s)
         }
+        // 정시 알림: 다음 알림 시각에 깨어나도록
+        AlertAlarm.reschedule(this)
     }
 }

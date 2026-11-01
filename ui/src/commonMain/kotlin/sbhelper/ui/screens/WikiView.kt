@@ -35,6 +35,8 @@ object WikiPages {
     /** 번역을 보여 주는 중인 문서 */
     val showTranslated = mutableStateMapOf<String, Boolean>()
     val translating = mutableStateMapOf<String, Boolean>()
+    /** 아이템 게임 툴팁 줄 ("문서|이름" → 줄들, 빈 목록 = 없음) */
+    val tooltips = mutableStateMapOf<String, List<String>>()
 }
 
 private fun DocBlock.plain(): String = when (this) {

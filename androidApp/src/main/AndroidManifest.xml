@@ -9,6 +9,9 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Android 12+: 자기 자신을 업데이트할 때 확인 화면 없이 설치 -->
     <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+    <!-- 정시 알림: Android 13+ 는 USE_EXACT_ALARM 으로 자동 허용, 12 는 SCHEDULE_EXACT_ALARM -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
 
     <application
         android:name=".SbApplication"
@@ -27,6 +30,13 @@
             </intent-filter>
         </activity>
         <receiver android:name=".UpdateStatusReceiver" android:exported="false" />
+        <receiver android:name=".AlertAlarmReceiver" android:exported="false" />
+        <receiver android:name=".AlertBootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".PackageReplacedReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />

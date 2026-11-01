@@ -96,6 +96,8 @@ object AlertEngine {
         // 2-1) 추가 타이머 (Fetchur, 컴포스터, Time Tower …) — 1분 전부터 5분 뒤까지
         for (t in inputs.extraTimers) {
             if (!prefs.timerEnabled(t.key)) continue
+            // 이미 멈춘 상태(컴포스터 등): 그 멈춘 시각마다 한 번만
+            if (t.done) { emit("timer:${t.key}:done:${t.at / 60_000}", "${t.emoji} ${t.title}", t.detail, AlertCategory.TIMER, "timers"); continue }
             if (now >= t.at - 60_000 && now < t.at + 5 * 60_000) {
                 emit("timer:${t.key}:${t.at / 60_000}", "${t.emoji} ${t.title}", t.detail, AlertCategory.TIMER, "timers")
             }
@@ -155,7 +157,7 @@ object AlertEngine {
         if (prefs.forge) inputs.forge.mapNotNullTo(times) { it.endTime?.takeIf { t -> t > now } }
         val lead = prefs.eventLeadMinutes * 60_000L
         inputs.events.filter { prefs.eventEnabled(it.name) }.mapNotNullTo(times) { (it.start - lead).takeIf { t -> t > now } }
-        inputs.extraTimers.filter { prefs.timerEnabled(it.key) }.mapNotNullTo(times) { (it.at - 60_000).takeIf { t -> t > now } }
+        inputs.extraTimers.filter { prefs.timerEnabled(it.key) && !it.done }.mapNotNullTo(times) { (it.at - 60_000).takeIf { t -> t > now } }
         return times.minOrNull()
     }
 
