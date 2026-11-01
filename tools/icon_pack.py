@@ -150,6 +150,9 @@ def main():
         for pets in gd.get("pets", {}).values():
             for p in pets:
                 entries.setdefault("pet:" + p["name"], (p["name"] + " Pet", None))
+        # 도감 몹 (지역 카드·몹 카드 아이콘)
+        for f in gd.get("bestiary", {}).get("families", []):
+            entries.setdefault("mob:" + f["family"], (f["family"], None))
 
     titles = [t for t, _ in entries.values()]
     # 1) 아이템 이름과 같은 파일 (게임 리소스팩 그림)  2) 없으면 문서 대표 그림

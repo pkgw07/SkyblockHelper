@@ -13,6 +13,11 @@ on:
 permissions:
   contents: write
 
+# 여러 브랜치에 동시에 올려도 data 브랜치에는 하나씩
+concurrency:
+  group: wiki-data
+  cancel-in-progress: false
+
 jobs:
   generate:
     runs-on: ubuntu-latest

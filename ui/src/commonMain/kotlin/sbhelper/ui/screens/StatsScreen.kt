@@ -313,7 +313,7 @@ private fun HotmNode(node: GameData.HotmCell, level: Int?, size: Dp) {
 private fun CategoryCard(title: String, sub: String, progress: Double, done: Boolean, selected: Boolean, accent: Color,
                          icon: @Composable () -> Unit, onClick: () -> Unit) {
     Row(
-        Modifier.width(230.dp).clip(RoundedCornerShape(12.dp))
+        Modifier.width(260.dp).clip(RoundedCornerShape(12.dp))
             .background(if (selected) accent.copy(alpha = 0.15f) else Sb.SurfaceHigh)
             .border(if (selected) 2.dp else 1.dp, if (selected) accent else Sb.Border, RoundedCornerShape(12.dp))
             .clickable(onClick = onClick).padding(10.dp),
@@ -322,7 +322,7 @@ private fun CategoryCard(title: String, sub: String, progress: Double, done: Boo
         icon()
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
-            Text(title, style = SbText.body(14, Sb.Text, FontWeight.SemiBold), maxLines = 1)
+            Text(title, style = SbText.body(14, Sb.Text, FontWeight.SemiBold), maxLines = 2)
             Text(sub, style = SbText.pixel(11, if (done) Sb.Gold else Sb.TextDim))
             Spacer(Modifier.height(4.dp))
             XpBar(progress, Modifier.fillMaxWidth(), if (done) Sb.Gold else accent, 5.dp)
