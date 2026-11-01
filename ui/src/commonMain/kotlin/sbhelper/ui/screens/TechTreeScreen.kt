@@ -337,7 +337,7 @@ private fun LadderSection(controller: AppController, state: AppState, ctx: Guide
                         else if (met[i] == false) Text("🔒", style = SbText.body(12))
                     }
                     FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        steps.forEach { st -> StepBox(controller, state, ctx, st.copy(cond = ""), false, if (wide) 190.dp else 150.dp) }
+                        steps.forEach { st -> StepBox(controller, state, ctx, st.copy(cond = ""), false, if (wide) 190.dp else 124.dp) }
                     }
                 }
             }
