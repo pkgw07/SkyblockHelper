@@ -110,6 +110,7 @@ class MainActivity : ComponentActivity() {
             }
         })
         intent?.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
+        selfTest(intent)
         // 설치 진행·실패 안내를 화면에
         lifecycleScope.launch { SelfUpdate.status.collect { msg -> if (msg != null) app.repo.setUpdateMessage(msg) } }
         // Android 설치 확인 화면은 앱 화면에서 직접 연다 (백그라운드에서 띄우면 '취소'로 끝나는 휴대폰이 있음)
@@ -128,12 +129,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         resumed = true
-        // '알 수 없는 앱 설치'를 허용하고 돌아왔으면 이어서 설치
-        val apk = SelfUpdate.waitingForPermission
-        if (apk != null && (Build.VERSION.SDK_INT < 26 || packageManager.canRequestPackageInstalls())) {
-            SelfUpdate.waitingForPermission = null
-            SelfUpdate.start(this, apk)
-        }
+        // '알 수 없는 앱 설치'를 허용하고 돌아왔으면 이어서 설치 (앱이 다시 켜졌어도)
+        SelfUpdate.resumeIfPermitted(this)
     }
 
     override fun onPause() {
@@ -141,8 +138,33 @@ class MainActivity : ComponentActivity() {
         resumed = false
     }
 
+    /**
+     * CI 에뮬레이터 업데이트 테스트 (테스트 빌드에서만): 테스트 서버의 새 APK 를 받아 두고 실제 설치 흐름을 그대로 탄다.
+     * 배포 APK 는 BuildConfig.SELF_TEST = false 라서 아무 일도 하지 않는다.
+     */
+    private fun selfTest(intent: Intent?) {
+        if (!BuildConfig.SELF_TEST) return
+        val url = intent?.getStringExtra("sbhelper.selftest_update") ?: return
+        if (!url.startsWith("http://127.0.0.1:") && !url.startsWith("http://10.0.2.2:")) return
+        val ver = intent.getStringExtra("sbhelper.selftest_version") ?: "99.0.0"
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val ok = runCatching {
+                val bytes = java.net.URL(url).readBytes()
+                val dir = java.io.File(cacheDir, "updates").apply { mkdirs() }
+                dir.listFiles()?.forEach { it.delete() }
+                java.io.File(dir, "$ver.apk").writeBytes(bytes)
+            }.isSuccess
+            android.util.Log.i("SbhSelfTest", "staged=$ok")
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                app.repo.setUpdateStaged(ver)
+                platform.inAppUpdater.restart()
+            }
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        selfTest(intent)
         intent.getStringExtra(EXTRA_TARGET)?.let { controller.openTarget(it) }
     }
 

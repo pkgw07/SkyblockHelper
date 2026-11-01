@@ -64,11 +64,29 @@ object SelfUpdate {
     /** 화면에 보여 줄 설치 진행·실패 안내 */
     val status = MutableStateFlow<String?>(null)
 
+    /** 진행 단계 기록 (adb logcat -s SbhUpdate 로 확인) */
+    fun log(msg: String) { android.util.Log.i("SbhUpdate", msg) }
+
     /** Android 확인 화면 (앱 화면이 떠 있으면 거기서 연다. 백그라운드에서 띄우면 일부 휴대폰이 '취소'로 처리함) */
     val confirm = MutableStateFlow<Intent?>(null)
 
-    /** "알 수 없는 앱 설치" 허용을 받으러 설정에 다녀오는 중인 APK (돌아오면 이어서 설치) */
-    var waitingForPermission: File? = null
+    /**
+     * "알 수 없는 앱 설치" 허용을 받으러 설정에 다녀오는 중인 APK (돌아오면 이어서 설치).
+     * 설정에 다녀오는 사이 Android 가 앱을 끌 수 있어서 파일에 기억해 둔다.
+     */
+    fun waitingForPermission(context: Context): File? =
+        context.getSharedPreferences(PREFS, 0).getString("waiting_apk", null)?.let(::File)?.takeIf { it.exists() }
+    private fun setWaiting(context: Context, apk: File?) =
+        context.getSharedPreferences(PREFS, 0).edit().apply { if (apk == null) remove("waiting_apk") else putString("waiting_apk", apk.absolutePath) }.commit()
+
+    /** 앱 화면으로 돌아왔을 때: 권한을 받았으면 이어서 설치 */
+    fun resumeIfPermitted(context: Context) {
+        val apk = waitingForPermission(context) ?: return
+        if (Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()) {
+            setWaiting(context, null)
+            start(context, apk)
+        }
+    }
 
     /** 지난번 세션 설치가 취소됐으면 이번엔 Android 기본 설치 화면으로 */
     private fun useIntentInstaller(context: Context) = context.getSharedPreferences(PREFS, 0).getBoolean("intent_installer", false)
@@ -79,9 +97,10 @@ object SelfUpdate {
      * ② 세션 설치(PackageInstaller) ③ 지난번에 취소됐으면 Android 기본 설치 화면(파일 열기)
      */
     fun start(context: Context, apk: File, version: String = apk.name.removeSuffix(".apk")) {
+        log("start apk=${apk.name} exists=${apk.exists()} size=${apk.length()} canInstall=${Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()} intentMode=${useIntentInstaller(context)}")
         if (!apk.exists()) { status.value = "⚠ 받아 둔 파일이 없어요. 업데이트를 다시 받아 주세요."; return }
         if (Build.VERSION.SDK_INT >= 26 && !context.packageManager.canRequestPackageInstalls()) {
-            waitingForPermission = apk
+            setWaiting(context, apk)
             status.value = "설치하려면 이 앱의 '알 수 없는 앱 설치'를 허용해 주세요. 허용하고 돌아오면 바로 설치해요."
             runCatching {
                 context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -171,6 +190,7 @@ class UpdateStatusReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
+        SelfUpdate.log("status=$status msg=$msg resumed=${MainActivity.resumed}")
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 // Android 가 한 번 확인을 묻는 경우 (처음 업데이트, 다른 앱으로 설치했던 경우 등)

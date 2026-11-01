@@ -20,7 +20,8 @@
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
-        android:theme="@style/Theme.SkyblockHelper">
+        android:theme="@style/Theme.SkyblockHelper"
+        android:usesCleartextTraffic="${cleartext}">
 
         <activity
             android:name=".MainActivity"

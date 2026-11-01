@@ -7,6 +7,8 @@ plugins {
 }
 
 val appVersion = findProperty("appVersion") as String
+/** CI 에뮬레이터 업데이트 테스트 전용 빌드 (-PselfTest=true). 배포 APK 에는 꺼져 있다 */
+val selfTest = findProperty("selfTest") == "true"
 
 android {
     namespace = "sbhelper.android"
@@ -20,7 +22,12 @@ android {
         // 1.2.3 -> 10203
         versionCode = appVersion.split(".").mapNotNull { it.toIntOrNull() }
             .let { (it + listOf(0, 0, 0)).take(3) }.let { it[0] * 10000 + it[1] * 100 + it[2] }
+        buildConfigField("boolean", "SELF_TEST", selfTest.toString())
+        // 테스트 빌드만 에뮬레이터 안의 테스트 서버(http://127.0.0.1)에서 받을 수 있게
+        manifestPlaceholders["cleartext"] = selfTest.toString()
     }
+
+    buildFeatures { buildConfig = true }
 
     signingConfigs {
         // CI 는 ANDROID_KEYSTORE_* 환경변수로 서명 키를 넘긴다 (.github/workflows/build.yml). 없으면 디버그 키.

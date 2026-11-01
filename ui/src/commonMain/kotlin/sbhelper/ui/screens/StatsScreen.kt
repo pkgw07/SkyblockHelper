@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -880,6 +881,6 @@ private fun Modifier.scrollHereWhen(active: Boolean, key: String): Modifier {
             requester.bringIntoView()
         }
     }
-    return this.then(androidx.compose.foundation.relocation.bringIntoViewRequester(requester))
+    return this.bringIntoViewRequester(requester)
 }
 
