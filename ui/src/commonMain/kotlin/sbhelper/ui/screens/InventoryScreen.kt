@@ -51,14 +51,14 @@ private val TABS = listOf("인벤토리·장비", "엔더 상자", "백팩", "�
 /** 인벤토리 뷰어: 게임처럼 칸에 아이템을 놓고, 마우스를 올리면 툴팁을 보여 준다 */
 @Composable
 fun InventoryScreen(controller: AppController, state: AppState, wide: Boolean) {
-    var tab by remember { mutableStateOf(0) }
+    val tab = controller.inventoryTab
     val p = state.selectedProfile
     ScreenColumn(wide) {
         if (p == null) {
             Panel { EmptyState("계정을 연결해 주세요", "인벤토리를 보려면 계정 연결과 API 키가 필요해요.", icon = Icons.Rounded.Inventory2) }
             return@ScreenColumn
         }
-        Segmented(TABS, tab, { tab = it })
+        Segmented(TABS, tab, { controller.inventoryTab = it })
         if (p.inventories.isEmpty()) {
             Panel { EmptyState("인벤토리 API 가 꺼져 있어요", "게임에서 /profile → API Settings 에서 Inventory 를 켜 주세요.", icon = Icons.Rounded.Inventory2) }
             return@ScreenColumn

@@ -65,14 +65,14 @@ private val STAT_TABS = listOf("순자산", "HotM 트리", "도감", "컬렉션"
 /** 기록: 순자산 · HotM 트리 · 도감(Bestiary) · 컬렉션 · 미니언 */
 @Composable
 fun StatsScreen(controller: AppController, state: AppState, wide: Boolean) {
-    var tab by remember { mutableStateOf(0) }
+    val tab = controller.statsTab
     val p = state.selectedProfile
     ScreenColumn(wide) {
         if (p == null) {
             Panel { EmptyState("계정을 연결해 주세요", "기록을 보려면 계정 연결과 API 키가 필요해요.", icon = Icons.Rounded.Insights) }
             return@ScreenColumn
         }
-        Segmented(STAT_TABS, tab, { tab = it })
+        Segmented(STAT_TABS, tab, { controller.statsTab = it })
         when (tab) {
             0 -> NetworthTab(controller, state, p, wide)
             1 -> HotmTab(state, p, wide)

@@ -117,6 +117,8 @@ val LocalController = androidx.compose.runtime.staticCompositionLocalOf<AppContr
 class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     var screen by mutableStateOf(Screen.HOME)
     var toast by mutableStateOf<String?>(null)
+    var inventoryTab by mutableStateOf(0)
+    var statsTab by mutableStateOf(0)
     val auctionSearch = AuctionSearchState(repo.api, scope)
     val patchNotes = PatchNotesState()
 
