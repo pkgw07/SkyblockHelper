@@ -80,6 +80,9 @@ data class AppState(
     /** 이 대회의 작물 (시작 시각이 1분 안으로 맞는 것) */
     fun cropsAt(start: Long): List<String>? =
         jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - start) < 60_000 }?.value
+
+    /** 농사대회 이벤트에만 작물을 붙인다 */
+    fun cropsFor(e: EventOccurrence): List<String>? = if (e.name.contains("Jacob")) cropsAt(e.start) else null
     val synced get() = stored.synced
     val device get() = stored.device
     val accountLinked get() = synced.playerUuid.isNotBlank()

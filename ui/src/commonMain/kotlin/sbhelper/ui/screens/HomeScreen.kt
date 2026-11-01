@@ -212,7 +212,7 @@ private fun EventsPanel(state: AppState, now: Long, modifier: Modifier, onMore: 
     Panel(modifier, caption = "Calendar", title = "다가오는 이벤트", accent = Sb.Aqua,
         trailing = { Text("전체 보기", style = SbText.body(12, Sb.Aqua), modifier = Modifier.clickable(onClick = onMore)) }) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            events.forEach { EventLine(it, now, state.cropsAt(it.start)) }
+            events.forEach { EventLine(it, now, state.cropsFor(it)) }
         }
     }
 }

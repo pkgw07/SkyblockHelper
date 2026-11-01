@@ -81,7 +81,8 @@ object AlertEngine {
             if (!prefs.eventEnabled(e.name)) continue
             if (now >= e.start - lead && now < maxOf(e.end, e.start + 60_000)) {
                 val left = e.start - now
-                val crops = inputs.jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - e.start) < 60_000 }?.value
+                val crops = if (!e.name.contains("Jacob")) null
+                    else inputs.jacobCrops.entries.firstOrNull { kotlin.math.abs(it.key - e.start) < 60_000 }?.value
                 val cropText = crops?.let { " 작물: " + it.joinToString(", ") { c -> EventLabels.crop(c) } }.orEmpty()
                 val body = (if (left > 0) "${formatDuration(left)} 후 시작해요." else "지금 진행 중이에요!") + cropText
                 emit("event:${e.key}", "${EventLabels.emoji(e.name)} ${EventLabels.label(e.name)}", body, AlertCategory.EVENT)
