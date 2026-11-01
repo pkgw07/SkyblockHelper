@@ -162,6 +162,8 @@ class WikiApi(private val client: HttpClient = defaultHttpClient()) {
 /** 위키 문법 → 읽을 수 있는 글자 */
 object WikiText {
     private val ref = Regex("""<ref[^>]*>.*?</ref>|<ref[^>]*/>""", RegexOption.DOT_MATCHES_ALL)
+    /** 위키 숨김 주석 <!-- … --> (여러 줄, 안 닫힌 것은 끝까지) */
+    private val comment = Regex("""<!--.*?(-->|$)""", RegexOption.DOT_MATCHES_ALL)
     private val file = Regex("""\[\[File:([^|\]]+)[^\]]*]]""")
     private val link = Regex("""\[\[(?:[^\]|]*\|)?([^\]]*)]]""")
     private val extLink = Regex("""\[(https?://\S+)\s+([^\]]+)]""")
@@ -179,7 +181,7 @@ object WikiText {
     /** {{stat|fuel|3,000}} → "3,000 Fuel", {{Stat|ms}} → "Mining Speed" */
     private val statTemplate = Regex("""\{\{stat\|([^{}|]+)(?:\|([^{}|]*))?(?:\|[^{}]*)?}}""", RegexOption.IGNORE_CASE)
     /** 앱에서 따로 보여 주거나 의미 없는 틀 (제작 트리, 조합법 표 등) */
-    private val dropTemplate = Regex("""\{\{(DRL|RL|Crafting Usage|Recipe Tree|Forging Tree)(\|[^{}]*)?}}""", RegexOption.IGNORE_CASE)
+    private val dropTemplate = Regex("""\{\{(DRL|RL|Crafting Usage|Recipe Tree|Forging Tree|Redirect|About|For|Distinguish|Otheruses|Other uses|Main|See also|Further|Hatnote|Disambig|Stub|Outdated|Cleanup)(\|[^{}]*)?}}""", RegexOption.IGNORE_CASE)
     private val STAT_NAMES = mapOf(
         "ms" to "Mining Speed", "mnf" to "Mining Fortune", "mf" to "Magic Find", "cc" to "Crit Chance", "cd" to "Crit Damage",
         "str" to "Strength", "def" to "Defense", "hp" to "Health", "int" to "Intelligence", "spd" to "Speed", "fer" to "Ferocity",
@@ -193,7 +195,7 @@ object WikiText {
 
     /** 한 줄 정리 + 링크 위치 */
     fun inlineLinks(src: String): Pair<String, List<WikiLink>> {
-        var t = ref.replace(src, "")
+        var t = ref.replace(comment.replace(src, ""), "")
         t = file.replace(t, "")
         t = dropTemplate.replace(t, "")
         t = statTemplate.replace(t) { m ->
@@ -288,7 +290,7 @@ object WikiText {
             }
         }
         var skipDepth = 0
-        for (raw in ref.replace(src, "").lines()) {
+        for (raw in ref.replace(comment.replace(src, ""), "").lines()) {
             val line = raw.trim()
             // 여러 줄짜리 틀({{Infobox … }}, {{History table … }} 등)은 건너뛴다
             if (skipDepth > 0) {

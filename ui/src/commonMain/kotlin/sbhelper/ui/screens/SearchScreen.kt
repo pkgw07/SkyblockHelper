@@ -78,8 +78,6 @@ private class UsageIndex(data: GameData) {
     val nextUpgrades: Map<String, List<String>> = data.upgrades.entries.groupBy({ it.value }, { it.key })
 }
 
-/** 앱이 칸·목록으로 따로 그리는 위키 절 (본문에서 뺌) */
-private val DRAWN_SUBSECTIONS = setOf("Crafting", "Crafting Recipe", "Recipe", "Recipes", "Forging", "Forging Tree", "Forge", "Upgrading")
 
 /** 위키 검색: 모든 아이템(공식 API 목록) + NPC·지역·이벤트 등 위키 문서 */
 @Composable
@@ -333,11 +331,11 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
         d.accessories.firstOrNull { it.id == id }?.let { a ->
             if (a.source.isNotBlank()) { any = true; Label("장신구 · ${a.category}"); Text(a.source, style = SbText.body(13, Sb.TextDim)) }
         }
-        // 위키 본문의 얻는 법 (조합법·제작 트리처럼 위에서 그린 절은 뺀다)
+        // 위키 본문의 얻는 법 (조합법 표 틀은 위에서 칸으로 그렸고, 본문에서는 빠짐 — 제목만 남은 절은 자동으로 숨김)
         val wikiObtain = blocks != null && hasSections(blocks, OBTAINING_SECTIONS)
         if (wikiObtain) {
             Spacer(Modifier.height(6.dp))
-            WikiBlocks(controller, blocks!!, sections = OBTAINING_SECTIONS, max = 60, skipSubsections = DRAWN_SUBSECTIONS, page = page)
+            WikiBlocks(controller, blocks!!, sections = OBTAINING_SECTIONS, max = 60, page = page)
         }
         if (!any && !wikiObtain) Text("위키에 얻는 법 정보가 없어요.", style = SbText.body(13, Sb.TextFaint))
     }
@@ -385,7 +383,7 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
             }
             if (wikiUsage) {
                 Spacer(Modifier.height(6.dp))
-                WikiBlocks(controller, blocks!!, sections = USAGE_SECTIONS, max = 60, skipSubsections = DRAWN_SUBSECTIONS, page = page)
+                WikiBlocks(controller, blocks!!, sections = USAGE_SECTIONS, max = 60, page = page)
             }
         }
     }

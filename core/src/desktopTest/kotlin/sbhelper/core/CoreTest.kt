@@ -399,6 +399,8 @@ class CoreTest {
         // 문장 중간에서 시작하는 여러 줄 틀의 안쪽(|A1 = …)은 본문에 섞이지 않는다
         val blocks = sbhelper.core.api.WikiText.blocks("Made here {{Crafting Recipe Table\n|A1 = Diamond, 32\n|Output = X\n}}\nAfter.")
         assertEquals(listOf("Made here", "After."), blocks.map { (it as sbhelper.core.api.DocBlock.Paragraph).text })
+        val b2 = sbhelper.core.api.WikiText.blocks("{{Redirect|Term|the devices|Terminal}}\nReal text.\n<!--* hidden\n* also hidden-->\n* Shown")
+        assertEquals(listOf("Real text.", "Shown"), b2.map { when (it) { is sbhelper.core.api.DocBlock.Paragraph -> it.text; is sbhelper.core.api.DocBlock.Bullet -> it.text; else -> "?" } })
         val st = AppState()
         assertEquals("Diamond 컬렉션 IV 단계", sbhelper.core.calc.Requirements.recipe(st, "[[Diamond#IV|Diamond IV (4)]]")?.text)
         assertEquals("Zombie Slayer 5레벨", sbhelper.core.calc.Requirements.recipe(st, "[[Zombie Slayer#V|Zombie Slayer V (5)]]")?.text)
