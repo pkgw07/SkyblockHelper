@@ -86,6 +86,8 @@ data class DeviceSettings(
     val fontWeight: Int = 1,
     /** 가운데 화면 최대 너비: 0 = 기본(1280), 1 = 넓게(1600), 2 = 아주 넓게(2000), 3 = 창 끝까지 */
     val contentWidth: Int = 0,
+    /** PC: 위키를 전용 창(Edge 앱 모드)으로 열기 — 끄면 기본 브라우저 */
+    val wikiWindow: Boolean = true,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

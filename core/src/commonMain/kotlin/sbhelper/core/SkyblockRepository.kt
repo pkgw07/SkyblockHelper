@@ -50,6 +50,16 @@ import sbhelper.core.util.Clock
 import sbhelper.core.util.prettifyId
 
 /** 화면이 보는 앱 전체 상태 */
+/** 다른 플레이어 보기에서 받은 그 사람의 정보 */
+data class ViewedPlayer(
+    val name: String,
+    val uuid: String,
+    val profiles: List<ProfileSummary>,
+    val selectedId: String?,
+    val garden: kotlinx.serialization.json.JsonObject?,
+    val museum: sbhelper.core.calc.MuseumState?,
+)
+
 data class AppState(
     val stored: StoredState = StoredState(),
     val gameData: GameData = GameData.EMPTY,
@@ -101,6 +111,12 @@ data class AppState(
     val synced get() = stored.synced
     val device get() = stored.device
     val accountLinked get() = synced.playerUuid.isNotBlank()
+
+    /** 다른 플레이어 보기: 프로필 데이터만 그 사람 것으로 바꾼 상태 (내 설정·알림·시세는 그대로) */
+    fun viewAs(v: ViewedPlayer): AppState = copy(
+        profiles = v.profiles, garden = v.garden, museum = v.museum, myAuctions = emptyList(),
+        stored = stored.copy(synced = synced.copy(username = v.name, playerUuid = v.uuid, selectedProfileId = v.selectedId.orEmpty())),
+    )
 
     val selectedProfile: ProfileSummary?
         get() = profiles.firstOrNull { it.profileId == synced.selectedProfileId }
@@ -383,6 +399,21 @@ class SkyblockRepository(
         } catch (e: ApiException) {
             _state.update { it.copy(loadingProfile = false, profileError = e.message) }
         }
+    }
+
+    /**
+     * 다른 플레이어 보기 (SkyCrypt 처럼): 닉네임 → 프로필·가든·박물관. 내 설정·알림은 바꾸지 않는다.
+     * @param profileId 그 사람의 프로필 중 볼 것 (null 이면 그 사람이 지금 쓰는 프로필)
+     */
+    suspend fun lookupPlayer(name: String, profileId: String? = null): ViewedPlayer {
+        if (state.value.synced.apiKey.isBlank()) throw ApiException("다른 플레이어를 보려면 설정에서 Hypixel API 키를 넣어 주세요.")
+        val m = api.uuidFor(name)
+        val profiles = api.profiles(m.id).mapNotNull { ProfileParser.parse(it, m.id) }.sortedByDescending { it.selected }
+        if (profiles.isEmpty()) throw ApiException("'${m.name}' 님은 SkyBlock 프로필이 없거나 API 에 공개하지 않았어요.")
+        val sel = profiles.firstOrNull { it.profileId == profileId } ?: profiles.firstOrNull { it.selected } ?: profiles.first()
+        val garden = runCatching { api.garden(sel.profileId) }.getOrNull()
+        val museum = runCatching { sbhelper.core.calc.MuseumCalc.parse(api.museum(sel.profileId), m.id) }.getOrNull()
+        return ViewedPlayer(m.name, m.id, profiles, sel.profileId, garden, museum)
     }
 
     /** 화면 미리보기·스크린샷 전용: 예시 프로필을 넣는다 */

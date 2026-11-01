@@ -125,6 +125,12 @@ fun main(args: Array<String>) {
     controller.go(Screen.SEARCH); controller.openItem("HYPERION"); shot("35-search-hyperion", Screen.SEARCH, 1320, 2000)
     controller.openItem("ENCHANTED_DIAMOND"); shot("36-search-enchanted-diamond", Screen.SEARCH, 1320, 2400)
     controller.openItem("TERMINATOR"); shot("37-mobile-search-terminator", Screen.SEARCH, 412, 2400)
+    // 다른 플레이어 보기 (예시 데이터)
+    controller.viewing = sbhelper.core.ViewedPlayer("OtherPlayer", "1".repeat(32), listOf(iron, main.copy(selected = false)), iron.profileId, null, null)
+    shot("52-view-other-player", Screen.PROFILE)
+    shot("53-mobile-view-other-player", Screen.STATS, 412, 900)
+    controller.viewing = null
+    shot("54-profile-lookup-row", Screen.PROFILE)
     repo.updateDevice { it.copy(contentWidth = 2) }
     controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
     repo.updateDevice { it.copy(contentWidth = 0) }

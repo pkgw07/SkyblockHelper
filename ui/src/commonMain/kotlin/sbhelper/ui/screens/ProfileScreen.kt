@@ -164,7 +164,7 @@ private fun ProfileHeader(controller: AppController, state: AppState, p: Profile
                         style = SbText.body(13, if (active) Color(0xFF15100A) else Sb.TextDim, FontWeight.SemiBold),
                         modifier = Modifier.clip(RoundedCornerShape(50))
                             .background(if (active) Sb.Gold else Sb.SurfaceHigh)
-                            .clickable { controller.repo.selectProfile(other.profileId) }
+                            .clickable { controller.pickProfile(other.profileId) }
                             .padding(horizontal = 12.dp, vertical = 5.dp),
                     )
                 }

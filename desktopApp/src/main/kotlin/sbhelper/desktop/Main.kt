@@ -86,6 +86,9 @@ fun main(args: Array<String>) {
     repo.startLoops()
     val controller = AppController(repo, scope)
     val platform = DesktopPlatform()
+    platform.wikiWindowEnabled = { repo.state.value.device.wikiWindow }
+    // 위키 창의 '앱에서 보기' → 앱 검색 화면으로
+    WikiWindow.onOpenInApp = { title -> javax.swing.SwingUtilities.invokeLater { controller.openWikiLink(title); bringToFront() } }
     platform.onQuitForUpdate = { repo.stopLoops(); kotlin.system.exitProcess(0) }
 
     // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)

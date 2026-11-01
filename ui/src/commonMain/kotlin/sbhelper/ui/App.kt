@@ -144,6 +144,23 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     /** 테크트리: 고른 스킬 탭, 넓은 화면에서 정보창에 띄운 아이템 */
     var gearTab by mutableStateOf(0)
     var gearSelected by mutableStateOf<String?>(null)
+    /** 다른 플레이어 보기 (null = 내 프로필) */
+    var viewing by mutableStateOf<sbhelper.core.ViewedPlayer?>(null)
+    var viewingBusy by mutableStateOf(false)
+    var viewingError by mutableStateOf<String?>(null)
+    fun viewPlayer(name: String, profileId: String? = null) {
+        if (name.isBlank() || viewingBusy) return
+        viewingBusy = true; viewingError = null
+        scope.launch {
+            runCatching { repo.lookupPlayer(name.trim(), profileId) }
+                .onSuccess { viewing = it }
+                .onFailure { viewingError = it.message ?: "불러오지 못했어요" }
+            viewingBusy = false
+        }
+    }
+    fun stopViewing() { viewing = null; viewingError = null }
+    /** 프로필 바꾸기: 다른 플레이어를 보는 중이면 그 사람의 프로필, 아니면 내 프로필 */
+    fun pickProfile(id: String) { val v = viewing; if (v != null) viewPlayer(v.name, id) else repo.selectProfile(id) }
     /** 테크트리: 스킬별로 고른 갈래 탭 (낚시 일반 물/용암, 전투 무기/방어구 …) */
     val gearSubTabs = androidx.compose.runtime.mutableStateMapOf<String, Int>()
     /** 화면·탭별 스크롤 위치 (다른 화면에 갔다 와도 유지) */
@@ -288,9 +305,9 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
         Crossfade(controller.screen, animationSpec = tween(180)) { screen ->
             when (screen) {
                 Screen.HOME -> HomeScreen(controller, state, wide)
-                Screen.PROFILE -> ProfileScreen(controller, state, wide)
-                Screen.INVENTORY -> sbhelper.ui.screens.InventoryScreen(controller, state, wide)
-                Screen.STATS -> sbhelper.ui.screens.StatsScreen(controller, state, wide)
+                Screen.PROFILE -> sbhelper.ui.screens.PlayerViewFrame(controller, state, wide) { s -> ProfileScreen(controller, s, wide) }
+                Screen.INVENTORY -> sbhelper.ui.screens.PlayerViewFrame(controller, state, wide) { s -> sbhelper.ui.screens.InventoryScreen(controller, s, wide) }
+                Screen.STATS -> sbhelper.ui.screens.PlayerViewFrame(controller, state, wide) { s -> sbhelper.ui.screens.StatsScreen(controller, s, wide) }
                 Screen.SEARCH -> sbhelper.ui.screens.SearchScreen(controller, state, wide)
                 Screen.EVENTS -> sbhelper.ui.screens.EventsScreen(controller, state, wide)
                 Screen.TIMERS -> TimersScreen(controller, state, wide)
@@ -307,7 +324,7 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
                 }
                 Screen.IRONMAN -> IronmanScreen(controller, state, wide)
                 Screen.PLAN -> ProgressionScreen(controller, state, wide)
-                Screen.GEAR -> sbhelper.ui.screens.TechTreeScreen(controller, state, wide)
+                Screen.GEAR -> sbhelper.ui.screens.PlayerViewFrame(controller, state, wide) { s -> sbhelper.ui.screens.TechTreeScreen(controller, s, wide) }
                 Screen.PATCH -> PatchNotesScreen(controller, state, wide)
                 Screen.MORE -> MoreScreen(controller)
                 Screen.SETTINGS -> SettingsScreen(controller, state, wide)

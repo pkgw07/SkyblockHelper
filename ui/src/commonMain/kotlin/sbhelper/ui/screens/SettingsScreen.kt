@@ -278,6 +278,11 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
         })
         Spacer(Modifier.height(4.dp))
         Text("큰 모니터에서 양옆 빈 공간을 줄이고 내용을 더 넓게 보여 줘요. 휴대폰에서는 차이가 없어요.", style = SbText.body(12, Sb.TextFaint))
+        if (LocalPlatform.current.isDesktop) {
+            Spacer(Modifier.height(8.dp))
+            SwitchRow("📖 위키를 전용 창으로 열기", d.wikiWindow, { on -> controller.repo.updateDevice { it.copy(wikiWindow = on) } },
+                "Windows 의 Edge 로 탭·주소창 없는 위키 창 하나를 띄워 계속 다시 써요. 창의 '앱에서 보기' 를 누르면 앱 검색 화면으로. 끄면 기본 브라우저로 열어요.")
+        }
         Spacer(Modifier.height(12.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
         Spacer(Modifier.height(6.dp))

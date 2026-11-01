@@ -23,6 +23,8 @@ import java.net.URI
 
 class DesktopPlatform : Platform {
     override val isDesktop = true
+    /** 설정의 '위키를 전용 창으로 열기' */
+    var wikiWindowEnabled: () -> Boolean = { false }
     override val versionName = AppInfo.VERSION
 
     /**
@@ -34,6 +36,15 @@ class DesktopPlatform : Platform {
             val win = System.getProperty("os.name").lowercase().contains("win")
             // 웹 주소만 (파일 경로 등이 셸로 실행되지 않게)
             if (!url.startsWith("https://") && !url.startsWith("http://")) return@Thread
+            // 위키는 전용 창 (Edge 앱 모드) — 안 되면 아래 기본 브라우저
+            if (url.startsWith(sbhelper.core.api.WikiApi.BASE) && wikiWindowEnabled()) {
+                if (WikiWindow.bounds == null) runCatching {
+                    val screen = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment().maximumWindowBounds
+                    val w = maxOf(900, (screen.width * 0.45).toInt()).coerceAtMost(screen.width)
+                    WikiWindow.bounds = intArrayOf(screen.x + screen.width - w, screen.y, w, screen.height)
+                }
+                if (runCatching { WikiWindow.open(url) }.getOrDefault(false)) return@Thread
+            }
             val ok = win && runCatching { ProcessBuilder("rundll32", "url.dll,FileProtocolHandler", url).start() }.isSuccess
             if (!ok) runCatching { Desktop.getDesktop().browse(URI(url)) }
         }, "open-url").apply { isDaemon = true }.start()

@@ -245,7 +245,7 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
     // 게임 툴팁 모양: 스탯·능력·세트 효과 (위키 → 없으면 공식 API 스탯)
     val tooltip = rememberItemTooltip(controller, page, name)
     val apiLines = remember(id, state.items) { apiTooltip(state, id) }
-    val tipLines = tooltip?.lines ?: apiLines
+    val tipLines = tooltip ?: apiLines
     val gems = state.items[id]?.gemstoneSlots.orEmpty()
     if (!tipLines.isNullOrEmpty() || gems.isNotEmpty()) {
         Panel(Modifier.fillMaxWidth(), caption = "Stats", title = "능력치 · 효과", accent = Sb.Purple) {
