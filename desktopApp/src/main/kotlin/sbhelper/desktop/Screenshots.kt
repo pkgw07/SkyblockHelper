@@ -119,6 +119,9 @@ fun main(args: Array<String>) {
     shot("32-gear-floating-info", Screen.GEAR)
     controller.gearSelected = null
     shot("33-mobile-settings", Screen.SETTINGS, 412, 900)
+    controller.go(Screen.SEARCH); controller.openItem("HYPERION"); shot("35-search-hyperion", Screen.SEARCH, 1320, 2000)
+    controller.openItem("ENCHANTED_DIAMOND"); shot("36-search-enchanted-diamond", Screen.SEARCH, 1320, 2400)
+    controller.openItem("TERMINATOR"); shot("37-mobile-search-terminator", Screen.SEARCH, 412, 2400)
     repo.updateDevice { it.copy(contentWidth = 2) }
     controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
     repo.updateDevice { it.copy(contentWidth = 0) }
