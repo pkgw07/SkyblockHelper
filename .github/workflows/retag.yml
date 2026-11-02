@@ -1,0 +1,32 @@
+name: Move tags
+
+# 기록을 정리한 뒤 릴리스 태그를 새 커밋으로 옮긴다 (릴리스·설치 파일은 그대로)
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "태그=커밋 목록 (공백으로 구분, 예: v1.0.0=abc123 v1.1.0=def456)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  move:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Move tags
+        shell: bash
+        run: |
+          set -e
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          for pair in ${{ inputs.tags }}; do
+            t=${pair%%=*}; c=${pair##*=}
+            git cat-file -e "$c^{commit}"
+            git tag -f "$t" "$c"
+            git push -f origin "refs/tags/$t"
+            echo "::notice title=$t::$(git rev-parse --short "$c")"
+          done
