@@ -113,7 +113,19 @@ fun GameOverlay(repo: SkyblockRepository) {
                 delay(1000)
             }
         }
-        val bg = Color(0xFF0F1117).copy(alpha = d.overlayOpacity.coerceIn(20, 100) / 100f)
+        OverlayCard(app, view, more, d.overlayOpacity)
+    }
+}
+
+/**
+ * 오버레이 내용. 앱 본창과 따로 뜨는 창이라 글꼴·글자 크기 설정을 여기서 직접 넣는다
+ * (없으면 글자를 그리는 순간 "fonts not provided" 로 앱이 꺼짐).
+ */
+@Composable
+fun OverlayCard(app: sbhelper.core.AppState, view: Triple<sbhelper.core.data.CraftTarget, List<sbhelper.core.calc.RawNeed>, Double>?,
+                more: Int, opacity: Int) {
+    sbhelper.ui.theme.SkyblockTheme(textScale = 1f, textWeight = app.device.fontWeight) {
+        val bg = Color(0xFF0F1117).copy(alpha = opacity.coerceIn(20, 100) / 100f)
         Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)).background(bg)
             .border(1.dp, Sb.Gold.copy(alpha = 0.35f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 9.dp)) {
             Column {
@@ -149,5 +161,6 @@ fun GameOverlay(repo: SkyblockRepository) {
                 }
             }
         }
+
     }
 }

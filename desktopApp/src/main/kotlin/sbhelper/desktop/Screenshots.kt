@@ -190,6 +190,17 @@ fun main(args: Array<String>) {
         GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: Connecting to mc.hypixel.net, 25565") == false &&
         GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] hello") == null
     println("OVERLAY_LOG_SCAN=" + if (scanOk) "ok" else "fail")
+    // 오버레이 내용은 앱 본창 밖(따로 뜨는 창)에서 그려지므로, 앱 테마 없이 그대로 그려 본다
+    runCatching {
+        val app = repo.state.value
+        val t = sbhelper.core.data.CraftTarget("MITHRIL_DRILL_1", 1)
+        val raw = sbhelper.core.calc.CraftPlanner(app.gameData).rawProgress(t.itemId, 1, emptyMap()).filter { it.missing > 0 }
+        val scene = ImageComposeScene(270, 190, Density(1f)) { OverlayCard(app, Triple(t, raw, 0.35), (raw.size - 5).coerceAtLeast(0), 80) }
+        var tt = 0L
+        repeat(6) { scene.render(tt); tt += 400_000_000L; Thread.sleep(200) }
+        File(out, "64-overlay.png").writeBytes(scene.render(tt).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }.onSuccess { println("OVERLAY_CARD=ok") }.onFailure { println("OVERLAY_CARD=fail ${it::class.simpleName}: ${it.message}") }
     repo.updateDevice { it.copy(contentWidth = 2) }
     controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
     repo.updateDevice { it.copy(contentWidth = 0) }
