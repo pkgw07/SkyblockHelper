@@ -95,7 +95,7 @@ class ProfileProbe {
             File(dir, "profile-$i${if (selected) "-selected" else ""}.txt").writeText(lines.joinToString("\n"))
             // HotM·HotF·일일 보너스 관련 항목 이름 (값 없음)
             if (selected) {
-                val rx = Regex("daily|_day|reset|last_|commission|skill_tree|mining_core|foraging_core|whisper", RegexOption.IGNORE_CASE)
+                val rx = Regex("attribute|shard|hunting|galatea", RegexOption.IGNORE_CASE)
                 lines.filter { rx.containsMatchIn(it) && !it.contains("collection") }.take(80).chunked(20).forEachIndexed { n, ch ->
                     report.appendLine("  일일·트리 항목(#$i-$n): " + ch.joinToString(" | "))
                 }
