@@ -1084,7 +1084,9 @@ def attributes():
     def text(t):
         t = html.unescape(re.sub(r"\[\[Category:[^\]]*\]\]", "", t or ""))
         t = re.sub(r"<span aria-hidden=true>.*?</span>", "", t)
-        return clean(re.sub(r"<[^>]+>", "", t)).replace("\u2013", "-")
+        # 위키 아이콘 글꼴용 문자(사용자 정의 영역 U+E000~U+F8FF)는 지운다 (앱 글꼴에서 숫자 등으로 보임)
+        t = re.sub("[\ue000-\uf8ff]", "", t)
+        return re.sub(r"\s+", " ", clean(re.sub(r"<[^>]+>", "", t)).replace("\u2013", "-")).strip()
 
     out = []
     for r in rows:
