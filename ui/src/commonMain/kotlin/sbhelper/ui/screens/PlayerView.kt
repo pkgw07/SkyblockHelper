@@ -59,7 +59,7 @@ private fun LookupRow(controller: AppController) {
     var name by remember { mutableStateOf("") }
     Row(verticalAlignment = Alignment.CenterVertically) {
         SbTextField(name, { name = it.filter { c -> c.isLetterOrDigit() || c == '_' }.take(16) }, Modifier.weight(1f),
-            "다른 플레이어 닉네임", Icons.Rounded.PersonSearch)
+            "다른 플레이어 닉네임", Icons.Rounded.PersonSearch, onSubmit = { if (!controller.viewingBusy) controller.viewPlayer(name) })
         Spacer(Modifier.width(8.dp))
         SbButton(if (controller.viewingBusy) "찾는 중…" else "보기", { controller.viewPlayer(name) }, outlined = true, color = Sb.Aqua)
     }

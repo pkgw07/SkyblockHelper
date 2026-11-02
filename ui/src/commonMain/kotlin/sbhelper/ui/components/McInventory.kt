@@ -269,9 +269,7 @@ fun McSlot(state: AppState, item: SbItem?, size: Dp, onHover: (Boolean) -> Unit 
         contentAlignment = Alignment.Center,
     ) {
         if (item != null) {
-            PixelIcon(WikiIcons.url(WikiIcons.nameFor(state, item)), WikiIcons.nameFor(state, item), item.tier, size - 8.dp,
-                item.skinUrl ?: IconResolver.skinUrl(item.skyblockId?.let { state.items[it]?.skin?.value }),
-                item.pet?.let { "pet:" + WikiIcons.nameFor(state, item).removeSuffix(" Pet") } ?: item.skyblockId)
+            SbItemIcon(state, item, size - 8.dp)
             if (item.count > 1) {
                 Text("${item.count}", Modifier.align(Alignment.BottomEnd).padding(end = 2.dp),
                     style = TextStyle(fontFamily = sbhelper.ui.theme.LocalFonts.current.pixel, fontSize = 12.sp,
@@ -279,6 +277,15 @@ fun McSlot(state: AppState, item: SbItem?, size: Dp, onHover: (Boolean) -> Unit 
             }
         }
     }
+}
+
+/** 프로필·경매 매물의 아이템 그림 (머리 스킨·펫 포함) */
+@Composable
+fun SbItemIcon(state: AppState, item: SbItem, size: Dp) {
+    val name = WikiIcons.nameFor(state, item)
+    PixelIcon(WikiIcons.url(name), name, item.tier, size,
+        item.skinUrl ?: IconResolver.skinUrl(item.skyblockId?.let { state.items[it]?.skin?.value }),
+        item.pet?.let { "pet:" + name.removeSuffix(" Pet") } ?: item.skyblockId)
 }
 
 /**

@@ -389,15 +389,17 @@ private fun TodayPanel(controller: AppController, state: AppState, now: Long, wi
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        sbhelper.ui.components.SbTextField(newItem, { newItem = it.take(40) }, Modifier.weight(1f), "매일 할 일 추가 (예: 가든 방문자)")
-                        Spacer(Modifier.width(8.dp))
-                        SbButton("추가", {
+                        val add = {
                             val n = newItem.trim()
                             if (n.isNotEmpty()) controller.repo.updateSynced { s ->
                                 s.copy(dailyCustom = (s.dailyCustom.filterNot { it == n } + n).take(12))
                             }
                             newItem = ""
-                        })
+                        }
+                        sbhelper.ui.components.SbTextField(newItem, { newItem = it.take(40) }, Modifier.weight(1f), "매일 할 일 추가 (예: 가든 방문자)",
+                            onSubmit = add)
+                        Spacer(Modifier.width(8.dp))
+                        SbButton("추가", add)
                     }
                     Text("직접 추가한 항목은 매일 자정(이 기기 시각)에 다시 빈 칸이 돼요.", style = SbText.body(11, Sb.TextFaint),
                         modifier = Modifier.padding(top = 4.dp))

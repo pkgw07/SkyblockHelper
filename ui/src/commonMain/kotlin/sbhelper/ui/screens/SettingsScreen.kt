@@ -63,19 +63,22 @@ fun SettingsScreen(controller: AppController, state: AppState, wide: Boolean) {
     ScreenColumn(wide) {
         Responsive(
             wide,
+            // 왼쪽: 계정·화면·업데이트·정보 / 오른쪽: 실행·오버레이·알림 (양쪽 길이를 비슷하게)
             cell(1f) { m ->
                 Column(m, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     AccountPanel(controller, state)
                     SyncPanel(controller, state)
+                    DisplayPanel(controller, state)
+                    UpdatePanel(controller, state)
+                    AboutPanel(state)
+                    RemoveAppPanel(controller)
                 }
             },
             cell(1f) { m ->
                 Column(m, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     BackgroundPanel(controller, state)
+                    OverlayPanel(controller, state)
                     NotificationPanel(controller, state)
-                    ChangelogPanel()
-                    AboutPanel(state)
-                    RemoveAppPanel(controller)
                 }
             },
         )
@@ -253,7 +256,24 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
             SwitchRow("시작할 때 트레이로 숨기기", d.startMinimized, { on -> controller.repo.updateDevice { it.copy(startMinimized = on) } },
                 enabled = d.runInBackground)
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
+        Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
+        Spacer(Modifier.height(6.dp))
+        val options = listOf(1, 2, 5, 10)
+        Segmented(options.map { "${it}분" }, options.indexOf(d.pollMinutes).coerceAtLeast(0), { i ->
+            controller.repo.updateDevice { it.copy(pollMinutes = options[i]) }
+        })
+        Spacer(Modifier.height(6.dp))
+        Text("포지·이벤트 알림은 정해진 시각에 바로 울리고, 이 주기는 새 포지/경매/스탯을 가져오는 간격이에요. " +
+            "Hypixel 서버가 프로필을 저장해야 값이 바뀌어서, 게임과 1~3분 정도 차이가 날 수 있어요.", style = SbText.body(12, Sb.TextFaint))
+        if (state.lastProfileSync > 0) Text("마지막 프로필 갱신 ${localTime(state.lastProfileSync, true)}", style = SbText.body(12, Sb.TextDim))
+    }
+}
+
+@Composable
+private fun DisplayPanel(controller: AppController, state: AppState) {
+    val d = state.device
+    Panel(Modifier.fillMaxWidth(), caption = "Display", title = "화면", accent = Sb.Purple) {
         // 글자 크기: 슬라이더 (놓았을 때 저장 — 끌고 있는 동안은 미리보기만)
         var scale by remember { mutableStateOf(d.textScale) }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -285,37 +305,7 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
             Spacer(Modifier.height(8.dp))
             SwitchRow("📖 위키를 전용 창으로 열기", d.wikiWindow, { on -> controller.repo.updateDevice { it.copy(wikiWindow = on) } },
                 "Windows 의 Edge 로 탭·주소창 없는 위키 창 하나를 띄워 계속 다시 써요. 창의 '앱에서 보기' 를 누르면 앱 검색 화면으로. 끄면 기본 브라우저로 열어요.")
-            Spacer(Modifier.height(8.dp))
-            SwitchRow("🎮 게임 오버레이 (제작 플래너)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
-                "Hypixel SkyBlock 에 들어가면 마인크래프트 화면 구석에 제작 플래너 진행도가 떠요. 마우스는 그대로 게임에 전달돼요. " +
-                    "Ctrl+Shift+O 로 잠깐 숨기기/보이기. 게임에는 아무것도 넣지 않고, 마인크래프트가 켜져 있을 때만 게임 기록 파일(latest.log)을 2초마다 새 줄만 읽어요.")
-            if (d.overlayEnabled) {
-                Spacer(Modifier.height(6.dp))
-                Text("오버레이 위치", style = SbText.caption(Sb.TextDim))
-                Spacer(Modifier.height(6.dp))
-                Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
-                    controller.repo.updateDevice { it.copy(overlayCorner = i) }
-                })
-                Spacer(Modifier.height(8.dp))
-                Text("오버레이 배경 진하기", style = SbText.caption(Sb.TextDim))
-                Spacer(Modifier.height(6.dp))
-                val ops = listOf(40, 60, 80, 95)
-                Segmented(ops.map { "$it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
-                    controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
-                })
-            }
         }
-        Spacer(Modifier.height(12.dp))
-        Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))
-        Spacer(Modifier.height(6.dp))
-        val options = listOf(1, 2, 5, 10)
-        Segmented(options.map { "${it}분" }, options.indexOf(d.pollMinutes).coerceAtLeast(0), { i ->
-            controller.repo.updateDevice { it.copy(pollMinutes = options[i]) }
-        })
-        Spacer(Modifier.height(6.dp))
-        Text("포지·이벤트 알림은 정해진 시각에 바로 울리고, 이 주기는 새 포지/경매/스탯을 가져오는 간격이에요. " +
-            "Hypixel 서버가 프로필을 저장해야 값이 바뀌어서, 게임과 1~3분 정도 차이가 날 수 있어요.", style = SbText.body(12, Sb.TextFaint))
-        if (state.lastProfileSync > 0) Text("마지막 프로필 갱신 ${localTime(state.lastProfileSync, true)}", style = SbText.body(12, Sb.TextDim))
         Divider(Modifier.padding(vertical = 10.dp))
         SwitchRow("🌱 농사대회 작물 표시", d.showContestCrops, { on ->
             controller.repo.updateDevice { it.copy(showContestCrops = on) }
@@ -323,9 +313,44 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
         }, "비공식 출처(EliteBot, 농사 커뮤니티)예요. 공식 API·위키에는 작물 정보가 없어요.")
         SwitchRow("🌐 패치노트 한국어 번역", d.translatePatchNotes, { on -> controller.repo.updateDevice { it.copy(translatePatchNotes = on) } },
             "비공식 Google 번역을 써요. 번역이 안 되면 원문을 보여 줘요.")
-        Divider(Modifier.padding(vertical = 10.dp))
+    }
+}
+
+/** 게임 오버레이 (PC 전용) */
+@Composable
+private fun OverlayPanel(controller: AppController, state: AppState) {
+    if (!LocalPlatform.current.isDesktop) return
+    val d = state.device
+    Panel(Modifier.fillMaxWidth(), caption = "Overlay · PC", title = "게임 오버레이", accent = Sb.Green) {
+        SwitchRow("게임 오버레이 켜기", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
+            "Hypixel SkyBlock 에 들어가면 마인크래프트 화면 구석에 제작 플래너 진행도가 떠요. 마우스는 그대로 게임에 전달돼요. " +
+                "Ctrl+Shift+O 로 잠깐 숨기기/보이기. 게임에는 아무것도 넣지 않고, 마인크래프트가 켜져 있을 때만 게임 기록 파일(latest.log)을 2초마다 새 줄만 읽어요.")
+        if (d.overlayEnabled) {
+            Spacer(Modifier.height(6.dp))
+            Text("오버레이 위치", style = SbText.caption(Sb.TextDim))
+            Spacer(Modifier.height(6.dp))
+            Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
+                controller.repo.updateDevice { it.copy(overlayCorner = i) }
+            })
+            Spacer(Modifier.height(8.dp))
+            Text("오버레이 배경 진하기", style = SbText.caption(Sb.TextDim))
+            Spacer(Modifier.height(6.dp))
+            val ops = listOf(40, 60, 80, 95)
+            Segmented(ops.map { "$it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
+                controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
+            })
+        }
+    }
+}
+
+/** 업데이트: 자동 확인 · 지금 확인 · 업데이트 내역 (이번 버전만, 더 보기로 이전 버전) */
+@Composable
+private fun UpdatePanel(controller: AppController, state: AppState) {
+    val platform = LocalPlatform.current
+    val d = state.device
+    Panel(Modifier.fillMaxWidth(), caption = "Update · Changelog", title = "업데이트", accent = Sb.Gold) {
         SwitchRow("새 버전 자동 확인", d.autoUpdate, { on -> controller.repo.updateDevice { it.copy(autoUpdate = on) } },
-            "새 버전이 나오면 알려 드리고, \"업데이트할까요?\" 에 동의하셔야 받아요. 받은 뒤에는 다시 시작할지 한 번 더 물어요.")
+            "새 버전이 나오면 알려 드려요.")
         val scope = rememberCoroutineScope()
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("현재 버전 ${platform.versionName}", style = SbText.body(13, Sb.TextDim), modifier = Modifier.weight(1f))
@@ -336,6 +361,7 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
                 }
             }, outlined = true)
         }
+        ChangelogList(platform.versionName)
     }
 }
 
@@ -530,24 +556,26 @@ private fun RemoveAppPanel(controller: AppController) {
 
 /** 앱 업데이트 내역 (짧게) */
 @Composable
-private fun ChangelogPanel() {
+private fun ChangelogList(current: String) {
     val entries = sbhelper.ui.rememberChangelog()
     if (entries.isEmpty()) return
     var all by remember { mutableStateOf(false) }
-    Panel(Modifier.fillMaxWidth(), caption = "Changelog", title = "업데이트 내역", accent = Sb.Gold) {
-        (if (all) entries else entries.take(3)).forEach { e ->
-            Text("v${e.version}", style = SbText.pixel(13, Sb.Gold, bold = true), modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
-            e.items.forEach { line ->
-                Row(Modifier.padding(vertical = 1.dp)) {
-                    Text("•", style = SbText.body(13, Sb.TextDim)); Spacer(Modifier.width(8.dp))
-                    Text(line, style = SbText.body(13, Sb.Text))
-                }
+    // 기본은 이번 버전 내역만 (없으면 가장 최근 것)
+    val head = entries.firstOrNull { it.version == current } ?: entries.first()
+    Divider(Modifier.padding(vertical = 10.dp))
+    Text("업데이트 내역", style = SbText.body(15, Sb.Gold, FontWeight.Bold))
+    (if (all) entries else listOf(head)).forEach { e ->
+        Text("v${e.version}", style = SbText.pixel(13, Sb.TextDim, bold = true), modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+        e.items.forEach { line ->
+            Row(Modifier.padding(vertical = 1.dp)) {
+                Text("•", style = SbText.body(14, Sb.Gold)); Spacer(Modifier.width(8.dp))
+                Text(line, style = SbText.body(14, Sb.Text))
             }
         }
-        if (entries.size > 3) {
-            Spacer(Modifier.height(8.dp))
-            SbButton(if (all) "접기" else "이전 버전 더 보기", { all = !all }, outlined = true)
-        }
+    }
+    if (entries.size > 1) {
+        Spacer(Modifier.height(8.dp))
+        SbButton(if (all) "접기" else "이전 버전 더 보기", { all = !all }, outlined = true)
     }
 }
 

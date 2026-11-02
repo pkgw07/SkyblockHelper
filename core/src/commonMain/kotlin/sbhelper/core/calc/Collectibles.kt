@@ -98,16 +98,21 @@ class PriceBook(val bazaar: Map<String, BazaarProduct>, val lowestBin: Map<Strin
     fun costOf(id: String): Double? = bazaar[id]?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: lowestBin[id]
 
     companion object {
+        /** 경매 매물의 아이템 (item_bytes) */
+        fun parsedItem(a: Auction): sbhelper.core.nbt.SbItem? {
+            val raw = when (val b = a.itemBytes) {
+                is JsonPrimitive -> b.content
+                is JsonObject -> (b["data"] as? JsonPrimitive)?.content
+                else -> null
+            } ?: return null
+            return runCatching { ItemParser.parse(raw).firstOrNull() }.getOrNull()
+        }
+
         /** 경매장 BIN 매물에서 아이템 ID 별 최저가 (펫은 PET_종류) */
         fun lowestBins(auctions: List<Auction>): Map<String, Double> {
             val out = HashMap<String, Double>()
             auctions.asSequence().filter { it.bin && it.bids.isEmpty() }.forEach { a ->
-                val raw = when (val b = a.itemBytes) {
-                    is JsonPrimitive -> b.content
-                    is JsonObject -> (b["data"] as? JsonPrimitive)?.content
-                    else -> null
-                } ?: return@forEach
-                val item = ItemParser.parse(raw).firstOrNull() ?: return@forEach
+                val item = parsedItem(a) ?: return@forEach
                 val id = item.pet?.let { "PET_${it.type}" } ?: item.skyblockId ?: return@forEach
                 if (a.startingBid < (out[id] ?: Double.MAX_VALUE)) out[id] = a.startingBid
             }

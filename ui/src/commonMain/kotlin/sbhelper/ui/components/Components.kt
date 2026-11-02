@@ -1,6 +1,9 @@
 package sbhelper.ui.components
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
@@ -294,6 +297,8 @@ fun SbTextField(
     value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier,
     placeholder: String = "", leading: ImageVector? = null, secret: Boolean = false,
     numeric: Boolean = false, singleLine: Boolean = true, trailing: @Composable (() -> Unit)? = null,
+    /** 엔터(휴대폰 키보드의 검색/완료 키)를 누르면 실행 */
+    onSubmit: (() -> Unit)? = null,
 ) {
     BasicTextField(
         value = value,
@@ -302,8 +307,18 @@ fun SbTextField(
         textStyle = SbText.body(14),
         cursorBrush = SolidColor(Sb.Gold),
         visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default,
-        modifier = modifier,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Text,
+            imeAction = if (onSubmit != null) androidx.compose.ui.text.input.ImeAction.Search else androidx.compose.ui.text.input.ImeAction.Default,
+        ),
+        keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSubmit?.invoke() }),
+        modifier = if (onSubmit == null) modifier else modifier.onPreviewKeyEvent { e ->
+            // PC: 엔터 키
+            if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown &&
+                (e.key == androidx.compose.ui.input.key.Key.Enter || e.key == androidx.compose.ui.input.key.Key.NumPadEnter)) {
+                onSubmit(); true
+            } else false
+        },
         decorationBox = { inner ->
             Row(
                 Modifier.clip(RoundedCornerShape(10.dp)).background(Sb.Window)

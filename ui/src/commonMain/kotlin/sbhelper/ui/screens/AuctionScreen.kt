@@ -63,7 +63,9 @@ import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
 /** 같은 이름의 BIN 매물 묶음 */
-data class BinGroup(val name: String, val tier: String, val cheapest: Auction, val second: Double?, val count: Int)
+data class BinGroup(val name: String, val tier: String, val cheapest: Auction, val second: Double?, val count: Int,
+                    /** 그림용 아이템 (최저가 매물의 item_bytes) */
+                    val item: sbhelper.core.nbt.SbItem? = null)
 
 /** 경매장 검색 상태 (화면을 나갔다 와도 유지) */
 class AuctionSearchState(private val api: HypixelApi, private val scope: CoroutineScope) {
@@ -93,6 +95,7 @@ class AuctionSearchState(private val api: HypixelApi, private val scope: Corouti
                     }
                     .sortedBy { it.cheapest.startingBid }
                     .take(200)
+                    .map { it.copy(item = sbhelper.core.calc.PriceBook.parsedItem(it.cheapest)) }
                     .toList()
                 selected = results.firstOrNull()
                 searchedAt = Clock.now()
@@ -116,7 +119,8 @@ fun AuctionScreen(controller: AppController, state: AppState, wide: Boolean) {
                 Text("이 프로필은 경매장을 쓸 수 없어요. 시세 참고용으로만 보여 드려요.", style = SbText.body(13, Sb.Gray))
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                SbTextField(s.query, { s.query = it }, Modifier.weight(1f), "아이템 이름 (예: Hyperion, Juju)", Icons.Rounded.Search)
+                SbTextField(s.query, { s.query = it }, Modifier.weight(1f), "아이템 이름 (예: Hyperion, Juju)", Icons.Rounded.Search,
+                    onSubmit = { if (!s.loading) s.search() })
                 Spacer(Modifier.width(10.dp))
                 SbButton(if (s.loading) "검색 중…" else "최저 BIN 검색", { s.search() }, enabled = !s.loading)
             }
@@ -142,7 +146,7 @@ fun AuctionScreen(controller: AppController, state: AppState, wide: Boolean) {
                         items(s.results, key = { it.cheapest.uuid }) { g ->
                             TableRow(onClick = { s.selected = g }, selected = s.selected == g) {
                                 Row(Modifier.weight(2.4f), verticalAlignment = Alignment.CenterVertically) {
-                                    ItemGlyph(g.name, g.tier, 26.dp)
+                                    g.item?.let { sbhelper.ui.components.SbItemIcon(state, it, 26.dp) } ?: ItemGlyph(g.name, g.tier, 26.dp)
                                     Spacer(Modifier.width(10.dp))
                                     RarityName(g.name, g.tier, size = 13)
                                 }
@@ -190,6 +194,9 @@ private fun MyAuctions(state: AppState, now: Long) {
     Panel(Modifier.fillMaxWidth(), caption = "My Auctions", title = "내 경매", accent = Sb.Green) {
         state.myAuctions.sortedBy { it.end }.take(8).forEach { a ->
             Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                val item = remember(a.uuid) { sbhelper.core.calc.PriceBook.parsedItem(a) }
+                item?.let { sbhelper.ui.components.SbItemIcon(state, it, 24.dp) } ?: ItemGlyph(a.itemName.stripColor(), a.tier, 24.dp)
+                Spacer(Modifier.width(10.dp))
                 RarityName(a.itemName.stripColor(), a.tier, Modifier.weight(1f), size = 13)
                 val (label, color) = when {
                     a.bin && a.bids.isNotEmpty() -> "판매됨" to Sb.Green
