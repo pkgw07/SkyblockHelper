@@ -61,14 +61,18 @@ class DesktopPlatform : Platform {
      *   삭제 화면에서 취소하면 데이터는 그대로 둔다.
      * - 압축판: 데이터만 정리하고, 앱 폴더를 열어 직접 지우도록 안내한다.
      */
-    override fun uninstall(removeData: Boolean): String? {
+    override fun uninstall(removeData: Boolean): String? = uninstall(removeData, silent = false)
+
+    /** @param silent CI 확인용: 삭제 프로그램을 확인 창 없이 실행 */
+    fun uninstall(removeData: Boolean, silent: Boolean): String? {
         val exe = System.getProperty("jpackage.app-path")?.let(::File) ?: return "개발 실행에서는 지울 수 없어요."
         val appDir = exe.parentFile
         val uninstaller = File(appDir, "unins000.exe")
         runCatching { Autostart.set(false) }
         if (removeData) cleanupScript(exe, AppDirs.dataDir(), installed = uninstaller.isFile)
         return if (uninstaller.isFile) {
-            runCatching { ProcessBuilder(uninstaller.absolutePath).start() }
+            val cmd = if (silent) listOf(uninstaller.absolutePath, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") else listOf(uninstaller.absolutePath)
+            runCatching { ProcessBuilder(cmd).start() }
                 .onFailure { return "삭제 프로그램을 실행하지 못했어요. Windows 설정 → 앱에서 SkyblockHelper 를 지워 주세요." }
             Thread({ Thread.sleep(600); onQuitForUpdate(); kotlin.system.exitProcess(0) }, "quit-for-uninstall").start()
             null

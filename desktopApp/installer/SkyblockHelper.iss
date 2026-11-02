@@ -109,3 +109,22 @@ begin
   end;
   Result := 'SkyblockHelper 가 아직 실행 중이에요. 프로그램을 끈 뒤 다시 설치해 주세요.';
 end;
+
+{ 앱의 '삭제' 버튼으로 시작하면 앱이 곧 꺼진다. 완전히 꺼질 때까지 기다린 뒤 지운다 (안 꺼지면 종료시킴) }
+function InitializeUninstall(): Boolean;
+var
+  I, Code: Integer;
+begin
+  Result := True;
+  for I := 1 to 30 do
+  begin
+    if not AppInUse() then Exit;
+    Sleep(500);
+  end;
+  Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM {#MyAppExe}', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  for I := 1 to 20 do
+  begin
+    if not AppInUse() then Exit;
+    Sleep(500);
+  end;
+end;

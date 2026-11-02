@@ -238,7 +238,16 @@ jobs:
           stage 99.0.1 1 native; r3s=$(cat selftest.txt); r3=$(smoke t3.txt)
           echo "::notice title=Update test 3 (네이티브 파일 교체)::$r3s → 실행: $r3"
           rm -rf "$PATCH"
-          echo "$r1" | grep -q "patch=99.0.0" && echo "$r2" | grep -q "^$V patch=none" && echo "$r3" | grep -q "patch=99.0.1"
+          # ---- 테스트 4: 앱의 '삭제' 기능 (설정·기록까지) → 설치 폴더·데이터 폴더·제거 목록이 없어지는지
+          mkdir -p "$DATA"; echo '{"device":{"onboardingDone":true}}' > "$DATA/state.json"
+          "$INSTU/SkyblockHelper.exe" --uninstall-test & 
+          gone=0; for i in $(seq 1 40); do sleep 3; if [ ! -e "$INSTU/SkyblockHelper.exe" ] && [ ! -d "$DATA" ]; then gone=1; break; fi; done
+          leftApp=$([ -e "$INSTU/SkyblockHelper.exe" ] && echo "남음" || echo "지워짐")
+          leftDir=$([ -d "$INSTU" ] && echo "폴더 남음($(ls "$INSTU" 2>/dev/null | head -5 | tr '\n' ' '))" || echo "폴더 없음")
+          leftData=$([ -d "$DATA" ] && echo "남음" || echo "지워짐")
+          reg=$(reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall" /s /f SkyblockHelper 2>/dev/null | grep -ci "DisplayName")
+          echo "::notice title=Uninstall test (앱의 삭제 버튼)::실행 파일 $leftApp, $leftDir, 설정·기록 $leftData, 제거 목록 항목 ${reg}개, $((i*3))초"
+          echo "$r1" | grep -q "patch=99.0.0" && echo "$r2" | grep -q "^$V patch=none" && echo "$r3" | grep -q "patch=99.0.1" && [ "$gone" = 1 ]
       - name: Report build errors as annotations
         if: failure()
         shell: bash

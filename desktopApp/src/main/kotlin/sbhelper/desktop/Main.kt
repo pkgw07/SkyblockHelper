@@ -92,6 +92,13 @@ fun main(args: Array<String>) {
     // 위키 창의 '앱에서 보기' → 앱 검색 화면으로
     WikiWindow.onOpenInApp = { title -> javax.swing.SwingUtilities.invokeLater { controller.openWikiLink(title); bringToFront() } }
     platform.onQuitForUpdate = { repo.stopLoops(); kotlin.system.exitProcess(0) }
+    // CI 확인용: 앱의 '삭제' 기능을 설정·기록 삭제까지 확인 창 없이 실행
+    if ("--uninstall-test" in args) {
+        val msg = platform.uninstall(removeData = true, silent = true)
+        System.err.println("uninstall-test: ${msg ?: "started"}")
+        Thread.sleep(10_000)
+        kotlin.system.exitProcess(0)
+    }
     // 게임 오버레이: 마인크래프트 창 전환 신호 받기 (Windows)
     GameWatch.start(scope)
 
