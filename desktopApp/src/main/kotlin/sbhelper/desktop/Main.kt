@@ -101,11 +101,6 @@ fun main(args: Array<String>) {
     }
     // 게임 오버레이: 마인크래프트 창 전환 신호 받기 (Windows)
     GameWatch.autoBorderless = { repo.state.value.device.let { it.overlayEnabled && it.overlayAutoBorderless } }
-    GameWatch.apiInSkyblock = {
-        val s = repo.state.value.synced
-        if (s.apiKey.isBlank() || s.playerUuid.isBlank()) null
-        else api.onlineGame(s.playerUuid).let { g -> if (g.isEmpty()) null else g.equals("SKYBLOCK", ignoreCase = true) }
-    }
     GameWatch.start(scope)
 
     // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)

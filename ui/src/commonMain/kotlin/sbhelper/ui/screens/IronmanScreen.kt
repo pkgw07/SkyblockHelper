@@ -478,7 +478,7 @@ private fun OverlayControls(controller: AppController, state: AppState) {
     val d = state.device
     Spacer(Modifier.height(6.dp))
     SwitchRow("게임 오버레이 (PC)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
-        "Hypixel SkyBlock 에서 게임 화면 구석에 이 목표의 진행도를 보여 줘요. 게임 중 Ctrl+Shift+O 로 숨기기/보이기.")
+        "마인크래프트 화면 구석에 이 목표의 진행도를 보여 줘요. 게임 중 Ctrl+Shift+O 로 켜고 끄기.")
     if (!d.overlayEnabled) return
     val status by overlay.status.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically) {
