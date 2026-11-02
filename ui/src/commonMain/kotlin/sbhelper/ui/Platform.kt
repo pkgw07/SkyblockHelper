@@ -47,6 +47,8 @@ interface GameOverlayControl {
     val status: kotlinx.coroutines.flow.StateFlow<String>
     /** 게임이 없어도 몇 초 동안 화면 구석에 띄워 본다 */
     fun preview()
+    /** 오버레이를 끌어서 원하는 곳에 두기 (저장하면 '직접 지정' 위치가 됨) */
+    fun place()
 }
 
 val LocalPlatform = staticCompositionLocalOf<Platform> { error("Platform not provided") }

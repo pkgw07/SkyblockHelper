@@ -175,6 +175,11 @@ fun main(args: Array<String>) {
     controller.calcTab = 1; shot("56-minion-calc", Screen.CALC, 1320, 2300)
     shot("57-mobile-minion-calc", Screen.CALC, 412, 3200)
     controller.calcTab = 0; shot("63-calc-planner", Screen.CALC, 1320, 1800)
+    // Recipe tree 에서 재료 끄기
+    repo.updateSynced { it.copy(craftCurrent = sbhelper.core.data.CraftTarget("MITHRIL_DRILL_1", 1),
+        craftExcluded = mapOf("MITHRIL_DRILL_1" to setOf("FUEL_TANK"))) }
+    shot("65-planner-excluded", Screen.CALC, 1320, 1800)
+    repo.updateSynced { it.copy(craftExcluded = emptyMap()) }
     run {
         val pts = (0 until 140).map { i ->
             val t = now - (140 - i) * 10 * 60_000L

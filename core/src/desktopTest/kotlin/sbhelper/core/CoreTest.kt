@@ -510,6 +510,8 @@ class CoreTest {
         // 중간 재료 B 하나 = D 3개 = 6코인 → 6/18
         assertEquals(1.0 / 3, p.progress("A", 1, mapOf("B" to 1L)) { price[it] }, 1e-9)
         assertEquals(1.0, p.progress("A", 1, mapOf("B" to 2L, "C" to 1L)) { price[it] }, 1e-9)
+        // B 를 끄면 기본 재료는 C 만
+        assertEquals(listOf("C"), p.plan("A", 1, skip = setOf("B")).raw.map { it.itemId })
         // 기본 재료 표시: D 6개 필요, B(=D 3개) 1개 가짐 → D 3/6
         val raw = p.rawProgress("A", 1, mapOf("B" to 1L))
         assertEquals(6.0, raw.first { it.itemId == "D" }.needed); assertEquals(3.0, raw.first { it.itemId == "D" }.have)

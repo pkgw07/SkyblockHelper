@@ -2,6 +2,7 @@ package sbhelper.desktop
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import sbhelper.ui.theme.SbText
 
 private const val W = 270
 private const val MAX_ROWS = 5
+private const val PLACE_BAR = 28
 
 /**
  * 게임 오버레이: Hypixel SkyBlock 안에서 마인크래프트 화면 구석에 제작 플래너 진행도.
@@ -53,19 +55,22 @@ fun GameOverlay(repo: SkyblockRepository) {
     val game by GameWatch.state.collectAsState()
     val d = app.device
     // 스카이블록 안(기록 파일을 못 찾으면 게임이 켜져 있는 동안), 또는 미리 보기
-    if (!game.preview && (!d.overlayEnabled || !game.active)) return
+    if (!game.preview && !game.placing && (!d.overlayEnabled || !game.active)) return
 
     // 제작 플래너 목표 → 기본 재료 진행도 (목표·자루·데이터가 바뀔 때만 계산)
     val target = app.synced.craftCurrent
     val profile = app.selectedProfile
-    val sacks = remember(profile?.sacks, profile?.inventories) {
-        sbhelper.core.calc.CraftStock.merge(profile?.sacks.orEmpty(), profile?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty())
+    // 제작 플래너와 같은 설정: 자루·인벤토리 사용 여부, Recipe tree 에서 끈 재료
+    val sacks = remember(profile?.sacks, profile?.inventories, d.plannerUseSacks, d.plannerUseInventory) {
+        sbhelper.core.calc.CraftStock.merge(if (d.plannerUseSacks) profile?.sacks.orEmpty() else emptyMap(),
+            if (d.plannerUseInventory) profile?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty() else emptyMap())
     }
-    val view = remember(target, sacks, app.gameData, app.bazaar != null) {
+    val skip = target?.let { app.synced.craftExcluded[it.itemId] }.orEmpty()
+    val view = remember(target, sacks, skip, app.gameData, app.bazaar != null) {
         target?.let { t ->
             val planner = CraftPlanner(app.gameData)
-            val raw = planner.rawProgress(t.itemId, t.amount, sacks)
-            val pct = if (raw.all { it.missing <= 0 }) 1.0 else planner.progress(t.itemId, t.amount, sacks) { k ->
+            val raw = planner.rawProgress(t.itemId, t.amount, sacks, skip)
+            val pct = if (raw.all { it.missing <= 0 }) 1.0 else planner.progress(t.itemId, t.amount, sacks, skip) { k ->
                 app.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: app.npcPrices[k]
             }
             Triple(t, raw.filter { it.missing > 0 }, pct)
@@ -73,7 +78,8 @@ fun GameOverlay(repo: SkyblockRepository) {
     }
     val rows = view?.second?.size?.coerceAtMost(MAX_ROWS) ?: 0
     val more = (view?.second?.size ?: 0) - rows
-    val height = if (view == null) 64 else 78 + rows * 20 + (if (more > 0) 18 else 0)
+    val placing = game.placing
+    val height = (if (view == null) 64 else 78 + rows * 20 + (if (more > 0) 18 else 0)) + (if (placing) PLACE_BAR else 0)
 
     val state = rememberWindowState(size = DpSize(W.dp, height.dp), position = WindowPosition(0.dp, 0.dp))
     LaunchedEffect(height) { state.size = DpSize(W.dp, height.dp) }
@@ -90,30 +96,65 @@ fun GameOverlay(repo: SkyblockRepository) {
         focusable = false,
         alwaysOnTop = true,
     ) {
-        LaunchedEffect(Unit) { GameWatch.makeClickThrough(window) }
-        // 게임이 맨 앞일 때만: 위치 맞추기 + '항상 위' 다시 걸기 (F11 전체 화면 대응), 1초마다
-        LaunchedEffect(visible, d.overlayCorner, height) {
+        // 평소에는 클릭 통과, 위치를 정하는 동안만 끌 수 있게
+        LaunchedEffect(placing) { GameWatch.makeClickThrough(window, on = !placing) }
+        // 게임 창 (미리 보기·위치 정하기라 게임이 없으면 화면 전체) 의 범위 (화면 좌표, dp)
+        fun area(): DoubleArray? {
+            val scale = window.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
+            val r = GameWatch.mcRect() ?: window.graphicsConfiguration?.bounds?.let { b ->
+                intArrayOf((b.x * scale).toInt(), (b.y * scale).toInt(), ((b.x + b.width) * scale).toInt(), ((b.y + b.height) * scale).toInt())
+            } ?: return null
+            // 창 모드면 제목 표시줄 아래부터
+            val topPad = if (r[1] > 0 || r[0] > 0) 32.0 else 0.0
+            return doubleArrayOf(r[0] / scale, r[1] / scale + topPad, r[2] / scale, r[3] / scale)
+        }
+        // 보이는 동안: 위치 맞추기 + '항상 위' 다시 걸기 (F11 전체 화면 대응), 1초마다. 위치를 정하는 중에는 옮기지 않음
+        LaunchedEffect(visible, d.overlayCorner, d.overlayX, d.overlayY, height, placing) {
+            var first = true
             while (visible) {
-                // 게임 창 (미리 보기라 게임이 없으면 화면 전체) 구석
-                val scale = window.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
-                val screen = window.graphicsConfiguration?.bounds?.let { b ->
-                    intArrayOf((b.x * scale).toInt(), (b.y * scale).toInt(), ((b.x + b.width) * scale).toInt(), ((b.y + b.height) * scale).toInt())
-                }
-                (GameWatch.mcRect() ?: screen)?.let { r ->
+                if (first || !placing) area()?.let { (left, top, right, bottom) ->
                     val margin = 12
-                    val left = r[0] / scale; val top = r[1] / scale; val right = r[2] / scale; val bottom = r[3] / scale
-                    // 창 모드면 제목 표시줄 아래로
-                    val topPad = if (r[1] > 0 || r[0] > 0) 32 else 0
-                    val x = if (d.overlayCorner % 2 == 0) left + margin else right - W - margin
-                    val y = if (d.overlayCorner < 2) top + margin + topPad else bottom - height - margin
+                    val (x, y) = if (d.overlayCorner == 4 && d.overlayX >= 0f) {
+                        left + d.overlayX * (right - left - W).coerceAtLeast(0.0) to top + d.overlayY * (bottom - top - height).coerceAtLeast(0.0)
+                    } else {
+                        val c = if (d.overlayCorner == 4) 1 else d.overlayCorner
+                        (if (c % 2 == 0) left + margin else right - W - margin) to (if (c < 2) top + margin else bottom - height - margin)
+                    }
                     val pos = WindowPosition(x.toFloat().dp, y.toFloat().dp)
                     if (state.position != pos) state.position = pos
                 }
+                first = false
                 GameWatch.keepOnTop(window)
                 delay(1000)
             }
         }
-        OverlayCard(app, view, more, d.overlayOpacity)
+        if (placing) {
+            Column {
+                // 위치 정하기: 이 막대를 끌어서 옮기고 '저장'
+                androidx.compose.foundation.window.WindowDraggableArea {
+                    Row(Modifier.fillMaxWidth().height(PLACE_BAR.dp).clip(RoundedCornerShape(8.dp)).background(Sb.Gold)
+                        .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        sbhelper.ui.theme.SkyblockTheme(textScale = 1f) {
+                            Text("✥ 끌어서 옮기기", style = SbText.body(12, Color(0xFF1A1200)), modifier = Modifier.weight(1f))
+                            Text("저장", style = SbText.body(12, Color(0xFF1A1200), androidx.compose.ui.text.font.FontWeight.Bold),
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x33000000))
+                                    .clickable {
+                                        area()?.let { (left, top, right, bottom) ->
+                                            val fx = ((window.x - left) / (right - left - W).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
+                                            val fy = ((window.y - top) / (bottom - top - height).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
+                                            repo.updateDevice { it.copy(overlayCorner = 4, overlayX = fx, overlayY = fy) }
+                                        }
+                                        GameWatch.endPlace()
+                                    }.padding(horizontal = 8.dp, vertical = 2.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("취소", style = SbText.body(12, Color(0xFF1A1200)),
+                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { GameWatch.endPlace() }.padding(horizontal = 6.dp, vertical = 2.dp))
+                        }
+                    }
+                }
+                OverlayCard(app, view, more, d.overlayOpacity)
+            }
+        } else OverlayCard(app, view, more, d.overlayOpacity)
     }
 }
 

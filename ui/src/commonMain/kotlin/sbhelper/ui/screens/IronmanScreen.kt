@@ -33,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import sbhelper.core.AppState
 import sbhelper.core.calc.CraftPlan
@@ -96,7 +97,7 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     val current = state.synced.craftCurrent ?: state.synced.craftTargets.firstOrNull()
     val target = current?.itemId
     var amountText by remember(target) { mutableStateOf((current?.amount ?: 1).toString()) }
-    val useSacks = controller.plannerUseSacks
+    val useSacks = state.device.plannerUseSacks
     // 고른 목표는 바로 저장 → 다른 화면에 갔다 와도, 앱을 다시 켜도 그대로
     fun open(id: String?, amount: Int = 1) {
         controller.repo.updateSynced { s -> s.copy(craftCurrent = id?.let { CraftTarget(it, amount) }) }
@@ -106,7 +107,7 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     // 인벤토리·엔더 상자·백팩·금고에 든 재료도 (프로필이 바뀔 때만 다시 읽음)
     val invData = state.selectedProfile?.inventories
     val inventory = remember(invData) { invData?.let { sbhelper.core.calc.CraftStock.inventory(it) } }
-    val useInv = controller.plannerUseInventory
+    val useInv = state.device.plannerUseInventory
     val stock = remember(sacks, inventory, useSacks, useInv) {
         sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(), if (useInv) inventory.orEmpty() else emptyMap())
     }
@@ -169,8 +170,10 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
         return
     }
     val amount = amountText.toIntOrNull()?.coerceIn(1, 100_000) ?: 1
-    val plan = remember(id, amount, stock, state.gameData) {
-        planner.plan(id, amount, stock)
+    // Recipe tree 에서 끈 재료 (목표마다 저장)
+    val skip = state.synced.craftExcluded[id].orEmpty()
+    val plan = remember(id, amount, stock, skip, state.gameData) {
+        planner.plan(id, amount, stock, skip = skip)
     }
 
     Panel(Modifier.fillMaxWidth()) {
@@ -196,24 +199,24 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
             }, icon = Icons.Rounded.BookmarkAdd, outlined = true)
         }
         Spacer(Modifier.height(6.dp))
-        SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { controller.plannerUseSacks = it },
+        SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { on -> controller.repo.updateDevice { it.copy(plannerUseSacks = on) } },
             if (sacks == null) "프로필의 인벤토리 API 가 꺼져 있거나 계정이 연결되지 않았어요." else "자루 ${sacks.size}종의 재료를 먼저 쓴다고 계산해요.",
             enabled = sacks != null)
-        SwitchRow("인벤토리·엔더 상자·백팩·금고 재료 사용", useInv && inventory != null, { controller.plannerUseInventory = it },
+        SwitchRow("인벤토리·엔더 상자·백팩·금고 재료 사용", useInv && inventory != null, { on -> controller.repo.updateDevice { it.copy(plannerUseInventory = on) } },
             if (inventory == null) "계정을 연결하면 인벤토리에 든 재료도 셀 수 있어요."
             else "인벤토리 등에 든 재료 ${inventory.size}종도 가진 것으로 쳐요. (게임 API 설정에서 인벤토리를 켜야 보여요)",
             enabled = inventory != null)
         OverlayControls(controller, state)
     }
 
-    val progress = remember(id, amount, stock, state.gameData, state.bazaar != null) {
-        planner.progress(id, amount, stock) { k ->
+    val progress = remember(id, amount, stock, skip, state.gameData, state.bazaar != null) {
+        planner.progress(id, amount, stock, skip) { k ->
             state.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: state.npcPrices[k] ?: state.lowestBin[k]
         }
     }
     // 가진 중간 재료도 기본 재료로 환산 (Enchanted Coal 2개 → Coal 320개 모은 것으로)
-    val raw = remember(id, amount, stock, state.gameData) {
-        planner.rawProgress(id, amount, stock)
+    val raw = remember(id, amount, stock, skip, state.gameData) {
+        planner.rawProgress(id, amount, stock, skip)
     }
     // 포지 시간: 내 HotM Quick Forge 레벨 + 지금 시장 퍼크(Cole) 반영 (위키 The Forge, 감소는 더해서 적용)
     val qfLevel = state.selectedProfile?.quickForgeLevel ?: 0
@@ -224,8 +227,23 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
         wide,
         cell(1f) { m -> RawMaterials(state, raw, m) },
         cell(1f) { m ->
-            Panel(m, caption = "Recipe Tree", title = "제작 순서", accent = Sb.Aqua) {
-                PlanTree(state, plan.root, 0)
+            Panel(m, caption = "Recipe Tree", title = "제작 순서", accent = Sb.Aqua,
+                trailing = {
+                    if (skip.isNotEmpty()) Text("끈 재료 ${skip.size}개 다시 켜기", style = SbText.body(12, Sb.Aqua),
+                        modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable {
+                            controller.repo.updateSynced { s -> s.copy(craftExcluded = s.craftExcluded - id) }
+                        }.padding(4.dp))
+                }) {
+                Text("☑ 를 눌러 끄면 그 재료(와 그 아래 재료)는 계산에서 빠져요. 이미 가진 장비처럼 신경 쓰지 않을 재료를 끄세요.",
+                    style = SbText.body(12, Sb.TextFaint))
+                Spacer(Modifier.height(6.dp))
+                PlanTree(state, plan.root, 0) { item ->
+                    controller.repo.updateSynced { s ->
+                        val cur = s.craftExcluded[id].orEmpty()
+                        val next = if (item in cur) cur - item else cur + item
+                        s.copy(craftExcluded = if (next.isEmpty()) s.craftExcluded - id else s.craftExcluded + (id to next))
+                    }
+                }
             }
         },
     )
@@ -287,9 +305,11 @@ private fun RawMaterials(state: AppState, raw: List<sbhelper.core.calc.RawNeed>,
 }
 
 @Composable
-private fun PlanTree(state: AppState, node: PlanNode, depth: Int) {
+private fun PlanTree(state: AppState, node: PlanNode, depth: Int, onToggle: (String) -> Unit) {
     var open by remember(node.itemId, depth) { mutableStateOf(depth < 2) }
+    val off = node.method == Method.SKIP
     val (label, color) = when (node.method) {
+        Method.SKIP -> "계산 안 함" to Sb.TextFaint
         Method.CRAFT -> "제작 ×${node.crafts}" to Sb.Aqua
         Method.FORGE -> "포지 ×${node.crafts} · ${formatDuration(node.forgeSeconds * 1000)}" to Sb.Gold
         Method.STOCK -> "보유" to Sb.Green
@@ -308,15 +328,23 @@ private fun PlanTree(state: AppState, node: PlanNode, depth: Int) {
             Icon(if (open) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = Sb.TextFaint, modifier = Modifier.size(16.dp))
         } else Spacer(Modifier.width(16.dp))
         Spacer(Modifier.width(4.dp))
+        // 켜기/끄기 (최종 목표는 끌 수 없음)
+        if (depth > 0) {
+            Text(if (off) "☐" else "☑", style = SbText.body(16, if (off) Sb.TextFaint else Sb.Green),
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { onToggle(node.itemId) }.padding(horizontal = 4.dp))
+            Spacer(Modifier.width(2.dp))
+        }
         Text("${fixed(node.needed, if (node.needed % 1.0 == 0.0) 0 else 1)}×", style = SbText.pixel(12, Sb.TextDim))
         Spacer(Modifier.width(6.dp))
-        RarityName(state.itemName(node.itemId), state.itemTier(node.itemId), Modifier.weight(1f), size = 13)
+        Box(Modifier.weight(1f).let { if (off) it.alpha(0.45f) else it }) {
+            RarityName(state.itemName(node.itemId), state.itemTier(node.itemId), size = 13)
+        }
         if (node.fromStock > 0 && node.method != Method.STOCK) {
             Text("보유 ${formatNumber(node.fromStock.toLong())}  ", style = SbText.body(11, Sb.Green))
         }
         Pill(label, color)
     }
-    if (open) node.children.forEach { PlanTree(state, it, depth + 1) }
+    if (open) node.children.forEach { PlanTree(state, it, depth + 1, onToggle) }
 }
 
 @Composable
@@ -458,14 +486,26 @@ private fun OverlayControls(controller: AppController, state: AppState) {
         SbButton("미리 보기", { overlay.preview() }, outlined = true)
     }
     Spacer(Modifier.height(8.dp))
-    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
-            controller.repo.updateDevice { it.copy(overlayCorner = i) }
-        })
-        val ops = listOf(40, 60, 80, 95)
-        Segmented(ops.map { "진하기 $it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
-            controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
-        })
+    Text("위치", style = SbText.caption(Sb.TextDim))
+    Spacer(Modifier.height(6.dp))
+    // 4개 구석 + 직접 지정 (끌어서 옮긴 곳을 저장)
+    Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래", "직접 지정"), d.overlayCorner.coerceIn(0, 4), { i ->
+        if (i == 4 && d.overlayX < 0f) overlay.place()
+        else controller.repo.updateDevice { it.copy(overlayCorner = i) }
+    })
+    if (d.overlayCorner == 4) {
+        Spacer(Modifier.height(6.dp))
+        SbButton("위치 다시 정하기", { overlay.place() }, outlined = true)
+        Text("오버레이 위의 노란 막대를 끌어서 옮긴 뒤 '저장' 을 누르세요.", style = SbText.body(12, Sb.TextFaint), modifier = Modifier.padding(top = 4.dp))
     }
+    Spacer(Modifier.height(10.dp))
+    Text("투명도", style = SbText.caption(Sb.TextDim))
+    Spacer(Modifier.height(6.dp))
+    // 저장 값은 배경 불투명도 (투명도 = 100 - 불투명도)
+    val trans = listOf(0, 20, 40, 60, 80)
+    val cur = trans.minByOrNull { kotlin.math.abs((100 - d.overlayOpacity) - it) } ?: 20
+    Segmented(trans.map { "$it%" }, trans.indexOf(cur), { i ->
+        controller.repo.updateDevice { it.copy(overlayOpacity = 100 - trans[i]) }
+    })
 }
 

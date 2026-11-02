@@ -39,11 +39,13 @@ object GameWatch {
         val noLog: Boolean = false,
         /** 설정의 '미리 보기' (몇 초) */
         val preview: Boolean = false,
+        /** 위치 직접 정하기 중 (끌어서 옮김, 클릭 통과 끔) */
+        val placing: Boolean = false,
     ) {
         /** 오버레이 창을 만들어 둘지 */
-        val active get() = preview || (running && (inSkyblock || noLog))
+        val active get() = preview || placing || (running && (inSkyblock || noLog))
         /** 지금 화면에 보일지 */
-        val shown get() = preview || (foreground && !hidden)
+        val shown get() = preview || placing || (foreground && !hidden)
     }
 
     private val _state = MutableStateFlow(State())
@@ -61,6 +63,10 @@ object GameWatch {
             else -> "마인크래프트 찾음 · 스카이블록에 들어가면 보여요"
         } + if (st.hidden) " (Ctrl+Shift+O 로 숨김)" else ""
     }
+
+    /** 위치 직접 정하기 시작 / 끝 */
+    fun place() { if (started) set { it.copy(placing = true) } }
+    fun endPlace() { set { it.copy(placing = false) } }
 
     /** 게임 없이 10초 동안 화면 구석에 띄워 보기 */
     fun preview() {
@@ -239,13 +245,14 @@ object GameWatch {
 
     // ------------------------------------------------------------------ 오버레이 창 (클릭 통과 + 항상 위)
     /** 클릭이 게임으로 그대로 가고, 작업 표시줄·Alt+Tab 에 안 나오고, 눌러도 포커스를 가져가지 않게 */
-    fun makeClickThrough(window: java.awt.Window) {
+    fun makeClickThrough(window: java.awt.Window, on: Boolean = true) {
         if (!supported) return
         runCatching {
             val hwnd = Native.getWindowPointer(window) ?: return
             val u = U32.INSTANCE
-            val ex = u.GetWindowLongW(hwnd, GWL_EXSTYLE)
-            u.SetWindowLongW(hwnd, GWL_EXSTYLE, ex or WS_EX_LAYERED or WS_EX_TRANSPARENT or WS_EX_TOOLWINDOW or WS_EX_NOACTIVATE)
+            val ex = u.GetWindowLongW(hwnd, GWL_EXSTYLE) or WS_EX_LAYERED or WS_EX_TOOLWINDOW or WS_EX_NOACTIVATE
+            // 위치를 정하는 동안만 마우스를 받는다 (끌어서 옮기기)
+            u.SetWindowLongW(hwnd, GWL_EXSTYLE, if (on) ex or WS_EX_TRANSPARENT else ex and WS_EX_TRANSPARENT.inv())
         }
     }
 

@@ -123,6 +123,7 @@ class DesktopPlatform : Platform {
     override val gameOverlay: sbhelper.ui.GameOverlayControl? = if (!GameWatch.supported) null else object : sbhelper.ui.GameOverlayControl {
         override val status = GameWatch.statusText
         override fun preview() = GameWatch.preview()
+        override fun place() = GameWatch.place()
     }
 
     override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {

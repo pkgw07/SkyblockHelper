@@ -25,6 +25,8 @@ data class SyncedSettings(
     val craftCurrent: CraftTarget? = null,
     /** 아이언맨 진행 가이드에서 체크한 항목 (기기 간 동기화) */
     val ironmanChecked: Set<String> = emptySet(),
+    /** 제작 플래너 Recipe tree 에서 끈 재료: 목표 아이템 → 끈 재료 ID (기기 간 동기화, 다시 켜도 유지) */
+    val craftExcluded: Map<String, Set<String>> = emptyMap(),
     /** 오늘 할 일: 체크한 항목 키 → 체크한 시각 (초기화 시각이 지나면 다시 빈 칸) */
     val dailyDone: Map<String, Long> = emptyMap(),
     /** 오늘 할 일에 직접 추가한 항목 (매일 이 기기 시각 자정에 초기화) */
@@ -110,10 +112,16 @@ data class DeviceSettings(
     val wikiWindow: Boolean = true,
     /** PC 게임 오버레이: Hypixel SkyBlock 에 들어가면 게임 화면 구석에 제작 플래너 */
     val overlayEnabled: Boolean = true,
+    /** 제작 플래너: 자루 / 인벤토리 재료를 가진 것으로 셀지 (다시 켜도 유지) */
+    val plannerUseSacks: Boolean = true,
+    val plannerUseInventory: Boolean = true,
     /** 0 왼쪽 위, 1 오른쪽 위, 2 왼쪽 아래, 3 오른쪽 아래 */
     val overlayCorner: Int = 1,
-    /** 배경 불투명도 % */
+    /** 배경 불투명도 % (화면에는 투명도 = 100 - 이 값 으로 보여 줌) */
     val overlayOpacity: Int = 80,
+    /** overlayCorner = 4 (직접 지정) 일 때 위치: 게임 창 안에서 왼쪽 위 모서리의 비율 (0..1) */
+    val overlayX: Float = -1f,
+    val overlayY: Float = -1f,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

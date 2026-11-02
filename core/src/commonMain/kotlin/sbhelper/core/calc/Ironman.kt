@@ -5,7 +5,8 @@ import sbhelper.core.model.CollectionsResponse
 import kotlin.math.ceil
 import kotlin.math.min
 
-enum class Method { STOCK, CRAFT, FORGE, BASE }
+/** SKIP = 사용자가 Recipe tree 에서 끈 재료 (계산에서 뺌) */
+enum class Method { STOCK, CRAFT, FORGE, BASE, SKIP }
 
 /** 제작 계획 트리의 한 칸 */
 data class PlanNode(
@@ -39,7 +40,8 @@ data class CraftPlan(
  */
 class CraftPlanner(private val data: GameData) {
 
-    fun plan(target: String, amount: Int, stock: Map<String, Long> = emptyMap(), maxDepth: Int = 10): CraftPlan {
+    /** @param skip Recipe tree 에서 끈 재료 (그 아래 재료까지 전체 계산에서 뺌) */
+    fun plan(target: String, amount: Int, stock: Map<String, Long> = emptyMap(), maxDepth: Int = 10, skip: Set<String> = emptySet()): CraftPlan {
         val remainingStock = stock.mapValues { it.value.toDouble() }.toMutableMap()
         val rawNeeded = LinkedHashMap<String, Double>()
         val rawHave = HashMap<String, Double>()
@@ -52,6 +54,7 @@ class CraftPlanner(private val data: GameData) {
         }
 
         fun expand(id: String, qty: Double, depth: Int, path: Set<String>): PlanNode {
+            if (depth > 0 && id in skip) return PlanNode(id, qty, 0.0, Method.SKIP)
             val craft = data.crafting[id]?.firstOrNull { r -> usable(id, r.`in`.keys, path) }
             val forge = data.forge[id]?.firstOrNull { r -> usable(id, r.`in`.keys, path) }
             val isBase = depth >= maxDepth || (craft == null && forge == null)
@@ -100,10 +103,10 @@ class CraftPlanner(private val data: GameData) {
      * 기본 재료를 '전체 필요량 기준' 으로: 가진 중간 재료도 기본 재료로 환산해서 모은 양에 넣는다.
      * 예) Coal 1000 이 필요하고 Enchanted Coal(=160 Coal) 2개가 있으면 → Coal 320 / 1000
      */
-    fun rawProgress(target: String, amount: Int, stock: Map<String, Long>): List<RawNeed> {
-        val full = plan(target, amount)
+    fun rawProgress(target: String, amount: Int, stock: Map<String, Long>, skip: Set<String> = emptySet()): List<RawNeed> {
+        val full = plan(target, amount, skip = skip)
         if (stock.isEmpty()) return full.raw
-        val missing = plan(target, amount, stock).raw.associate { it.itemId to it.missing }
+        val missing = plan(target, amount, stock, skip = skip).raw.associate { it.itemId to it.missing }
         return full.raw.map { r -> RawNeed(r.itemId, r.needed, (r.needed - (missing[r.itemId] ?: 0.0)).coerceIn(0.0, r.needed)) }
             .sortedByDescending { it.missing }
     }
@@ -113,10 +116,10 @@ class CraftPlanner(private val data: GameData) {
      * 가진 것 없이 분해한 전체 재료 가치 대비, 가진 것(중간 재료 포함)을 빼고 남은 재료 가치.
      * @param price 재료 하나의 가치 (없으면 null → 시세가 있는 재료들의 중간값으로)
      */
-    fun progress(target: String, amount: Int, stock: Map<String, Long>, price: (String) -> Double?): Double {
+    fun progress(target: String, amount: Int, stock: Map<String, Long>, skip: Set<String> = emptySet(), price: (String) -> Double?): Double {
         if (stock.isEmpty()) return 0.0
-        val full = plan(target, amount)
-        val now = plan(target, amount, stock)
+        val full = plan(target, amount, skip = skip)
+        val now = plan(target, amount, stock, skip = skip)
         val known = (full.raw + now.raw).map { it.itemId }.distinct().associateWith { price(it)?.takeIf { p -> p > 0 } }
         val median = known.values.filterNotNull().sorted().let { if (it.isEmpty()) 1.0 else it[it.size / 2] }
         fun w(id: String) = known[id] ?: median
