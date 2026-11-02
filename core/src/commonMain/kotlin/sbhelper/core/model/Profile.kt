@@ -89,6 +89,10 @@ data class ProfileSummary(
     val hotfXp: Double? = null,
     /** 초콜릿 공장 Time Tower: 현재 충전 수, 마지막 충전 시각(ms) — events.easter.time_tower */
     val timeTowerCharges: Int? = null,
+    /** Attribute 이름(snake_case) → 흡수한 샤드 수 (member.attributes.stacks) */
+    val attributeStacks: Map<String, Int> = emptyMap(),
+    /** 샤드 ID → 가진 개수 (member.shards.owned) */
+    val shardsOwned: Map<String, Long> = emptyMap(),
     val timeTowerLastCharge: Long? = null,
 ) {
     val skyblockLevel: Double? get() = skyblockXp?.div(100.0)
@@ -202,6 +206,12 @@ object ProfileParser {
             tokensSpent = member.obj("skill_tree", "tokens_spent")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             hotfXp = member.num("skill_tree", "experience", "foraging"),
             timeTowerCharges = member.num("events", "easter", "time_tower", "charges")?.toInt(),
+            attributeStacks = member.obj("attributes", "stacks")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
+            shardsOwned = (member.path("shards", "owned") as? kotlinx.serialization.json.JsonArray)?.mapNotNull { e ->
+                val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val type = (o["type"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: return@mapNotNull null
+                type to (o.num("amount_owned")?.toLong() ?: 0L)
+            }?.toMap().orEmpty(),
             timeTowerLastCharge = member.num("events", "easter", "time_tower", "last_charge_time")?.toLong(),
             bestiaryKills = member.obj("bestiary", "kills")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             craftedMinions = (member.path("player_data", "crafted_generators") as? JsonArray)

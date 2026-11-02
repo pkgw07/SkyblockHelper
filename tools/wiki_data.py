@@ -1100,6 +1100,26 @@ def attributes():
     return sorted(out, key=lambda a: (a["rank"], int(re.sub(r"\D", "", a["id"]) or 0)))
 
 
+def attribute_levels():
+    """희귀도별 레벨마다 필요한 누적 샤드 개수 (위키 Attributes 표): {"Common": [1, 4, 9, ...], ...}"""
+    text = wikitext("Attributes")
+    m = re.search(r"\{\|.*?Cumulative.*?\n\|\}", text, re.S)
+    if not m:
+        return {}
+    names = ["Common", "Uncommon", "Rare", "Epic", "Legendary"]
+    out = {n: [] for n in names}
+    for row in re.split(r"\n\|-", m.group(0)):
+        lines = [l for l in row.strip().split("\n") if l.strip()]
+        if len(lines) < 2 or not re.match(r"^!\s*\d+", lines[0]):
+            continue
+        cells = [c.strip() for c in lines[1].lstrip("|").split("||")]
+        nums = [int(re.sub(r"\D", "", c) or 0) for c in cells]
+        for i, n in enumerate(names):
+            if 2 * i + 1 < len(nums):
+                out[n].append(nums[2 * i + 1])
+    return out
+
+
 def main(out_path):
     ids = Ids()
     data = {
@@ -1130,6 +1150,7 @@ def main(out_path):
     mn = minions(ids)
     data["minions"], data["minionFuels"] = mn["minions"], mn["fuels"]
     data["attributes"] = attributes()
+    data["attributeLevels"] = attribute_levels()
     # 테크트리·아이언맨 가이드·장신구 아이템의 NPC 구매처 (정보 상자 merchant/buy)
     item_ids = {i for st in data["ironmanGuide"] for i in st["items"]}
     for stages in data["techTrees"].values():

@@ -66,7 +66,7 @@ import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
 private val STAT_TABS = listOf("개요", "순자산", "HotM 트리", "HotF 트리", "펫", "던전·슬레이어", "가든·제이콥", "크림슨·리프트·낚시",
-    "도감", "컬렉션", "미니언", "박물관", "기타 통계")
+    "도감", "컬렉션", "미니언", "박물관", "기타 통계", "Attribute")
 
 /** 기록: 순자산 · HotM 트리 · 도감(Bestiary) · 컬렉션 · 미니언 */
 @Composable
@@ -96,7 +96,8 @@ fun StatsScreen(controller: AppController, state: AppState, wide: Boolean) {
             9 -> CollectionsTab(state, p)
             10 -> MinionsTab(state, p, wide)
             11 -> MuseumTab(controller, state, wide)
-            else -> MiscStatsTab(details)
+            12 -> MiscStatsTab(details)
+            else -> AttributesTab(state, p)
         }
     }
 }
@@ -905,5 +906,83 @@ private fun Modifier.scrollHereWhen(active: Boolean, key: String): Modifier {
         }
     }
     return this.bringIntoViewRequester(requester)
+}
+
+// ------------------------------------------------------------------ Attribute (Hunting 샤드)
+private val RARITY_COLORS = mapOf("Common" to Sb.Text, "Uncommon" to Sb.Green, "Rare" to Sb.Blue, "Epic" to Sb.Purple, "Legendary" to Sb.Gold)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AttributesTab(state: AppState, p: ProfileSummary) {
+    val data = state.gameData
+    if (data.attributes.isEmpty()) {
+        Panel { EmptyState("Attribute 정보를 불러오는 중이에요", "위키 데이터를 받으면 보여요.") }
+        return
+    }
+    val all = remember(data, p.attributeStacks, p.shardsOwned) { sbhelper.core.calc.AttributeCalc.of(data, p.attributeStacks, p.shardsOwned) }
+    var query by remember { mutableStateOf("") }
+    var skill by remember { mutableStateOf(0) }
+    var mineOnly by remember { mutableStateOf(false) }
+    var limit by remember { mutableStateOf(60) }
+    val skills = listOf("전체") + all.map { it.attr.skill }.filter { it.isNotBlank() }.distinct().sorted()
+    val have = all.count { it.level > 0 }
+    val maxed = all.count { it.level >= 10 }
+
+    Panel(Modifier.fillMaxWidth(), caption = "Attributes · Hunting", title = "Attribute", accent = Sb.Green) {
+        FlowRow2 {
+            StatTile("가진 Attribute", "$have / ${all.size}", color = Sb.Green)
+            StatTile("최대 레벨(X)", "$maxed", color = Sb.Gold)
+            StatTile("흡수한 샤드", "${all.sumOf { it.stacks }}", color = Sb.Aqua)
+        }
+        Spacer(Modifier.height(10.dp))
+        SbTextField(query, { query = it; limit = 60 }, Modifier.fillMaxWidth(), "Attribute · 샤드 · 효과 검색 (예: Fortune, Grove)", Icons.Rounded.Search)
+        Spacer(Modifier.height(8.dp))
+        Segmented(skills, skill, { skill = it; limit = 60 })
+        Spacer(Modifier.height(4.dp))
+        sbhelper.ui.components.SwitchRow("내가 가진 것만", mineOnly, { mineOnly = it; limit = 60 })
+        Text("효과의 범위(예: +2-20)는 레벨 1~10 기준이에요. 내 레벨·흡수 수는 공식 프로필 API, 나머지는 위키 기준.",
+            style = SbText.body(12, Sb.TextFaint))
+    }
+    val q = query.trim()
+    val shown = all.filter { m ->
+        (skill == 0 || m.attr.skill == skills[skill]) && (!mineOnly || m.level > 0) &&
+            (q.isEmpty() || listOf(m.attr.name, m.attr.shard, m.attr.effect, m.attr.id, m.attr.families.joinToString(" ")).any { it.contains(q, true) })
+    }.sortedWith(compareByDescending<sbhelper.core.calc.MyAttribute> { it.level }.thenBy { it.attr.rank })
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        shown.take(limit).forEach { m -> AttributeRow(m) }
+        if (shown.size > limit) SbButton("더 보기 (${shown.size - limit}개 남음)", { limit += 60 }, Modifier.fillMaxWidth(), outlined = true)
+        if (shown.isEmpty()) Panel { EmptyState("찾는 Attribute 가 없어요", "검색어나 필터를 바꿔 보세요.") }
+    }
+}
+
+@Composable
+private fun AttributeRow(m: sbhelper.core.calc.MyAttribute) {
+    val a = m.attr
+    val color = RARITY_COLORS[a.rarity] ?: Sb.Text
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Sb.Surface)
+            .border(1.dp, if (m.level > 0) color.copy(alpha = 0.5f) else Sb.Border, RoundedCornerShape(12.dp)).padding(12.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(a.name, style = SbText.body(15, color, FontWeight.SemiBold))
+                Text("${a.shard} · ${a.id} · ${a.rarity}" + (if (a.skill.isNotBlank()) " · ${a.skill}" else "") +
+                    (if (a.families.isNotEmpty()) " · " + a.families.joinToString(", ") else ""), style = SbText.body(12, Sb.TextDim))
+            }
+            Text(if (m.level > 0) "Lv ${toRomanStats(m.level)}" else "-", style = SbText.pixel(14, if (m.level >= 10) Sb.Gold else if (m.level > 0) color else Sb.TextFaint, bold = true))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(a.effect, style = SbText.body(13, Sb.Text))
+        if (a.req.isNotBlank()) Text("필요: ${a.req}", style = SbText.body(12, Sb.Red))
+        if (m.level > 0 || m.owned > 0) {
+            Spacer(Modifier.height(6.dp))
+            val next = m.nextAt
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (next != null) "흡수 ${m.stacks} / $next (다음 레벨)" else "흡수 ${m.stacks} · 최대 레벨", style = SbText.body(12, Sb.TextDim), modifier = Modifier.weight(1f))
+                if (m.owned > 0) Text("가진 샤드 ${m.owned}개", style = SbText.body(12, Sb.Aqua))
+            }
+            XpBar(if (next != null && next > 0) m.stacks.toDouble() / next else 1.0, Modifier.fillMaxWidth().padding(top = 4.dp), color, 5.dp)
+        }
+    }
 }
 

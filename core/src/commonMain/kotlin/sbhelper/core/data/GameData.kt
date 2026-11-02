@@ -52,6 +52,8 @@ data class GameData(
     val minionFuels: List<MinionFuel> = emptyList(),
     /** Hunting 샤드의 Attribute (위키 Bucket:Shards) */
     val attributes: List<Attribute> = emptyList(),
+    /** 희귀도 → 레벨마다 필요한 누적 샤드 수 (위키 Attributes 표) */
+    val attributeLevels: Map<String, List<Int>> = emptyMap(),
 ) {
     @Serializable
     data class Attribute(

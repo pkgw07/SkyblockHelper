@@ -105,6 +105,7 @@ fun main(args: Array<String>) {
     controller.statsTab = 8; shot("18-bestiary", Screen.STATS)
     controller.statsTab = 10; shot("19-minions", Screen.STATS)
     controller.statsTab = 3; shot("20-hotf", Screen.STATS)
+    controller.statsTab = 13; shot("66-attributes", Screen.STATS, 1320, 1800)
     controller.go(Screen.SEARCH); controller.openItem("MITHRIL_PICKAXE"); shot("21-search-item", Screen.SEARCH)
     controller.wiki = null; controller.searchQuery = "mithril"; shot("22-search", Screen.SEARCH)
     controller.openEvent("Dark Auction"); shot("23-events", Screen.EVENTS)

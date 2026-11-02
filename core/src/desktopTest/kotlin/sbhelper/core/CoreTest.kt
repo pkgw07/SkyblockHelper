@@ -552,4 +552,17 @@ class CoreTest {
         assertEquals(1280.0, n5.needs.first { it.id == "COBBLESTONE" }.need)
         assertEquals(7, sbhelper.core.calc.MinionProfit.craftedTier(cobble, listOf("COBBLESTONE_3", "COBBLESTONE_7", "WHEAT_9")))
     }
+
+    @Test
+    fun attributesFromWiki() {
+        val data = GameData.parse(File("../ui/src/commonMain/composeResources/files/gamedata.json").readText())
+        assertTrue(data.attributes.size > 200)
+        assertEquals(10, data.attributeLevels["Common"]?.size)
+        val a = data.attributes.first()
+        val key = sbhelper.core.calc.AttributeCalc.key(a.name)
+        val mine = sbhelper.core.calc.AttributeCalc.of(data, mapOf(key to 4), emptyMap()).first { it.attr.id == a.id }
+        // Common: 1, 4, 9 … → 4개면 2레벨, 다음은 9
+        if (a.rarity == "Common") { assertEquals(2, mine.level); assertEquals(9, mine.nextAt) }
+        assertEquals("moonglade_mastery", sbhelper.core.calc.AttributeCalc.key("Moonglade Mastery"))
+    }
 }
