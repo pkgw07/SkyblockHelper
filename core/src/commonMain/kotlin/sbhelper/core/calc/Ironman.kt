@@ -172,3 +172,25 @@ object CollectionCalc {
             }
         }
 }
+
+/** 제작 플래너에 쓸 '가진 재료': 자루 + 인벤토리·엔더 상자·백팩·개인 금고 (장비·옷장·장신구는 빼고) */
+object CraftStock {
+    val INVENTORY_KEYS = listOf("inv_contents", "ender_chest_contents", "personal_vault_contents")
+
+    fun inventory(inventories: Map<String, String>): Map<String, Long> {
+        val out = HashMap<String, Long>()
+        val keys = INVENTORY_KEYS + inventories.keys.filter { it.startsWith("backpack_") && !it.endsWith("_icons") }
+        keys.forEach { k ->
+            sbhelper.core.nbt.ItemParser.parse(inventories[k]).filterNotNull().forEach { item ->
+                if (item.pet != null) return@forEach
+                val id = item.skyblockId ?: return@forEach
+                out[id] = (out[id] ?: 0L) + item.count
+            }
+        }
+        return out
+    }
+
+    fun merge(a: Map<String, Long>, b: Map<String, Long>): Map<String, Long> =
+        if (b.isEmpty()) a else if (a.isEmpty()) b else (a.keys + b.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) }
+}
+

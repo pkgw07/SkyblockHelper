@@ -103,6 +103,13 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
     }
     val planner = remember(state.gameData) { CraftPlanner(state.gameData) }
     val sacks = state.selectedProfile?.sacks
+    // 인벤토리·엔더 상자·백팩·금고에 든 재료도 (프로필이 바뀔 때만 다시 읽음)
+    val invData = state.selectedProfile?.inventories
+    val inventory = remember(invData) { invData?.let { sbhelper.core.calc.CraftStock.inventory(it) } }
+    val useInv = controller.plannerUseInventory
+    val stock = remember(sacks, inventory, useSacks, useInv) {
+        sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(), if (useInv) inventory.orEmpty() else emptyMap())
+    }
 
     Panel(Modifier.fillMaxWidth(), caption = "Craft Planner", title = "무엇을 만들까요?", accent = Sb.Gold) {
         SbTextField(query, { query = it; controller.plannerQuery = it }, Modifier.fillMaxWidth(), "아이템 검색 (예: Refined Diamond, Enchanted Iron Block)", Icons.Rounded.Search)
@@ -162,8 +169,8 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
         return
     }
     val amount = amountText.toIntOrNull()?.coerceIn(1, 100_000) ?: 1
-    val plan = remember(id, amount, useSacks, sacks, state.gameData) {
-        planner.plan(id, amount, if (useSacks) sacks.orEmpty() else emptyMap())
+    val plan = remember(id, amount, stock, state.gameData) {
+        planner.plan(id, amount, stock)
     }
 
     Panel(Modifier.fillMaxWidth()) {
@@ -192,16 +199,20 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
         SwitchRow("자루(Sacks)에 있는 재료 사용", useSacks && sacks != null, { controller.plannerUseSacks = it },
             if (sacks == null) "프로필의 인벤토리 API 가 꺼져 있거나 계정이 연결되지 않았어요." else "자루 ${sacks.size}종의 재료를 먼저 쓴다고 계산해요.",
             enabled = sacks != null)
+        SwitchRow("인벤토리·엔더 상자·백팩·금고 재료 사용", useInv && inventory != null, { controller.plannerUseInventory = it },
+            if (inventory == null) "계정을 연결하면 인벤토리에 든 재료도 셀 수 있어요."
+            else "인벤토리 등에 든 재료 ${inventory.size}종도 가진 것으로 쳐요. (게임 API 설정에서 인벤토리를 켜야 보여요)",
+            enabled = inventory != null)
     }
 
-    val progress = remember(id, amount, useSacks, sacks, state.gameData, state.bazaar != null) {
-        planner.progress(id, amount, if (useSacks) sacks.orEmpty() else emptyMap()) { k ->
+    val progress = remember(id, amount, stock, state.gameData, state.bazaar != null) {
+        planner.progress(id, amount, stock) { k ->
             state.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: state.npcPrices[k] ?: state.lowestBin[k]
         }
     }
     // 가진 중간 재료도 기본 재료로 환산 (Enchanted Coal 2개 → Coal 320개 모은 것으로)
-    val raw = remember(id, amount, useSacks, sacks, state.gameData) {
-        planner.rawProgress(id, amount, if (useSacks) sacks.orEmpty() else emptyMap())
+    val raw = remember(id, amount, stock, state.gameData) {
+        planner.rawProgress(id, amount, stock)
     }
     // 포지 시간: 내 HotM Quick Forge 레벨 + 지금 시장 퍼크(Cole) 반영 (위키 The Forge, 감소는 더해서 적용)
     val qfLevel = state.selectedProfile?.quickForgeLevel ?: 0

@@ -56,7 +56,10 @@ fun GameOverlay(repo: SkyblockRepository) {
 
     // 제작 플래너 목표 → 기본 재료 진행도 (목표·자루·데이터가 바뀔 때만 계산)
     val target = app.synced.craftCurrent
-    val sacks = app.selectedProfile?.sacks.orEmpty()
+    val profile = app.selectedProfile
+    val sacks = remember(profile?.sacks, profile?.inventories) {
+        sbhelper.core.calc.CraftStock.merge(profile?.sacks.orEmpty(), profile?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty())
+    }
     val view = remember(target, sacks, app.gameData, app.bazaar != null) {
         target?.let { t ->
             val planner = CraftPlanner(app.gameData)

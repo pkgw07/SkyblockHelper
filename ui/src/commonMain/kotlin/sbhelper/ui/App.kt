@@ -194,6 +194,7 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     /** 제작 플래너 입력 (화면을 옮겨도 유지) */
     var plannerQuery by mutableStateOf("")
     var plannerUseSacks by mutableStateOf(true)
+    var plannerUseInventory by mutableStateOf(true)
     var statsTab by mutableStateOf(0)
     val auctionSearch = AuctionSearchState(repo.api, scope)
     val patchNotes = PatchNotesState()

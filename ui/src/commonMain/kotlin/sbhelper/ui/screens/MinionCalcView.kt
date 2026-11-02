@@ -216,8 +216,11 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
 private fun NextTierPanel(
     state: AppState, p: ProfileSummary?, m: GameData.Minion, tier: Int, cur: sbhelper.core.calc.MinionTierResult, count: Int, mod: Modifier,
 ) {
-    val plan = remember(m, tier, cur, count, p?.sacks, state.gameData) {
-        MinionProfit.nextTier(state.gameData, m, tier, cur, count, p?.sacks.orEmpty())
+    val stock = remember(p?.sacks, p?.inventories) {
+        sbhelper.core.calc.CraftStock.merge(p?.sacks.orEmpty(), p?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty())
+    }
+    val plan = remember(m, tier, cur, count, stock, state.gameData) {
+        MinionProfit.nextTier(state.gameData, m, tier, cur, count, stock)
     }
     Panel(mod, caption = "Next tier", title = if (plan == null) "최고 단계예요" else "${ROMAN.getOrElse(tier) { "${tier + 1}" }} 단계로 올리려면", accent = Sb.Pink) {
         if (plan == null) {
@@ -257,7 +260,7 @@ private fun NextTierPanel(
         if (plan.coins > 0) Text("+ ${formatCoins(plan.coins.toDouble())} 코인" + (m.tiers.getOrNull(tier)?.npc?.let { " ($it 와 교환)" } ?: ""),
             style = SbText.body(12, Sb.Gold), modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(6.dp))
-        Text("가진 양은 자루(Sacks) 기준, 제작 재료는 기본 재료로 나눠서 셌어요.", style = SbText.body(11, Sb.TextFaint))
+        Text("가진 양은 자루·인벤토리·엔더 상자·백팩·금고 기준, 제작 재료는 기본 재료로 나눠서 셌어요.", style = SbText.body(11, Sb.TextFaint))
     }
 }
 
