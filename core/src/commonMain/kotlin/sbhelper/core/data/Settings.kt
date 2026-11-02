@@ -108,6 +108,12 @@ data class DeviceSettings(
     val contentWidth: Int = 0,
     /** PC: 위키를 전용 창(Edge 앱 모드)으로 열기 — 끄면 기본 브라우저 */
     val wikiWindow: Boolean = true,
+    /** PC 게임 오버레이: Hypixel SkyBlock 에 들어가면 게임 화면 구석에 제작 플래너 */
+    val overlayEnabled: Boolean = true,
+    /** 0 왼쪽 위, 1 오른쪽 위, 2 왼쪽 아래, 3 오른쪽 아래 */
+    val overlayCorner: Int = 1,
+    /** 배경 불투명도 % */
+    val overlayOpacity: Int = 80,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

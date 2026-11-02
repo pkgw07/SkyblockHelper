@@ -436,6 +436,9 @@ class SkyblockRepository(
         }
     }
 
+    /** 화면 미리보기(CI 스크린샷)용 시세 기록 */
+    fun previewPriceHistory(h: sbhelper.core.calc.PriceHistory) { _state.update { it.copy(priceHistory = h) } }
+
     /** 검색에서 바자 아이템을 보면 시세를 모으기 시작한다 */
     fun trackPrice(id: String) {
         if (state.value.bazaar?.products?.containsKey(id) != true) return

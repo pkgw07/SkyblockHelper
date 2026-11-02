@@ -285,6 +285,25 @@ private fun BackgroundPanel(controller: AppController, state: AppState) {
             Spacer(Modifier.height(8.dp))
             SwitchRow("📖 위키를 전용 창으로 열기", d.wikiWindow, { on -> controller.repo.updateDevice { it.copy(wikiWindow = on) } },
                 "Windows 의 Edge 로 탭·주소창 없는 위키 창 하나를 띄워 계속 다시 써요. 창의 '앱에서 보기' 를 누르면 앱 검색 화면으로. 끄면 기본 브라우저로 열어요.")
+            Spacer(Modifier.height(8.dp))
+            SwitchRow("🎮 게임 오버레이 (제작 플래너)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
+                "Hypixel SkyBlock 에 들어가면 마인크래프트 화면 구석에 제작 플래너 진행도가 떠요. 마우스는 그대로 게임에 전달돼요. " +
+                    "Ctrl+Shift+O 로 잠깐 숨기기/보이기. 게임에는 아무것도 넣지 않고, 마인크래프트가 켜져 있을 때만 게임 기록 파일(latest.log)을 2초마다 새 줄만 읽어요.")
+            if (d.overlayEnabled) {
+                Spacer(Modifier.height(6.dp))
+                Text("오버레이 위치", style = SbText.caption(Sb.TextDim))
+                Spacer(Modifier.height(6.dp))
+                Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
+                    controller.repo.updateDevice { it.copy(overlayCorner = i) }
+                })
+                Spacer(Modifier.height(8.dp))
+                Text("오버레이 배경 진하기", style = SbText.caption(Sb.TextDim))
+                Spacer(Modifier.height(6.dp))
+                val ops = listOf(40, 60, 80, 95)
+                Segmented(ops.map { "$it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
+                    controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
+                })
+            }
         }
         Spacer(Modifier.height(12.dp))
         Text("프로필 확인 주기", style = SbText.caption(Sb.TextDim))

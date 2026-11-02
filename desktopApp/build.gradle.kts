@@ -21,6 +21,8 @@ dependencies {
     implementation(compose.desktop.currentOs)
     implementation(libs.coroutines.swing)
     implementation(libs.zxing.core)
+    // 게임 오버레이: Windows 창 전환 신호·클릭 통과 (게임에는 손대지 않음)
+    implementation(libs.jna.platform)
 }
 
 val appVersion = findProperty("appVersion") as String

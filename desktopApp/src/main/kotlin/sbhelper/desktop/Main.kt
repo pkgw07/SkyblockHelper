@@ -92,6 +92,8 @@ fun main(args: Array<String>) {
     // 위키 창의 '앱에서 보기' → 앱 검색 화면으로
     WikiWindow.onOpenInApp = { title -> javax.swing.SwingUtilities.invokeLater { controller.openWikiLink(title); bringToFront() } }
     platform.onQuitForUpdate = { repo.stopLoops(); kotlin.system.exitProcess(0) }
+    // 게임 오버레이: 마인크래프트 창 전환 신호 받기 (Windows)
+    GameWatch.start(scope)
 
     // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)
     scope.launch {
@@ -152,6 +154,8 @@ fun main(args: Array<String>) {
                 Item("종료", onClick = ::quit)
             },
         )
+
+        GameOverlay(repo)
 
         val windowState = rememberWindowState(size = DpSize(1320.dp, 860.dp), position = WindowPosition(Alignment.Center))
         Window(

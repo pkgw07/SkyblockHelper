@@ -156,6 +156,24 @@ fun main(args: Array<String>) {
         scene.close()
         println("saved 55-easter-implosion")
     }
+    // 2.0: 미니언 계산, 시세 그래프, 오늘 할 일, 오버레이 기록 줄 판별
+    controller.statsTab = 10; shot("56-minion-calc", Screen.STATS, 1320, 2300)
+    shot("57-mobile-minion-calc", Screen.STATS, 412, 3200)
+    run {
+        val pts = (0 until 140).map { i ->
+            val t = now - (140 - i) * 10 * 60_000L
+            val b = 180_000.0 + 9_000 * kotlin.math.sin(i / 9.0) + i * 120
+            sbhelper.core.calc.PricePoint(t, b, b * 0.96)
+        }
+        repo.previewPriceHistory(sbhelper.core.calc.PriceHistory(mapOf("ENCHANTED_DIAMOND" to pts), listOf("ENCHANTED_DIAMOND")))
+        controller.go(Screen.SEARCH); controller.openItem("ENCHANTED_DIAMOND"); shot("58-price-graph", Screen.SEARCH, 1320, 1100)
+        shot("59-mobile-price-graph", Screen.SEARCH, 412, 1400)
+    }
+    shot("60-mobile-home-today", Screen.HOME, 412, 1400)
+    val scanOk = GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] Welcome to Hypixel SkyBlock!") == true &&
+        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: Connecting to mc.hypixel.net, 25565") == false &&
+        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] hello") == null
+    println("OVERLAY_LOG_SCAN=" + if (scanOk) "ok" else "fail")
     repo.updateDevice { it.copy(contentWidth = 2) }
     controller.statsTab = 8; shot("34-wide-content", Screen.STATS, 1920, 1000)
     repo.updateDevice { it.copy(contentWidth = 0) }
