@@ -93,6 +93,13 @@ class ProfileProbe {
             tree(JsonObject(p.filterKeys { it != "members" }), "profile", lines)
             tree(me, "member", lines)
             File(dir, "profile-$i${if (selected) "-selected" else ""}.txt").writeText(lines.joinToString("\n"))
+            // HotM·HotF·일일 보너스 관련 항목 이름 (값 없음)
+            if (selected) {
+                val rx = Regex("daily|_day|reset|last_|commission|skill_tree|mining_core|foraging_core|whisper", RegexOption.IGNORE_CASE)
+                lines.filter { rx.containsMatchIn(it) && !it.contains("collection") }.take(80).chunked(20).forEachIndexed { n, ch ->
+                    report.appendLine("  일일·트리 항목(#$i-$n): " + ch.joinToString(" | "))
+                }
+            }
             val spots = mutableListOf<String>(); itemSpots(me, "member", spots); itemSpots(JsonObject(p.filterKeys { it != "members" }), "profile", spots)
             val wk = mutableListOf<String>(); wardrobeKeys(p.mapKeys { it.key }.let { JsonObject(it) }, "profile", wk)
             report.appendLine("  아이템 위치(#$i): " + spots.joinToString(" | "))
