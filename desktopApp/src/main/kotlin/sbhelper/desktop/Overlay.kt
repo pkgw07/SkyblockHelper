@@ -41,8 +41,8 @@ import sbhelper.ui.theme.SbText
 private const val PLACE_BAR = 28
 
 /**
- * 게임 오버레이: Hypixel SkyBlock 안에서 마인크래프트 화면 구석에 제작 플래너 진행도.
- *  - 스카이블록에 들어가면 창을 만들고, 나가거나 게임이 꺼지면 없앤다
+ * 게임 오버레이: 마인크래프트 화면 구석에 제작 플래너 진행도.
+ *  - 마인크래프트가 켜지면 창을 만들고, 게임이 꺼지면 없앤다 (켜고 끄기는 Ctrl+Shift+O)
  *  - 다른 창으로 전환하면 숨김, 단축키(Ctrl+Shift+O)로 숨김
  *  - 데이터가 바뀔 때만 다시 그림 (애니메이션·시계 없음)
  *  - 클릭 통과, 작업 표시줄에 안 나옴, 포커스를 가져가지 않음
@@ -53,7 +53,7 @@ fun GameOverlay(repo: SkyblockRepository) {
     val app by repo.state.collectAsState()
     val game by GameWatch.state.collectAsState()
     val d = app.device
-    // 스카이블록 안(기록 파일을 못 찾으면 게임이 켜져 있는 동안), 또는 미리 보기
+    // 마인크래프트가 켜져 있는 동안, 또는 미리 보기·위치 정하기
     if (!game.preview && !game.placing && (!d.overlayEnabled || !game.active)) return
 
     // 제작 플래너 목표 → 기본 재료 진행도 (목표·자루·데이터가 바뀔 때만 계산)
