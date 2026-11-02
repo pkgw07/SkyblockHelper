@@ -888,6 +888,191 @@ def roman(text):
     return total
 
 
+# ------------------------------------------------------------------ 미니언 (Module:Minion/Data, Module:Minion/Aliases, Minion Fuel/Table)
+def lua_table(text):
+    """위키 Lua 데이터 모듈의 return { ... } 표를 파이썬 값으로 (문자열·숫자·true/false·중첩 표만)"""
+    i, n = 0, len(text)
+
+    def skip():
+        nonlocal i
+        while i < n:
+            if text[i].isspace():
+                i += 1
+            elif text.startswith("--[[", i):
+                j = text.find("]]", i)
+                i = n if j < 0 else j + 2
+            elif text.startswith("--", i):
+                j = text.find("\n", i)
+                i = n if j < 0 else j + 1
+            else:
+                break
+
+    def string():
+        nonlocal i
+        q = text[i]
+        i += 1
+        out = []
+        while i < n and text[i] != q:
+            if text[i] == "\\" and i + 1 < n:
+                out.append({"n": "\n", "t": "\t"}.get(text[i + 1], text[i + 1]))
+                i += 2
+            else:
+                out.append(text[i])
+                i += 1
+        i += 1
+        return "".join(out)
+
+    def value():
+        nonlocal i
+        skip()
+        c = text[i]
+        if c == "{":
+            return table()
+        if c in "'\"":
+            return string()
+        if text.startswith("[[", i):
+            j = text.find("]]", i)
+            v = text[i + 2:j]
+            i = j + 2
+            return v
+        m = re.compile(r"-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?").match(text, i)
+        if m:
+            i = m.end()
+            v = m.group(0)
+            return float(v) if any(ch in v for ch in ".eE") else int(v)
+        m = re.compile(r"[A-Za-z_][A-Za-z0-9_]*").match(text, i)
+        if m:
+            i = m.end()
+            return {"true": True, "false": False, "nil": None}.get(m.group(0), m.group(0))
+        raise ValueError(f"lua parse error at {i}: {text[i:i + 40]!r}")
+
+    def table():
+        nonlocal i
+        i += 1  # {
+        arr, obj = [], {}
+        while True:
+            skip()
+            if text[i] == "}":
+                i += 1
+                break
+            if text[i] == "[" and not text.startswith("[[", i):
+                i += 1
+                k = value()
+                skip(); i += 1  # ]
+                skip(); i += 1  # =
+                obj[k] = value()
+            else:
+                m = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*=(?!=)").match(text, i)
+                if m:
+                    i = m.end()
+                    obj[m.group(1)] = value()
+                else:
+                    arr.append(value())
+            skip()
+            if i < n and text[i] in ",;":
+                i += 1
+        if obj and arr:
+            for k, v in enumerate(arr, 1):
+                obj[k] = v
+            return obj
+        return obj if obj else arr
+
+    start = text.find("{", text.find("return"))
+    i = start
+    return table()
+
+
+def lua_local_table(text, name):
+    """local name = { ... } 하나만 꺼내기"""
+    m = re.search(r"local\s+" + name + r"\s*=\s*\{", text)
+    if not m:
+        return None
+    depth, j = 0, m.end() - 1
+    for k in range(j, len(text)):
+        if text[k] == "{":
+            depth += 1
+        elif text[k] == "}":
+            depth -= 1
+            if depth == 0:
+                return lua_table("return " + text[j:k + 1])
+    return None
+
+
+def minions(ids):
+    """미니언: 단계별 행동 간격(초)·저장 칸·업그레이드 재료, 수확당 아이템, 연료(속도·지속 시간)"""
+    raw = lua_table(module_text("Module:Minion/Data"))
+    PAGES_USED.append({"page": "Module:Minion/Data", "revid": None})
+    aliases = module_text("Module:Minion/Aliases")
+    PAGES_USED.append({"page": "Module:Minion/Aliases", "revid": None})
+    crystal_ok = set(lua_local_table(aliases, "crystalValid") or [])
+    fuel_mult = lua_local_table(aliases, "fuelData") or {}
+    slots = [a + b for a in "ABC" for b in "123"]
+    out = []
+    for name, m in sorted(raw.items()):
+        if not isinstance(m, dict) or not isinstance(m.get("stats"), list):
+            continue
+        items = []
+        for it in m.get("items") or []:
+            if isinstance(it, dict) and it.get("item"):
+                items.append({"id": ids.id(it["item"]), "avg": float(it.get("avg", 1)),
+                              **({"cond": it["condition"]} if it.get("condition") else {}),
+                              **({"replaces": ids.id(it["converts"])} if it.get("converts") else {})})
+        tiers = []
+        for t in m["stats"]:
+            if not isinstance(t, dict):
+                continue
+            cost = {}
+
+            def add(name, count):
+                # "Inferno Vertex,4" 처럼 개수를 붙여 쓴 칸, 코인
+                m2 = re.match(r"^(.*?),\s*(\d+)$", name)
+                if m2:
+                    name, count = m2.group(1), count * int(m2.group(2))
+                key = "COINS" if name.lower() in ("coin", "coins") else ids.id(name)
+                cost[key] = cost.get(key, 0) + count
+            c = t.get("crafting")
+            if isinstance(c, dict):
+                over = {k: v for k, v in c.items() if k in slots}
+                if c.get("item") and c.get("num"):
+                    add(c["item"], c["num"] * (8 - len([k for k in over if k != "B2"])))
+                for k, v in over.items():
+                    if isinstance(v, str) and v:
+                        add(v, 1)
+            for tr in t.get("trade") or []:
+                if isinstance(tr, dict) and tr.get("item"):
+                    add(tr["item"], tr.get("num", 1))
+            tiers.append({"tba": float(t.get("tba", 0)), "storage": int(t.get("storage", 0)),
+                          "cost": [[k, v] for k, v in cost.items()],
+                          **({"npc": t["tradeNpc"] if isinstance(t["tradeNpc"], str) else " / ".join(map(str, t["tradeNpc"]))}
+                             if t.get("tradeNpc") else {})})
+        if not tiers or not items:
+            continue
+        icon = ids.by_name.get(f"{name} minion i".lower())
+        out.append({"name": name, "type": m.get("type", ""), "icon": icon,
+                    "actions": 1 if name.lower() in ("fishing", "melon", "pumpkin") else 2,
+                    "crystal": name.lower() in crystal_ok, "items": items, "tiers": tiers})
+    # 연료: 위키 Minion Fuel 표 (지속 시간) + Module:Minion/Aliases 의 배수
+    fuels = []
+    table = wikitext("Minion Fuel/Table")
+    for chunk in re.split(r"\n\|-[^\n]*", table)[1:]:
+        cells = [l[1:].strip() for l in chunk.strip("\n").split("\n") if l.startswith("|") and not l.startswith("|}")]
+        if len(cells) < 4:
+            continue
+        name = clean(cells[1])
+        if not name or "Inferno" in name:
+            continue
+        hours = re.search(r"data-sort-value=([\d.]+)", cells[2])
+        boost = re.search(r"data-sort-value=([\d.]+)", cells[3])
+        if not boost:
+            continue
+        b = float(boost.group(1))
+        h = float(hours.group(1)) if hours else None
+        mult = re.search(r"\|x\d", cells[3]) is not None
+        fuels.append({"id": ids.id(name), "name": name, **({"mult": b} if mult else {"speed": round(b - 1, 4)}),
+                      **({"hours": h} if h is not None and h < 9999 else {})})
+    return {"minions": out, "fuels": fuels, "fuelCheck": {k: v for k, v in fuel_mult.items()}}
+
+
 def main(out_path):
     ids = Ids()
     data = {
@@ -915,6 +1100,8 @@ def main(out_path):
         "accessories": accessories(ids),
         "bestiary": bestiary(),
     }
+    mn = minions(ids)
+    data["minions"], data["minionFuels"] = mn["minions"], mn["fuels"]
     # 테크트리·아이언맨 가이드·장신구 아이템의 NPC 구매처 (정보 상자 merchant/buy)
     item_ids = {i for st in data["ironmanGuide"] for i in st["items"]}
     for stages in data["techTrees"].values():

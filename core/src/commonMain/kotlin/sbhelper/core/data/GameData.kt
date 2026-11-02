@@ -46,7 +46,64 @@ data class GameData(
     val npcBuy: Map<String, NpcBuy> = emptyMap(),
     /** 업그레이드 이전 단계 (위키 정보 상자 upgrades_from): 아이템 → 이전 아이템 */
     val upgrades: Map<String, String> = emptyMap(),
+    /** 미니언 (위키 Module:Minion/Data) */
+    val minions: List<Minion> = emptyList(),
+    /** 미니언 연료 (위키 Minion Fuel 표) */
+    val minionFuels: List<MinionFuel> = emptyList(),
 ) {
+    /** 미니언 한 종류. tiers[0] = I 단계 */
+    @Serializable
+    data class Minion(
+        val name: String,
+        val type: String = "",
+        val icon: String? = null,
+        /** 수확 한 번에 필요한 행동 수 (대부분 2: 놓기 + 캐기) */
+        val actions: Int = 2,
+        /** 위키 Minion Crystal 이 적용되는지 */
+        val crystal: Boolean = false,
+        val items: List<MinionItem> = emptyList(),
+        val tiers: List<MinionTier> = emptyList(),
+    )
+
+    @Serializable
+    data class MinionItem(
+        val id: String,
+        /** 수확 한 번에 평균 몇 개 */
+        val avg: Double = 1.0,
+        /** 이 업그레이드가 있을 때만 (Auto Smelter, Enchanted Egg …) */
+        val cond: String? = null,
+        val replaces: String? = null,
+    )
+
+    @Serializable
+    data class MinionTier(
+        /** 행동 사이 시간 (초) */
+        val tba: Double,
+        val storage: Int = 0,
+        /** 이 단계로 올리는 재료 (I 단계는 처음 만드는 재료). "COINS" = 코인 */
+        val cost: List<List<kotlinx.serialization.json.JsonPrimitive>> = emptyList(),
+        /** 재료 대신 NPC 와 교환 (XII 단계 등) */
+        val npc: String? = null,
+    ) {
+        fun costPairs(): List<Pair<String, Long>> = cost.mapNotNull { c ->
+            val id = c.getOrNull(0)?.content ?: return@mapNotNull null
+            val n = c.getOrNull(1)?.content?.toDoubleOrNull()?.toLong() ?: return@mapNotNull null
+            id to n
+        }
+    }
+
+    @Serializable
+    data class MinionFuel(
+        val id: String,
+        val name: String = "",
+        /** 속도 증가 (0.25 = +25%) */
+        val speed: Double = 0.0,
+        /** 아이템 배수 (Catalyst x3) */
+        val mult: Double = 1.0,
+        /** 지속 시간 (없으면 영구) */
+        val hours: Double? = null,
+    )
+
     @Serializable
     data class TimerRules(
         /** 초콜릿 알이 나오는 게임 속 시각 (예: 7, 14, 21시) */

@@ -97,6 +97,18 @@ class CraftPlanner(private val data: GameData) {
     }
 
     /**
+     * 기본 재료를 '전체 필요량 기준' 으로: 가진 중간 재료도 기본 재료로 환산해서 모은 양에 넣는다.
+     * 예) Coal 1000 이 필요하고 Enchanted Coal(=160 Coal) 2개가 있으면 → Coal 320 / 1000
+     */
+    fun rawProgress(target: String, amount: Int, stock: Map<String, Long>): List<RawNeed> {
+        val full = plan(target, amount)
+        if (stock.isEmpty()) return full.raw
+        val missing = plan(target, amount, stock).raw.associate { it.itemId to it.missing }
+        return full.raw.map { r -> RawNeed(r.itemId, r.needed, (r.needed - (missing[r.itemId] ?: 0.0)).coerceIn(0.0, r.needed)) }
+            .sortedByDescending { it.missing }
+    }
+
+    /**
      * 전체 진행도 (0..1). 재료마다 개수 차이가 커서(코블스톤 수천 개 vs 희귀 재료 1개) 재료 가치로 무게를 둔다.
      * 가진 것 없이 분해한 전체 재료 가치 대비, 가진 것(중간 재료 포함)을 빼고 남은 재료 가치.
      * @param price 재료 하나의 가치 (없으면 null → 시세가 있는 재료들의 중간값으로)

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.BookmarkAdd
@@ -194,10 +195,18 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             state.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: state.npcPrices[k] ?: state.lowestBin[k]
         }
     }
-    PlanSummary(plan, progress, wide)
+    // 가진 중간 재료도 기본 재료로 환산 (Enchanted Coal 2개 → Coal 320개 모은 것으로)
+    val raw = remember(id, amount, useSacks, sacks, state.gameData) {
+        planner.rawProgress(id, amount, if (useSacks) sacks.orEmpty() else emptyMap())
+    }
+    // 포지 시간: 내 HotM Quick Forge 레벨 + 지금 시장 퍼크(Cole) 반영 (위키 The Forge, 감소는 더해서 적용)
+    val qfLevel = state.selectedProfile?.quickForgeLevel ?: 0
+    val forgeCut = (state.gameData.rules.quickForge.percent(qfLevel) +
+        sbhelper.core.calc.ForgeCalc.mayorPercent(state.gameData, state.election, sbhelper.core.util.Clock.now(), 0L)).coerceIn(0.0, 95.0)
+    PlanSummary(plan, progress, wide, qfLevel, forgeCut, state.selectedProfile != null)
     Responsive(
         wide,
-        cell(1f) { m -> RawMaterials(state, plan, m) },
+        cell(1f) { m -> RawMaterials(state, raw, m) },
         cell(1f) { m ->
             Panel(m, caption = "Recipe Tree", title = "제작 순서", accent = Sb.Aqua) {
                 PlanTree(state, plan.root, 0)
@@ -207,7 +216,7 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
 }
 
 @Composable
-private fun PlanSummary(plan: CraftPlan, progress: Double, wide: Boolean) {
+private fun PlanSummary(plan: CraftPlan, progress: Double, wide: Boolean, qfLevel: Int, forgeCut: Double, hasProfile: Boolean) {
     val missing = plan.raw.count { it.missing > 0 }
     val pct = if (missing == 0) 1.0 else progress
     val tiles: List<@Composable (Modifier) -> Unit> = listOf(
@@ -222,17 +231,26 @@ private fun PlanSummary(plan: CraftPlan, progress: Double, wide: Boolean) {
         { m -> StatTile("기본 재료", "${plan.raw.size}종", m, color = Sb.Aqua) },
         { m -> StatTile("부족한 재료", "${missing}종", m, color = if (missing == 0) Sb.Green else Sb.Red,
             sub = if (missing == 0) "바로 만들 수 있어요!" else null) },
-        { m -> StatTile("포지 시간 합계", if (plan.totalForgeSeconds > 0) formatDuration(plan.totalForgeSeconds * 1000) else "없음", m,
-            color = Sb.Gold, sub = if (plan.forgeSteps > 0) "포지 ${plan.forgeSteps}회 · Quick Forge 미반영" else null) },
+        { m ->
+            val sec = plan.totalForgeSeconds * (1 - forgeCut / 100)
+            StatTile("포지 시간 합계", if (plan.totalForgeSeconds > 0) formatDuration((sec * 1000).toLong()) else "없음", m,
+                color = Sb.Gold, sub = if (plan.forgeSteps == 0) null else "포지 ${plan.forgeSteps}회 · " + when {
+                    !hasProfile -> "계정 연결 시 Quick Forge 반영"
+                    forgeCut > 0 -> "Quick Forge ${qfLevel}레벨 등 -${fixed(forgeCut, 1)}% 반영 (원래 ${formatDuration(plan.totalForgeSeconds * 1000)})"
+                    else -> "HotM 에 Quick Forge 없음"
+                })
+        },
     )
     if (wide) Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) { tiles.forEach { it(Modifier.weight(1f)) } }
     else Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { tiles.forEach { it(Modifier.fillMaxWidth()) } }
 }
 
 @Composable
-private fun RawMaterials(state: AppState, plan: CraftPlan, modifier: Modifier) {
+private fun RawMaterials(state: AppState, raw: List<sbhelper.core.calc.RawNeed>, modifier: Modifier) {
     Panel(modifier, caption = "Materials", title = "필요한 기본 재료", accent = Sb.Green) {
-        plan.raw.forEach { r ->
+        Text("가진 중간 재료(예: Enchanted Coal)도 기본 재료로 바꿔 세요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(4.dp))
+        raw.forEach { r ->
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     sbhelper.ui.components.ItemIcon(state, r.itemId, 26.dp)
@@ -240,6 +258,10 @@ private fun RawMaterials(state: AppState, plan: CraftPlan, modifier: Modifier) {
                     RarityName(state.itemName(r.itemId), state.itemTier(r.itemId), Modifier.weight(1f), size = 13)
                     Text("${formatNumber(r.have.toLong())} / ${formatNumber(kotlin.math.ceil(r.needed).toLong())}",
                         style = SbText.pixel(12, if (r.missing <= 0) Sb.Green else Sb.Text))
+                    // 이 재료를 몇 % 모았는지 (예: 1,000 / 10,000 → 10%)
+                    val pct = if (r.needed > 0) (r.have / r.needed).coerceIn(0.0, 1.0) else 1.0
+                    Text(formatPercent(pct, if (pct > 0 && pct < 0.01) 1 else 0), style = SbText.pixel(12, if (r.missing <= 0) Sb.Green else Sb.Gold, bold = true),
+                        modifier = Modifier.padding(start = 8.dp).widthIn(min = 40.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                 }
                 Spacer(Modifier.height(4.dp))
                 XpBar(if (r.needed > 0) r.have / r.needed else 1.0, Modifier.fillMaxWidth(), if (r.missing <= 0) Sb.Green else Sb.Aqua, 5.dp)

@@ -510,6 +510,9 @@ class CoreTest {
         // 중간 재료 B 하나 = D 3개 = 6코인 → 6/18
         assertEquals(1.0 / 3, p.progress("A", 1, mapOf("B" to 1L)) { price[it] }, 1e-9)
         assertEquals(1.0, p.progress("A", 1, mapOf("B" to 2L, "C" to 1L)) { price[it] }, 1e-9)
+        // 기본 재료 표시: D 6개 필요, B(=D 3개) 1개 가짐 → D 3/6
+        val raw = p.rawProgress("A", 1, mapOf("B" to 1L))
+        assertEquals(6.0, raw.first { it.itemId == "D" }.needed); assertEquals(3.0, raw.first { it.itemId == "D" }.have)
         // 오늘 할 일: 체크 → 초기화 전까지 완료
         val rules = GameData(timerRules = GameData.TimerRules(fetchurReset = "UTC 00:00"))
         val now = 1_700_000_000_000L
@@ -519,5 +522,29 @@ class CoreTest {
         s = sbhelper.core.calc.Today.toggle(s, item, now)
         assertTrue(sbhelper.core.calc.Today.items(now + 1000, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
         assertTrue(!sbhelper.core.calc.Today.items(now + 86_400_000L, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
+    }
+
+    @Test
+    fun minionProfitFromWikiData() {
+        val data = GameData.parse(File("../ui/src/commonMain/composeResources/files/gamedata.json").readText())
+        val cobble = data.minions.first { it.name == "Cobblestone" }
+        assertEquals(12, cobble.tiers.size)
+        // Cobblestone I: 14초, 2행동 → 하루 86400/28 = 3085.7개
+        val none = sbhelper.core.calc.MinionSetup()
+        val r = assertNotNull(sbhelper.core.calc.MinionProfit.tier(cobble, 1, none, sbhelper.core.calc.SellTo.NPC, { null }, { 1.0 }, { null }))
+        assertEquals(86400.0 / 28, r.outputs.first { it.id == "COBBLESTONE" }.perDay, 1e-6)
+        // +25% 속도 연료
+        val lava = data.minionFuels.first { it.id == "ENCHANTED_LAVA_BUCKET" }
+        val r2 = assertNotNull(sbhelper.core.calc.MinionProfit.tier(cobble, 1, none.copy(fuel = lava), sbhelper.core.calc.SellTo.NPC, { null }, { 1.0 }, { null }))
+        assertEquals(86400.0 / 28 * 1.25, r2.outputs.first().perDay, 1e-6)
+        // 다음 단계(II): Cobblestone 160개 → 하루 3085개면 0.05일
+        val next = assertNotNull(sbhelper.core.calc.MinionProfit.nextTier(data, cobble, 1, r, 1, emptyMap()))
+        assertEquals(160.0, next.needs.first { it.id == "COBBLESTONE" }.need)
+        assertTrue((next.days ?: 99.0) < 0.1)
+        // V 단계: Enchanted Cobblestone 8개 = Cobblestone 1280개로 분해
+        val r4 = assertNotNull(sbhelper.core.calc.MinionProfit.tier(cobble, 4, none, sbhelper.core.calc.SellTo.NPC, { null }, { 1.0 }, { null }))
+        val n5 = assertNotNull(sbhelper.core.calc.MinionProfit.nextTier(data, cobble, 4, r4, 1, emptyMap()))
+        assertEquals(1280.0, n5.needs.first { it.id == "COBBLESTONE" }.need)
+        assertEquals(7, sbhelper.core.calc.MinionProfit.craftedTier(cobble, listOf("COBBLESTONE_3", "COBBLESTONE_7", "WHEAT_9")))
     }
 }
