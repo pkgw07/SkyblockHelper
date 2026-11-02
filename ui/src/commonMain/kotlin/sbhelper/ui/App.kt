@@ -689,8 +689,8 @@ private fun WhatsNewDialog(controller: AppController, state: AppState, platform:
     }
     if (seen == current || entries.isEmpty()) return
     if (seen.isEmpty() && !state.device.onboardingDone && !state.accountLinked) return
-    // 지난번에 본 버전 이후의 내역 (없으면 지금 버전만)
-    val newer = entries.filter { e -> seen.isEmpty() || sbhelper.core.update.Updates.isNewer(e.version, seen) }
+    // 지난번에 본 버전 이후의 내역. 이 기능이 생기기 전 버전에서 올라왔으면(기록 없음) 지금 버전만
+    val newer = entries.filter { e -> if (seen.isEmpty()) e.version == current else sbhelper.core.update.Updates.isNewer(e.version, seen) }
         .filter { e -> !sbhelper.core.update.Updates.isNewer(e.version, current) }.take(4)
         .ifEmpty { entries.filter { it.version == current } }
     if (newer.isEmpty()) { LaunchedEffect(current) { controller.repo.updateDevice { it.copy(lastSeenVersion = current) } }; return }

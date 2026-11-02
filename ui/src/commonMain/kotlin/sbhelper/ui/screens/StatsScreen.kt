@@ -143,7 +143,28 @@ private fun NetworthTab(controller: AppController, state: AppState, p: ProfileSu
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FlowRow2(content: @Composable () -> Unit) {
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 560.dp) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+        } else {
+            // 휴대폰: 같은 너비 2칸씩 (칸마다 폭이 달라 들쭉날쭉하지 않게)
+            androidx.compose.ui.layout.Layout(content) { measurables, c ->
+                val gap = 10.dp.roundToPx()
+                val w = ((c.maxWidth - gap) / 2).coerceAtLeast(0)
+                val placeables = measurables.map { it.measure(androidx.compose.ui.unit.Constraints.fixedWidth(w)) }
+                val rows = placeables.chunked(2)
+                val heights = rows.map { r -> r.maxOf { it.height } }
+                val total = heights.sum() + gap * (rows.size - 1).coerceAtLeast(0)
+                layout(c.maxWidth, total) {
+                    var y = 0
+                    rows.forEachIndexed { i, r ->
+                        r.forEachIndexed { j, p -> p.placeRelative(j * (w + gap), y) }
+                        y += heights[i] + gap
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------------ HotM 트리

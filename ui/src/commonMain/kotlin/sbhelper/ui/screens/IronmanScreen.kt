@@ -67,9 +67,13 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
     ScreenColumn(wide) {
         val p = state.selectedProfile
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { controller.ironmanTab = it })
-            Spacer(Modifier.weight(1f))
-            if (p?.gameMode == GameMode.IRONMAN) Pill("♲ Ironman · ${p.cuteName}", Sb.Gray, filled = true)
+            // 탭이 먼저 너비를 다 가져가면 오른쪽 표시가 세로로 길게 눌려서(휴대폰) 빈 공간이 생기므로 탭에 남은 너비만
+            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { controller.ironmanTab = it },
+                Modifier.weight(1f, fill = false))
+            if (p?.gameMode == GameMode.IRONMAN) {
+                Spacer(Modifier.width(8.dp))
+                Pill(if (wide) "♲ Ironman · ${p.cuteName}" else "♲", Sb.Gray, filled = true)
+            }
         }
         Text(
             "Ironman 은 거래를 할 수 없어서 직접 만들고 NPC 에게 팔아야 해요. 일반 프로필에서도 똑같이 쓸 수 있어요.",

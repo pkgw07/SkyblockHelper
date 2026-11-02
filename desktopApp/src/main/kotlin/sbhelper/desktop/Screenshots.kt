@@ -63,6 +63,8 @@ fun main(args: Array<String>) {
             priceAlerts = listOf(PriceAlert("a1", "ENCHANTED_DIAMOND", target = 1_000.0, above = true)))
     }
     repo.previewProfiles(listOf(main, iron))
+    // '업데이트 후 바뀐 점' 창은 따로 찍고, 나머지 화면에서는 안 뜨게
+    repo.updateDevice { it.copy(lastSeenVersion = sbhelper.ui.AppInfo.VERSION) }
     runBlocking { repo.checkAlerts() }
 
     val controller = AppController(repo, scope)
@@ -156,6 +158,9 @@ fun main(args: Array<String>) {
         scene.close()
         println("saved 55-easter-implosion")
     }
+    repo.updateDevice { it.copy(lastSeenVersion = "1.9.2") }
+    shot("61-whats-new", Screen.HOME)
+    repo.updateDevice { it.copy(lastSeenVersion = sbhelper.ui.AppInfo.VERSION) }
     // 2.0: 미니언 계산, 시세 그래프, 오늘 할 일, 오버레이 기록 줄 판별
     controller.statsTab = 10; shot("56-minion-calc", Screen.STATS, 1320, 2300)
     shot("57-mobile-minion-calc", Screen.STATS, 412, 3200)
