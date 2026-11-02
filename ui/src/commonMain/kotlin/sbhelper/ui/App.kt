@@ -611,12 +611,9 @@ private fun UpdateAvailableDialog(controller: AppController, state: AppState, pl
         containerColor = Sb.SurfaceHigh,
         title = { Text("새 버전 ${release.version}", style = SbText.body(17, weight = FontWeight.Bold)) },
         text = {
-            Column {
-                Text("새 버전이 나왔어요. 지금 받아서 업데이트할까요?\n(받은 뒤 다시 시작할지 한 번 더 물어봐요)", style = SbText.body(14, Sb.TextDim))
-                release.body?.lineSequence()?.filter { it.isNotBlank() }?.take(6)?.toList()?.takeIf { it.isNotEmpty() }?.let { lines ->
-                    Spacer(Modifier.height(8.dp))
-                    lines.forEach { Text(it.take(120), style = SbText.body(12, Sb.TextFaint), maxLines = 1) }
-                }
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                Text("새 버전이 나왔어요. 지금 업데이트할까요?", style = SbText.body(14, Sb.TextDim))
+                ReleaseNotes(release.body)
             }
         },
         confirmButton = {
@@ -627,6 +624,30 @@ private fun UpdateAvailableDialog(controller: AppController, state: AppState, pl
         },
         dismissButton = { sbhelper.ui.components.SbButton("나중에", { controller.updateAsked = release.version }, outlined = true) },
     )
+}
+
+/**
+ * 릴리스 노트 보여 주기: '### 새 기능' 같은 제목은 굵고 크게, '- 항목' 은 • 줄로.
+ * 마크다운 기호(#, **, -)는 그대로 보이지 않게 지운다. 맨 위 '## 앱 이름 버전' 줄은 창 제목과 겹쳐서 뺀다.
+ */
+@Composable
+private fun ReleaseNotes(body: String?) {
+    val lines = body?.lineSequence()?.map { it.trim() }?.filter { it.isNotEmpty() && !it.startsWith("## ") }?.toList().orEmpty()
+    if (lines.isEmpty()) return
+    fun clean(t: String) = t.replace("**", "").replace("__", "").replace("`", "").trim()
+    lines.take(24).forEach { line ->
+        when {
+            line.startsWith("#") -> {
+                Spacer(Modifier.height(12.dp))
+                Text(clean(line.trimStart('#')), style = SbText.body(15, Sb.Gold, FontWeight.Bold))
+            }
+            line.startsWith("- ") || line.startsWith("* ") -> Row(Modifier.padding(top = 4.dp)) {
+                Text("•", style = SbText.body(14, Sb.Gold)); Spacer(Modifier.width(8.dp))
+                Text(clean(line.drop(2)), style = SbText.body(14, Sb.Text))
+            }
+            else -> Text(clean(line), style = SbText.body(13, Sb.TextDim), modifier = Modifier.padding(top = 4.dp))
+        }
+    }
 }
 
 /** 업데이트를 다 받으면 한 번 묻는다: 지금 다시 시작할까요? */
@@ -701,7 +722,7 @@ private fun WhatsNewDialog(controller: AppController, state: AppState, platform:
         title = { Text("업데이트 완료 · v$current", style = SbText.body(17, weight = FontWeight.Bold)) },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                Text("새로워진 점", style = SbText.caption(Sb.Gold))
+                Text("새로워진 점", style = SbText.body(15, Sb.Gold, FontWeight.Bold))
                 newer.forEach { e ->
                     Spacer(Modifier.height(8.dp))
                     if (newer.size > 1) Text("v${e.version}", style = SbText.pixel(12, Sb.TextDim, bold = true))
