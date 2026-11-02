@@ -91,6 +91,7 @@ import sbhelper.ui.screens.AuctionSearchState
 import sbhelper.ui.screens.BazaarScreen
 import sbhelper.ui.screens.HomeScreen
 import sbhelper.ui.screens.IronmanScreen
+import sbhelper.ui.screens.CalculatorScreen
 import sbhelper.ui.screens.MoreScreen
 import sbhelper.ui.screens.PatchNotesScreen
 import sbhelper.ui.screens.PatchNotesState
