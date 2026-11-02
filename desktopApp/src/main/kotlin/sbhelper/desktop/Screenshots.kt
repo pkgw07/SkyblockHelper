@@ -158,6 +158,16 @@ fun main(args: Array<String>) {
         scene.close()
         println("saved 55-easter-implosion")
     }
+    // 경매장: 실제 검색 결과의 아이템 그림
+    run {
+        val a = controller.auctionSearch
+        a.query = "Juju"; a.search()
+        val until = System.currentTimeMillis() + 150_000
+        Thread.sleep(500)
+        while (a.loading && System.currentTimeMillis() < until) Thread.sleep(500)
+        println("AUCTION_RESULTS=${a.results.size} with_item=${a.results.count { it.item != null }}")
+        shot("62-auction-icons", Screen.AUCTION)
+    }
     repo.updateDevice { it.copy(lastSeenVersion = "1.9.2") }
     shot("61-whats-new", Screen.HOME)
     repo.updateDevice { it.copy(lastSeenVersion = sbhelper.ui.AppInfo.VERSION) }
