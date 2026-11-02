@@ -1,0 +1,28 @@
+name: Release notes
+
+# 이미 나간 릴리스의 업데이트 내역(설명)만 고친다
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "릴리스 태그 (예: v1.9.2)"
+        required: true
+      notes:
+        description: "업데이트 내역 (한국어)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  edit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Edit release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ inputs.notes }}
+        run: |
+          printf '%s\n' "$NOTES" > notes.md
+          gh release edit "${{ inputs.tag }}" --repo "${{ github.repository }}" --notes-file notes.md
+          echo "::notice title=Release notes::${{ inputs.tag }} 업데이트 내역을 고쳤어요"

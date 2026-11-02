@@ -138,7 +138,19 @@ fun main(args: Array<String>) {
         val scene = ImageComposeScene(1320, 860, Density(1f)) { SkyblockApp(controller, platform) }
         var t = 0L
         repeat(10) { scene.render(t); t += 400_000_000L; Thread.sleep(200) }
-        controller.implode(androidx.compose.ui.geometry.Offset(160f, 180f))
+        // 실제 마우스 우클릭을 Hyperion 그림 위치에 보내서 터지는지 확인
+        val pos = androidx.compose.ui.geometry.Offset(157f, 180f)
+        @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+        run {
+            scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Move, pos)
+            scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, pos,
+                buttons = androidx.compose.ui.input.pointer.PointerButtons(isSecondaryPressed = true),
+                button = androidx.compose.ui.input.pointer.PointerButton.Secondary)
+            scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Release, pos,
+                buttons = androidx.compose.ui.input.pointer.PointerButtons(),
+                button = androidx.compose.ui.input.pointer.PointerButton.Secondary)
+        }
+        println("EASTER_RIGHT_CLICK=" + if (controller.implosions.isNotEmpty()) "ok" else "fail")
         repeat(3) { Thread.sleep(110); scene.render(t); t += 16_000_000L }
         File(out, "55-easter-implosion.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
         scene.close()

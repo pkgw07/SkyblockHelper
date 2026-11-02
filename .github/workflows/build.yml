@@ -11,6 +11,10 @@ on:
         description: "릴리스 버전 (예: 1.1.0). 비워 두면 빌드만 해요."
         required: false
         default: ""
+      notes:
+        description: "업데이트 내역 (한국어, 앱의 새 버전 창에도 보여요)"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -270,4 +274,6 @@ jobs:
           files: |
             dist/windows-installer/**/*
             dist/android-apk/*
-          generate_release_notes: true
+          # 업데이트 내역은 직접 쓴 한국어 글 (자동 커밋 목록은 쓰지 않음)
+          body: ${{ inputs.notes }}
+          generate_release_notes: false
