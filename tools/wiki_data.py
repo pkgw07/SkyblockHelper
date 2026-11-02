@@ -22,6 +22,7 @@ GitHub Actions(.github/workflows/data.yml)가 매일 실행해서 최신 패치�
 사용법: python3 tools/wiki_data.py [출력 경로]
 """
 import datetime
+import html
 import json
 import os
 import re
@@ -1073,6 +1074,32 @@ def minions(ids):
     return {"minions": out, "fuels": fuels, "fuelCheck": {k: v for k, v in fuel_mult.items()}}
 
 
+# ------------------------------------------------------------------ Attribute (Bucket:Shards)
+def attributes():
+    """Hunting 샤드와 그 Attribute: 이름·희귀도·스킬·지역·패밀리·효과·필요 조건 (위키 Bucket:Shards)"""
+    rows = bucket("bucket('shards').select('name','rarity','rarity_number','shard_id','families','skill','category',"
+                  "'attribute_name','attribute_effect','attribute_requirement','skyblock_id').limit(1000).run()")
+    PAGES_USED.append({"page": "Bucket:Shards", "revid": None})
+
+    def text(t):
+        t = html.unescape(re.sub(r"\[\[Category:[^\]]*\]\]", "", t or ""))
+        t = re.sub(r"<span aria-hidden=true>.*?</span>", "", t)
+        return clean(re.sub(r"<[^>]+>", "", t)).replace("\u2013", "-")
+
+    out = []
+    for r in rows:
+        if not r.get("attribute_name"):
+            continue
+        out.append({
+            "id": r.get("shard_id", ""), "shard": r.get("name", ""), "name": r["attribute_name"],
+            "rarity": r.get("rarity", ""), "rank": r.get("rarity_number", 0), "skill": r.get("skill", ""),
+            "area": r.get("category", ""), "families": r.get("families") or [],
+            "effect": text(r.get("attribute_effect")), "req": text(r.get("attribute_requirement")),
+            "sb": r.get("skyblock_id") or "",
+        })
+    return sorted(out, key=lambda a: (a["rank"], int(re.sub(r"\D", "", a["id"]) or 0)))
+
+
 def main(out_path):
     ids = Ids()
     data = {
@@ -1102,6 +1129,7 @@ def main(out_path):
     }
     mn = minions(ids)
     data["minions"], data["minionFuels"] = mn["minions"], mn["fuels"]
+    data["attributes"] = attributes()
     # 테크트리·아이언맨 가이드·장신구 아이템의 NPC 구매처 (정보 상자 merchant/buy)
     item_ids = {i for st in data["ironmanGuide"] for i in st["items"]}
     for stages in data["techTrees"].values():

@@ -50,7 +50,32 @@ data class GameData(
     val minions: List<Minion> = emptyList(),
     /** 미니언 연료 (위키 Minion Fuel 표) */
     val minionFuels: List<MinionFuel> = emptyList(),
+    /** Hunting 샤드의 Attribute (위키 Bucket:Shards) */
+    val attributes: List<Attribute> = emptyList(),
 ) {
+    @Serializable
+    data class Attribute(
+        /** 샤드 번호 (예: C1, U28, L9) */
+        val id: String,
+        /** 샤드 이름 (예: Grove Shard) */
+        val shard: String = "",
+        /** Attribute 이름 (예: Nature Elemental) */
+        val name: String,
+        val rarity: String = "",
+        val rank: Int = 0,
+        /** 영향 받는 스킬 (Global, Combat, Mining …) */
+        val skill: String = "",
+        /** 잡는 곳 (Forest, Water, Combat) */
+        val area: String = "",
+        val families: List<String> = emptyList(),
+        /** 효과 (단계 1~10 범위, 예: Grants +2-20 Health.) */
+        val effect: String = "",
+        /** 필요 조건 (예: Hunting V (5)) */
+        val req: String = "",
+        /** 공식 API 의 샤드 ID */
+        val sb: String = "",
+    )
+
     /** 미니언 한 종류. tiers[0] = I 단계 */
     @Serializable
     data class Minion(

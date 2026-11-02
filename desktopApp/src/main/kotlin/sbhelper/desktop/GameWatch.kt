@@ -127,7 +127,7 @@ object GameWatch {
     }
 
     private fun onForeground(hwnd: Pointer) {
-        val isMc = isMinecraft(hwnd)
+        val isMc = isMinecraft(hwnd) || sameProcess(hwnd, mcWindow)
         // 단축키는 게임이 맨 앞일 때만 잡는다 (다른 프로그램의 Ctrl+Shift+O/F 를 빼앗지 않게)
         hotkeys(isMc)
         if (isMc) {
@@ -137,6 +137,15 @@ object GameWatch {
         } else {
             set { it.copy(foreground = false) }
         }
+    }
+
+    /** 두 창이 같은 프로그램(프로세스)인지 — 게임이 따로 띄운 창으로 앞이 바뀌어도 게임으로 본다 */
+    private fun sameProcess(a: Pointer, b: Pointer?): Boolean {
+        if (b == null) return false
+        val u = U32.INSTANCE
+        val pa = IntArray(1); val pb = IntArray(1)
+        u.GetWindowThreadProcessId(a, pa); u.GetWindowThreadProcessId(b, pb)
+        return pa[0] != 0 && pa[0] == pb[0]
     }
 
     private var hotkeysOn = false
@@ -232,8 +241,8 @@ object GameWatch {
             val u = U32.INSTANCE
             // F11 을 누르면 1.8.9 는 게임 창을 새로 만든다 → 새 창을 찾아 이어 간다 (오버레이가 사라지지 않게)
             val fg = u.GetForegroundWindow()
-            val fgIsMc = fg != null && isMinecraft(fg)
-            if (fgIsMc && fg != mcWindow) mcWindow = fg
+            val fgIsMc = fg != null && (isMinecraft(fg) || sameProcess(fg, mcWindow))
+            if (fg != null && isMinecraft(fg) && fg != mcWindow) mcWindow = fg
             if (mcWindow == null || !u.IsWindow(mcWindow)) mcWindow = findMinecraft()
             val w = mcWindow
             if (w == null) {
@@ -276,16 +285,19 @@ object GameWatch {
 
         /** @return 스카이블록 안/밖이 바뀌었으면 그 값, 아니면 null */
         fun poll(): Boolean? {
-            // 지금 쓰이고 있는(최근 6시간 안에 바뀐) 기록 파일 중 가장 최근 것
-            val recent = System.currentTimeMillis() - 6 * 3_600_000L
-            val newest = (listOfNotNull(gameDir?.let { File(it, "logs/latest.log") }) + candidates())
-                .filter { it.isFile && it.lastModified() > recent }.maxByOrNull { it.lastModified() }
+            // 지금 쓰이고 있는(최근 6시간 안에 바뀐) 기록 파일 중 가장 최근 것.
+            // 지금 읽는 파일이 3분 안에 바뀌었으면 계속 그 파일만 (기록 파일이 둘일 때 왔다 갔다 하며 상태가 초기화되지 않게)
+            val now = System.currentTimeMillis()
+            val cur = file
+            val newest = if (cur != null && cur.isFile && now - cur.lastModified() < 3 * 60_000L) cur
+                else (listOfNotNull(gameDir?.let { File(it, "logs/latest.log") }) + candidates())
+                    .filter { it.isFile && it.lastModified() > now - 6 * 3_600_000L }.maxByOrNull { it.lastModified() }
             if (newest == null) { file = null; return null }
             var result: Boolean? = null
             if (newest != file) {
+                // 새로 읽는 파일: 마지막 256KB 에서 지금 상태를 다시 알아낸다 (신호가 없으면 상태 그대로)
                 file = newest
                 pos = (newest.length() - 256 * 1024).coerceAtLeast(0)
-                result = false
             }
             val f = file ?: return result
             val len = f.length()
@@ -323,10 +335,17 @@ object GameWatch {
             }
 
             /** 한 줄 → 스카이블록 들어감(true) / 나감(false) / 상관없음(null) */
+            /**
+             * 한 줄 → 스카이블록 들어감(true) / 나감(false) / 상관없음(null).
+             * Hub·섬 이동 같은 서버 이동(Hypixel 안)은 나간 것으로 보지 않는다.
+             */
             fun scan(line: String): Boolean? = when {
-                "Welcome to Hypixel SkyBlock!" in line -> true
-                "Stopping!" in line || "Connecting to " in line || "Disconnecting from" in line ||
-                    "joined the lobby!" in line || "You were spawned in Limbo" in line -> false
+                "Welcome to Hypixel SkyBlock!" in line || "You are playing on profile:" in line -> true
+                "Stopping!" in line -> false                                   // 게임 종료
+                "joined the lobby!" in line -> false                           // Hypixel 로비 (스카이블록 밖)
+                "You were spawned in Limbo" in line -> false                   // 잠수 대기실
+                // 다른 서버로 접속 (Hypixel 이 아닌 곳). Hypixel 안의 서버 이동은 무시
+                "Connecting to " in line && !line.contains("hypixel", ignoreCase = true) -> false
                 else -> null
             }
         }

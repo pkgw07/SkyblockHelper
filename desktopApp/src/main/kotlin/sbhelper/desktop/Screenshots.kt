@@ -192,7 +192,9 @@ fun main(args: Array<String>) {
     }
     shot("60-mobile-home-today", Screen.HOME, 412, 1400)
     val scanOk = GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] Welcome to Hypixel SkyBlock!") == true &&
-        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: Connecting to mc.hypixel.net, 25565") == false &&
+        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: Connecting to mc.hypixel.net, 25565") == null &&
+        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: Connecting to play.example.net, 25565") == false &&
+        GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] You are playing on profile: Mango") == true &&
         GameWatch.LogTail.scan("[12:00:01] [Client thread/INFO]: [CHAT] hello") == null
     println("OVERLAY_LOG_SCAN=" + if (scanOk) "ok" else "fail")
     // 오버레이 내용은 앱 본창 밖(따로 뜨는 창)에서 그려지므로, 앱 테마 없이 그대로 그려 본다
