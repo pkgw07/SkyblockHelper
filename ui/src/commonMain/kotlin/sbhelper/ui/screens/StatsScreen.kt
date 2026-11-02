@@ -923,6 +923,10 @@ private fun AttributesTab(state: AppState, p: ProfileSummary) {
     var query by remember { mutableStateOf("") }
     var skill by remember { mutableStateOf(0) }
     var mineOnly by remember { mutableStateOf(false) }
+    var method by remember { mutableStateOf(0) }
+    // 얻는 방법 필터: 많이 쓰이는 순
+    val methods = listOf("얻는 방법 전체") + all.flatMap { m -> m.attr.obtain.map { it.m } }.groupingBy { it }.eachCount()
+        .entries.sortedByDescending { it.value }.map { it.key }
     var limit by remember { mutableStateOf(60) }
     val skills = listOf("전체") + all.map { it.attr.skill }.filter { it.isNotBlank() }.distinct().sorted()
     val have = all.count { it.level > 0 }
@@ -935,9 +939,11 @@ private fun AttributesTab(state: AppState, p: ProfileSummary) {
             StatTile("흡수한 샤드", "${all.sumOf { it.stacks }}", color = Sb.Aqua)
         }
         Spacer(Modifier.height(10.dp))
-        SbTextField(query, { query = it; limit = 60 }, Modifier.fillMaxWidth(), "Attribute · 샤드 · 효과 검색 (예: Fortune, Grove)", Icons.Rounded.Search)
+        SbTextField(query, { query = it; limit = 60 }, Modifier.fillMaxWidth(), "Attribute · 샤드 · 효과 · 얻는 곳 검색 (예: Fortune, Grove, Kuudra)", Icons.Rounded.Search)
         Spacer(Modifier.height(8.dp))
         Segmented(skills, skill, { skill = it; limit = 60 })
+        Spacer(Modifier.height(6.dp))
+        Segmented(methods, method.coerceIn(0, methods.size - 1), { method = it; limit = 60 })
         Spacer(Modifier.height(4.dp))
         sbhelper.ui.components.SwitchRow("내가 가진 것만", mineOnly, { mineOnly = it; limit = 60 })
         Text("효과의 범위(예: +2-20)는 레벨 1~10 기준이에요. 내 레벨·흡수 수는 공식 프로필 API, 나머지는 위키 기준.",
@@ -946,7 +952,9 @@ private fun AttributesTab(state: AppState, p: ProfileSummary) {
     val q = query.trim()
     val shown = all.filter { m ->
         (skill == 0 || m.attr.skill == skills[skill]) && (!mineOnly || m.level > 0) &&
-            (q.isEmpty() || listOf(m.attr.name, m.attr.shard, m.attr.effect, m.attr.id, m.attr.families.joinToString(" ")).any { it.contains(q, true) })
+            (method == 0 || m.attr.obtain.any { it.m == methods.getOrNull(method) }) &&
+            (q.isEmpty() || (listOf(m.attr.name, m.attr.shard, m.attr.effect, m.attr.id, m.attr.families.joinToString(" ")) +
+                m.attr.obtain.flatMap { listOf(it.m, it.t) }).any { it.contains(q, true) })
     }.sortedWith(compareByDescending<sbhelper.core.calc.MyAttribute> { it.level }.thenBy { it.attr.rank })
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         shown.take(limit).forEach { m -> AttributeRow(m) }
@@ -974,6 +982,16 @@ private fun AttributeRow(m: sbhelper.core.calc.MyAttribute) {
         Spacer(Modifier.height(6.dp))
         Text(a.effect, style = SbText.body(13, Sb.Text))
         if (a.req.isNotBlank()) Text("필요: ${a.req}", style = SbText.body(12, Sb.Red))
+        // 얻는 방법
+        if (a.obtain.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            a.obtain.forEach { o ->
+                Row(Modifier.padding(top = 2.dp)) {
+                    Text(o.m, style = SbText.body(12, Sb.Aqua, FontWeight.SemiBold), modifier = Modifier.width(110.dp))
+                    Text(o.t, style = SbText.body(12, Sb.TextDim), modifier = Modifier.weight(1f))
+                }
+            }
+        }
         if (m.level > 0 || m.owned > 0) {
             Spacer(Modifier.height(6.dp))
             val next = m.nextAt

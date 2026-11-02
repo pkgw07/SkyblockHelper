@@ -1099,7 +1099,62 @@ def attributes():
             "effect": text(r.get("attribute_effect")), "req": text(r.get("attribute_requirement")),
             "sb": r.get("skyblock_id") or "",
         })
+    # 얻는 방법: 샤드 문서의 Obtaining 칸 (사냥·덫·낚시·조합·합성 …)
+    pages = page_texts([a["shard"] for a in out])
+    for a in out:
+        a["obtain"] = [{"m": o["m"], "t": re.sub(r"\s+", " ", re.sub("[\ue000-\uf8ff]", "", o["t"])).strip()}
+                       for o in shard_obtaining(pages.get(a["shard"], ""))]
     return sorted(out, key=lambda a: (a["rank"], int(re.sub(r"\D", "", a["id"]) or 0)))
+
+
+def page_texts(titles):
+    """여러 문서 원문을 50개씩 한 번에 (제목 → 원문)"""
+    out = {}
+    for i in range(0, len(titles), 50):
+        d = get_json(API, {"action": "query", "prop": "revisions", "rvprop": "content", "rvslots": "main",
+                           "titles": "|".join(titles[i:i + 50]), "redirects": 1, "format": "json"})
+        q = d.get("query", {})
+        back = {r["to"]: r["from"] for r in q.get("redirects", [])}
+        for page in q.get("pages", {}).values():
+            revs = page.get("revisions")
+            if revs:
+                out[back.get(page["title"], page["title"])] = revs[0]["slots"]["main"]["*"]
+    PAGES_USED.append({"page": "Shard pages (Obtaining)", "revid": None})
+    return out
+
+
+def shard_obtaining(text):
+    """== Obtaining == 의 소제목마다 한 줄: [{"m": "Hunting", "t": "Phanpyre 를 Lasso 로 …"}]"""
+    m = re.search(r"==\s*Obtaining\s*==(.*?)(?:\n==[^=]|\Z)", text, re.S)
+    if not m:
+        return []
+    out = []
+    for sub in re.finditer(r"===\s*([^=]+?)\s*===(.*?)(?=\n===|\Z)", m.group(1), re.S):
+        method, body = sub.group(1).strip(), sub.group(2)
+        if "Crafting Recipe" in body:
+            cells = re.findall(r"\b[ABC][123]\s*=\s*([^|\n}]+)", body)
+            need = {}
+            for c in cells:
+                name, _, n = c.partition(",")
+                name = name.strip()
+                if name:
+                    need[name] = need.get(name, 0) + int(re.sub(r"\D", "", n) or 1)
+            req = re.search(r"requirement\s*=\s*(\{\{[^}]*\}\}|[^\n|]+)", body)
+            t = ", ".join(f"{k} ×{v}" for k, v in need.items())
+            if req:
+                t += f" ({clean(req.group(1))})"
+            out.append({"m": method, "t": t})
+            continue
+        lines = [l for l in body.strip().split("\n") if l.strip() and not l.strip().startswith(("{{", "{|", "|", "!"))]
+        body = re.sub(r"\{\{(Common|Uncommon|Rare|Epic|Legendary|Mythic)(\|[^}]*)?\}\}", r"\1", " ".join(lines))
+        t = clean(body).replace("* ", "· ")
+        t = re.sub(r",?\s*specifically\s*", ": ", t)
+        # 반복되는 앞부분 줄이기: "A Grove Shard can be obtained through X" → "X"
+        t = re.sub(r"^An? .+? Shard can be obtained (?:through|from|by) ", "", t)
+        t = t[:1].upper() + t[1:]
+        if t:
+            out.append({"m": method, "t": t[:300]})
+    return out
 
 
 def attribute_levels():

@@ -76,7 +76,12 @@ data class GameData(
         val req: String = "",
         /** 공식 API 의 샤드 ID */
         val sb: String = "",
+        /** 얻는 방법 (위키 샤드 문서의 Obtaining): 방법 이름 + 한 줄 설명 */
+        val obtain: List<Obtain> = emptyList(),
     )
+
+    @Serializable
+    data class Obtain(val m: String, val t: String = "")
 
     /** 미니언 한 종류. tiers[0] = I 단계 */
     @Serializable
