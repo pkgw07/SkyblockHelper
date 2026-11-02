@@ -174,6 +174,12 @@ object GameWatch {
             Regex("^(Minecraft|Lunar Client|Badlion Client)", RegexOption.IGNORE_CASE).containsMatchIn(title)
     }
 
+    /**
+     * 공식 API 로 지금 스카이블록인지 (true/false), 알 수 없으면 null (키 없음·Online Status 꺼 둠·오류).
+     * 게임 기록 파일에는 '스카이블록을 나감' 신호가 확실히 남지 않아서 같이 쓴다.
+     */
+    @Volatile var apiInSkyblock: suspend () -> Boolean? = { null }
+
     /** 설정: 게임을 켜면 자동으로 테두리 없는 전체 화면 */
     @Volatile var autoBorderless: () -> Boolean = { false }
 
@@ -233,7 +239,14 @@ object GameWatch {
     }
 
     // ------------------------------------------------------------------ 기록 파일 (마인크래프트가 켜져 있을 때만)
+    private var lastApiCheck = 0L
+    private var apiState: Boolean? = null
+    private var lastLog: Boolean? = null
+    private var lastLogAt = 0L
+    private fun now() = System.currentTimeMillis()
+
     private suspend fun tailWhileRunning() {
+        lastApiCheck = 0L; apiState = null; lastLog = null; lastLogAt = 0L
         // 실행 중인 마인크래프트의 게임 폴더(--gameDir)에서 기록 파일 찾기 (런처마다 위치가 달라서)
         val gameDir = mcWindow?.let { gameDirOf(it) }
         val tail = LogTail(gameDir)
@@ -256,7 +269,20 @@ object GameWatch {
                 set { it.copy(foreground = fgIsMc, fullscreen = full, topTick = if (fgIsMc && !it.foreground) it.topTick + 1 else it.topTick) }
             }
             if (autoBorderless() && !full && !_state.value.borderless) toggleBorderless()
-            tail.poll()?.let { inSb -> set { it.copy(inSkyblock = inSb) } }
+            val logSaid = tail.poll()
+            if (logSaid != null) { lastLog = logSaid; lastLogAt = now() }
+            // 공식 API: 20초마다 (마인크래프트가 켜져 있을 때만)
+            if (now() - lastApiCheck > 20_000L) {
+                lastApiCheck = now()
+                apiState = runCatching { apiInSkyblock() }.getOrNull()
+            }
+            // 방금(40초 안) 게임 기록에 신호가 있었으면 그걸 믿고 (API 는 몇 초 늦을 수 있음), 아니면 API, 그것도 없으면 기록
+            val inSb = when {
+                lastLog != null && now() - lastLogAt < 40_000L -> lastLog!!
+                apiState != null -> apiState!!
+                else -> lastLog ?: _state.value.inSkyblock
+            }
+            if (inSb != _state.value.inSkyblock) set { it.copy(inSkyblock = inSb) }
             val noLog = tail.file == null
             if (_state.value.logFile != tail.file?.path || _state.value.noLog != noLog) set { it.copy(logFile = tail.file?.path, noLog = noLog) }
             delay(2000)

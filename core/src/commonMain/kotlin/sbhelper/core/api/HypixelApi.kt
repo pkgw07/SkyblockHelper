@@ -137,6 +137,17 @@ class HypixelApi(
         return root["garden"] as? JsonObject
     }
 
+    /**
+     * 지금 접속 상태 (공식 status API, 키 필요): 접속 중이면 게임 종류(예: SKYBLOCK), 아니면 "".
+     * 게임 API 설정에서 Online Status 를 꺼 두면 접속 중이어도 "" 가 온다.
+     */
+    suspend fun onlineGame(uuid: String): String {
+        val root = SbJson.parseToJsonElement(getText("$BASE/status?uuid=$uuid", 20_000, needsKey = true)).jsonObject
+        val session = root["session"] as? JsonObject ?: return ""
+        val online = (session["online"] as? kotlinx.serialization.json.JsonPrimitive)?.content == "true"
+        return if (online) (session["gameType"] as? kotlinx.serialization.json.JsonPrimitive)?.content.orEmpty() else ""
+    }
+
     /** 박물관 (공식 museum API, 키 필요) */
     suspend fun museum(profileId: String): JsonObject =
         SbJson.parseToJsonElement(getText("$BASE/skyblock/museum?profile=$profileId", 5 * MINUTE, needsKey = true)).jsonObject
