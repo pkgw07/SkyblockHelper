@@ -124,6 +124,7 @@ class DesktopPlatform : Platform {
         override val status = GameWatch.statusText
         override fun preview() = GameWatch.preview()
         override fun place() = GameWatch.place()
+        override fun toggleBorderless() = GameWatch.toggleBorderless()
     }
 
     override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {

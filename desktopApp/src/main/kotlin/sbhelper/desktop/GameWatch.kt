@@ -41,6 +41,12 @@ object GameWatch {
         val preview: Boolean = false,
         /** 위치 직접 정하기 중 (끌어서 옮김, 클릭 통과 끔) */
         val placing: Boolean = false,
+        /** 게임 창이 화면을 꽉 채움 (F11 또는 테두리 없는 전체 화면) */
+        val fullscreen: Boolean = false,
+        /** 테두리 없는 전체 화면으로 바꿔 둔 상태 (Ctrl+Shift+F) */
+        val borderless: Boolean = false,
+        /** 게임이 맨 앞으로 올 때마다 늘어남 → 오버레이가 바로 '항상 위' 를 다시 건다 */
+        val topTick: Int = 0,
     ) {
         /** 오버레이 창을 만들어 둘지 */
         val active get() = preview || placing || (running && (inSkyblock || noLog))
@@ -58,6 +64,7 @@ object GameWatch {
         val st = _state.value
         _status.value = when {
             !st.running -> "마인크래프트를 기다리는 중"
+            st.fullscreen && !st.borderless -> "전체 화면(F11)에서 안 보이면 F11 을 끄고 Ctrl+Shift+F 를 누르세요"
             st.noLog -> "마인크래프트 찾음 · 게임 화면에서 보여요"
             st.inSkyblock -> "스카이블록 안 · 게임 화면에서 보여요"
             else -> "마인크래프트 찾음 · 스카이블록에 들어가면 보여요"
@@ -106,12 +113,14 @@ object GameWatch {
         }
         proc = cb
         u.SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, null, cb, 0, 0, WINEVENT_OUTOFCONTEXT or WINEVENT_SKIPOWNPROCESS)
-        u.RegisterHotKey(null, HOTKEY_ID, MOD_CONTROL or MOD_SHIFT or MOD_NOREPEAT, 'O'.code)
         // 켤 때 이미 마인크래프트가 맨 앞이면
         u.GetForegroundWindow()?.let { onForeground(it) }
         val msg = Msg()
         while (u.GetMessageW(msg, null, 0, 0) > 0) {
-            if (msg.message == WM_HOTKEY) set { it.copy(hidden = !it.hidden) }
+            if (msg.message == WM_HOTKEY) {
+                if (Pointer.nativeValue(msg.wParam) == HOTKEY_BORDERLESS.toLong()) toggleBorderless()
+                else set { it.copy(hidden = !it.hidden) }
+            }
             u.TranslateMessage(msg)
             u.DispatchMessageW(msg)
         }
@@ -119,13 +128,31 @@ object GameWatch {
 
     private fun onForeground(hwnd: Pointer) {
         val isMc = isMinecraft(hwnd)
+        // 단축키는 게임이 맨 앞일 때만 잡는다 (다른 프로그램의 Ctrl+Shift+O/F 를 빼앗지 않게)
+        hotkeys(isMc)
         if (isMc) {
             if (mcWindow != hwnd) mcWindow = hwnd
-            set { it.copy(running = true, foreground = true) }
+            set { it.copy(running = true, foreground = true, topTick = it.topTick + 1, fullscreen = coversMonitor(hwnd)) }
             if (tailJob?.isActive != true) tailJob = scope.launch { tailWhileRunning() }
         } else {
             set { it.copy(foreground = false) }
         }
+    }
+
+    private var hotkeysOn = false
+
+    /** 신호 스레드에서만 부른다 (RegisterHotKey 는 부른 스레드로 메시지가 옴) */
+    private fun hotkeys(on: Boolean) {
+        if (on == hotkeysOn) return
+        val u = U32.INSTANCE
+        if (on) {
+            u.RegisterHotKey(null, HOTKEY_ID, MOD_CONTROL or MOD_SHIFT or MOD_NOREPEAT, 'O'.code)
+            u.RegisterHotKey(null, HOTKEY_BORDERLESS, MOD_CONTROL or MOD_SHIFT or MOD_NOREPEAT, 'F'.code)
+        } else {
+            u.UnregisterHotKey(null, HOTKEY_ID)
+            u.UnregisterHotKey(null, HOTKEY_BORDERLESS)
+        }
+        hotkeysOn = on
     }
 
     fun isMinecraft(hwnd: Pointer): Boolean {
@@ -136,6 +163,57 @@ object GameWatch {
         // GLFW30 = 1.13 이후 버전, LWJGL = 1.8.9 (Forge·Lunar·Badlion 포함)
         return cls == "GLFW30" || cls == "LWJGL" ||
             Regex("^(Minecraft|Lunar Client|Badlion Client)", RegexOption.IGNORE_CASE).containsMatchIn(title)
+    }
+
+    /** 설정: 게임을 켜면 자동으로 테두리 없는 전체 화면 */
+    @Volatile var autoBorderless: () -> Boolean = { false }
+
+    /** 보이는 마인크래프트 창 찾기 (창 종류 이름으로) */
+    private fun findMinecraft(): Pointer? {
+        val u = U32.INSTANCE
+        return listOf("GLFW30", "LWJGL").firstNotNullOfOrNull { cls -> u.FindWindowW(com.sun.jna.WString(cls), null)?.takeIf { u.IsWindow(it) } }
+    }
+
+    /** 창이 자기 모니터를 꽉 채우는지 */
+    private fun coversMonitor(hwnd: Pointer): Boolean {
+        val u = U32.INSTANCE
+        val r = IntArray(4)
+        if (!u.GetWindowRect(hwnd, r)) return false
+        val m = monitorRect(hwnd) ?: return false
+        return r[0] <= m[0] && r[1] <= m[1] && r[2] >= m[2] && r[3] >= m[3]
+    }
+
+    private fun monitorRect(hwnd: Pointer): IntArray? {
+        val u = U32.INSTANCE
+        val mon = u.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) ?: return null
+        val info = IntArray(10).also { it[0] = 40 } // MONITORINFO: cbSize, rcMonitor, rcWork, dwFlags
+        return if (u.GetMonitorInfoW(mon, info)) intArrayOf(info[1], info[2], info[3], info[4]) else null
+    }
+
+    // 테두리 없는 전체 화면: 원래 창 모양·위치를 기억했다가 되돌린다 (게임 파일은 건드리지 않고 창 모양만 바꿈)
+    private var savedStyle = 0
+    private var savedRect: IntArray? = null
+
+    /** 게임 창 ↔ 테두리 없는 전체 화면 (Ctrl+Shift+F). F11(독점 전체 화면) 대신 쓰면 오버레이가 항상 보인다 */
+    fun toggleBorderless() {
+        val w = mcWindow ?: findMinecraft() ?: return
+        val u = U32.INSTANCE
+        runCatching {
+            if (!_state.value.borderless) {
+                if (coversMonitor(w) && (u.GetWindowLongW(w, GWL_STYLE) and WS_CAPTION) == 0) return // 이미 F11 전체 화면
+                val m = monitorRect(w) ?: return
+                savedStyle = u.GetWindowLongW(w, GWL_STYLE)
+                savedRect = IntArray(4).also { u.GetWindowRect(w, it) }
+                u.SetWindowLongW(w, GWL_STYLE, savedStyle and (WS_CAPTION or WS_THICKFRAME or WS_SYSMENU or WS_MINIMIZEBOX or WS_MAXIMIZEBOX or WS_MAXIMIZE).inv())
+                u.SetWindowPos(w, null, m[0], m[1], m[2] - m[0], m[3] - m[1], SWP_FRAMECHANGED or SWP_NOZORDER or SWP_NOACTIVATE)
+                set { it.copy(borderless = true, fullscreen = true, topTick = it.topTick + 1) }
+            } else {
+                val r = savedRect
+                if (savedStyle != 0) u.SetWindowLongW(w, GWL_STYLE, savedStyle)
+                if (r != null) u.SetWindowPos(w, null, r[0], r[1], r[2] - r[0], r[3] - r[1], SWP_FRAMECHANGED or SWP_NOZORDER or SWP_NOACTIVATE)
+                set { it.copy(borderless = false, fullscreen = false) }
+            }
+        }
     }
 
     /** 마인크래프트 창 위치 (화면 픽셀: 왼, 위, 오른, 아래) */
@@ -151,13 +229,24 @@ object GameWatch {
         val gameDir = mcWindow?.let { gameDirOf(it) }
         val tail = LogTail(gameDir)
         while (scope.isActive) {
+            val u = U32.INSTANCE
+            // F11 을 누르면 1.8.9 는 게임 창을 새로 만든다 → 새 창을 찾아 이어 간다 (오버레이가 사라지지 않게)
+            val fg = u.GetForegroundWindow()
+            val fgIsMc = fg != null && isMinecraft(fg)
+            if (fgIsMc && fg != mcWindow) mcWindow = fg
+            if (mcWindow == null || !u.IsWindow(mcWindow)) mcWindow = findMinecraft()
             val w = mcWindow
-            if (w == null || !U32.INSTANCE.IsWindow(w)) {
+            if (w == null) {
                 // 마인크래프트가 꺼짐 → 읽기 멈춤, 오버레이 없애기
-                mcWindow = null
-                set { it.copy(running = false, foreground = false, inSkyblock = false, logFile = null, noLog = false) }
+                set { it.copy(running = false, foreground = false, inSkyblock = false, logFile = null, noLog = false, fullscreen = false, borderless = false) }
                 return
             }
+            // 창 전환 신호를 놓쳤을 때도 맞게
+            val full = coversMonitor(w)
+            if (_state.value.foreground != fgIsMc || _state.value.fullscreen != full) {
+                set { it.copy(foreground = fgIsMc, fullscreen = full, topTick = if (fgIsMc && !it.foreground) it.topTick + 1 else it.topTick) }
+            }
+            if (autoBorderless() && !full && !_state.value.borderless) toggleBorderless()
             tail.poll()?.let { inSb -> set { it.copy(inSkyblock = inSb) } }
             val noLog = tail.file == null
             if (_state.value.logFile != tail.file?.path || _state.value.noLog != noLog) set { it.copy(logFile = tail.file?.path, noLog = noLog) }
@@ -271,6 +360,17 @@ object GameWatch {
     private const val WINEVENT_SKIPOWNPROCESS = 0x0002
     private const val WM_HOTKEY = 0x0312
     private const val HOTKEY_ID = 0x5348
+    private const val HOTKEY_BORDERLESS = 0x5349
+    private const val GWL_STYLE = -16
+    private const val WS_CAPTION = 0x00C00000
+    private const val WS_THICKFRAME = 0x00040000
+    private const val WS_SYSMENU = 0x00080000
+    private const val WS_MINIMIZEBOX = 0x00020000
+    private const val WS_MAXIMIZEBOX = 0x00010000
+    private const val WS_MAXIMIZE = 0x01000000
+    private const val SWP_NOZORDER = 0x0004
+    private const val SWP_FRAMECHANGED = 0x0020
+    private const val MONITOR_DEFAULTTONEAREST = 2
     private const val MOD_CONTROL = 0x0002
     private const val MOD_SHIFT = 0x0004
     private const val MOD_NOREPEAT = 0x4000
@@ -314,6 +414,10 @@ object GameWatch {
         fun IsWindow(hwnd: Pointer?): Boolean
         fun GetWindowRect(hwnd: Pointer, rect: IntArray): Boolean
         fun GetWindowThreadProcessId(hwnd: Pointer, pid: IntArray): Int
+        fun FindWindowW(cls: com.sun.jna.WString?, title: com.sun.jna.WString?): Pointer?
+        fun UnregisterHotKey(hwnd: Pointer?, id: Int): Boolean
+        fun MonitorFromWindow(hwnd: Pointer, flags: Int): Pointer?
+        fun GetMonitorInfoW(monitor: Pointer, info: IntArray): Boolean
         fun GetWindowLongW(hwnd: Pointer, index: Int): Int
         fun SetWindowLongW(hwnd: Pointer, index: Int, value: Int): Int
         fun SetWindowPos(hwnd: Pointer, after: Pointer?, x: Int, y: Int, cx: Int, cy: Int, flags: Int): Boolean

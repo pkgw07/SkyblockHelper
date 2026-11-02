@@ -122,6 +122,12 @@ data class DeviceSettings(
     /** overlayCorner = 4 (직접 지정) 일 때 위치: 게임 창 안에서 왼쪽 위 모서리의 비율 (0..1) */
     val overlayX: Float = -1f,
     val overlayY: Float = -1f,
+    /** 오버레이 글씨 크기 % / 상자 너비(dp) / 재료 줄 수 */
+    val overlayTextScale: Int = 100,
+    val overlayWidth: Int = 270,
+    val overlayRows: Int = 5,
+    /** 게임을 켜면 자동으로 테두리 없는 전체 화면 (F11 대신, 오버레이가 항상 보임) */
+    val overlayAutoBorderless: Boolean = false,
     val deviceName: String = "",
     val sync: SyncCredentials = SyncCredentials(),
     val onboardingDone: Boolean = false,

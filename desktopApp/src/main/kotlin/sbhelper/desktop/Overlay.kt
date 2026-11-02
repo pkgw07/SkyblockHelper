@@ -3,6 +3,7 @@ package sbhelper.desktop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,8 +38,6 @@ import sbhelper.core.util.formatPercent
 import sbhelper.ui.theme.Sb
 import sbhelper.ui.theme.SbText
 
-private const val W = 270
-private const val MAX_ROWS = 5
 private const val PLACE_BAR = 28
 
 /**
@@ -76,13 +75,17 @@ fun GameOverlay(repo: SkyblockRepository) {
             Triple(t, raw.filter { it.missing > 0 }, pct)
         }
     }
-    val rows = view?.second?.size?.coerceAtMost(MAX_ROWS) ?: 0
+    // 크기 설정: 글씨 크기 %, 상자 너비, 재료 줄 수
+    val ts = d.overlayTextScale.coerceIn(70, 200) / 100f
+    val W = d.overlayWidth.coerceIn(180, 600)
+    val maxRows = d.overlayRows.coerceIn(1, 20)
+    val rows = view?.second?.size?.coerceAtMost(maxRows) ?: 0
     val more = (view?.second?.size ?: 0) - rows
     val placing = game.placing
-    val height = (if (view == null) 64 else 78 + rows * 20 + (if (more > 0) 18 else 0)) + (if (placing) PLACE_BAR else 0)
+    val height = ((if (view == null) 64 else 78 + rows * 20 + (if (more > 0) 18 else 0)) * ts).toInt() + (if (placing) PLACE_BAR else 0)
 
     val state = rememberWindowState(size = DpSize(W.dp, height.dp), position = WindowPosition(0.dp, 0.dp))
-    LaunchedEffect(height) { state.size = DpSize(W.dp, height.dp) }
+    LaunchedEffect(height, W) { state.size = DpSize(W.dp, height.dp) }
     val visible = game.shown
 
     Window(
@@ -109,7 +112,8 @@ fun GameOverlay(repo: SkyblockRepository) {
             return doubleArrayOf(r[0] / scale, r[1] / scale + topPad, r[2] / scale, r[3] / scale)
         }
         // 보이는 동안: 위치 맞추기 + '항상 위' 다시 걸기 (F11 전체 화면 대응), 1초마다. 위치를 정하는 중에는 옮기지 않음
-        LaunchedEffect(visible, d.overlayCorner, d.overlayX, d.overlayY, height, placing) {
+        // 게임이 맨 앞으로 올 때마다(topTick) 바로 다시 건다. 전체 화면이면 0.3초마다 (게임 창이 위로 올라오는 것 대비)
+        LaunchedEffect(visible, d.overlayCorner, d.overlayX, d.overlayY, height, W, placing, game.topTick) {
             var first = true
             while (visible) {
                 if (first || !placing) area()?.let { (left, top, right, bottom) ->
@@ -125,36 +129,39 @@ fun GameOverlay(repo: SkyblockRepository) {
                 }
                 first = false
                 GameWatch.keepOnTop(window)
-                delay(1000)
+                delay(if (GameWatch.state.value.fullscreen) 300 else 1000)
             }
         }
+        val windowScope = this
         if (placing) {
             Column {
                 // 위치 정하기: 이 막대를 끌어서 옮기고 '저장'
-                androidx.compose.foundation.window.WindowDraggableArea {
-                    Row(Modifier.fillMaxWidth().height(PLACE_BAR.dp).clip(RoundedCornerShape(8.dp)).background(Sb.Gold)
-                        .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        sbhelper.ui.theme.SkyblockTheme(textScale = 1f) {
-                            Text("✥ 끌어서 옮기기", style = SbText.body(12, Color(0xFF1A1200)), modifier = Modifier.weight(1f))
-                            Text("저장", style = SbText.body(12, Color(0xFF1A1200), androidx.compose.ui.text.font.FontWeight.Bold),
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x33000000))
-                                    .clickable {
-                                        area()?.let { (left, top, right, bottom) ->
-                                            val fx = ((window.x - left) / (right - left - W).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
-                                            val fy = ((window.y - top) / (bottom - top - height).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
-                                            repo.updateDevice { it.copy(overlayCorner = 4, overlayX = fx, overlayY = fy) }
-                                        }
-                                        GameWatch.endPlace()
-                                    }.padding(horizontal = 8.dp, vertical = 2.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("취소", style = SbText.body(12, Color(0xFF1A1200)),
-                                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { GameWatch.endPlace() }.padding(horizontal = 6.dp, vertical = 2.dp))
+                sbhelper.ui.theme.SkyblockTheme(textScale = 1f) {
+                    with(windowScope) {
+                        WindowDraggableArea {
+                            Row(Modifier.fillMaxWidth().height(PLACE_BAR.dp).clip(RoundedCornerShape(8.dp)).background(Sb.Gold)
+                                .padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("✥ 끌어서 옮기기", style = SbText.body(12, Color(0xFF1A1200)), modifier = Modifier.weight(1f))
+                                Text("저장", style = SbText.body(12, Color(0xFF1A1200), androidx.compose.ui.text.font.FontWeight.Bold),
+                                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0x33000000))
+                                        .clickable {
+                                            area()?.let { (left, top, right, bottom) ->
+                                                val fx = ((window.x - left) / (right - left - W).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
+                                                val fy = ((window.y - top) / (bottom - top - height).coerceAtLeast(1.0)).coerceIn(0.0, 1.0).toFloat()
+                                                repo.updateDevice { it.copy(overlayCorner = 4, overlayX = fx, overlayY = fy) }
+                                            }
+                                            GameWatch.endPlace()
+                                        }.padding(horizontal = 8.dp, vertical = 2.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("취소", style = SbText.body(12, Color(0xFF1A1200)),
+                                    modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { GameWatch.endPlace() }.padding(horizontal = 6.dp, vertical = 2.dp))
+                            }
                         }
                     }
                 }
-                OverlayCard(app, view, more, d.overlayOpacity)
+                OverlayCard(app, view, more, d.overlayOpacity, ts, maxRows)
             }
-        } else OverlayCard(app, view, more, d.overlayOpacity)
+        } else OverlayCard(app, view, more, d.overlayOpacity, ts, maxRows)
     }
 }
 
@@ -164,8 +171,8 @@ fun GameOverlay(repo: SkyblockRepository) {
  */
 @Composable
 fun OverlayCard(app: sbhelper.core.AppState, view: Triple<sbhelper.core.data.CraftTarget, List<sbhelper.core.calc.RawNeed>, Double>?,
-                more: Int, opacity: Int) {
-    sbhelper.ui.theme.SkyblockTheme(textScale = 1f, textWeight = app.device.fontWeight) {
+                more: Int, opacity: Int, textScale: Float = 1f, maxRows: Int = 5) {
+    sbhelper.ui.theme.SkyblockTheme(textScale = textScale, textWeight = app.device.fontWeight) {
         val bg = Color(0xFF0F1117).copy(alpha = opacity.coerceIn(20, 100) / 100f)
         Box(Modifier.fillMaxSize().clip(RoundedCornerShape(10.dp)).background(bg)
             .border(1.dp, Sb.Gold.copy(alpha = 0.35f), RoundedCornerShape(10.dp)).padding(horizontal = 12.dp, vertical = 9.dp)) {
@@ -187,15 +194,15 @@ fun OverlayCard(app: sbhelper.core.AppState, view: Triple<sbhelper.core.data.Cra
                     }
                     Spacer(Modifier.height(5.dp))
                     if (missing.isEmpty()) Text("재료를 다 모았어요!", style = SbText.body(12, Sb.Green))
-                    missing.take(MAX_ROWS).forEach { r ->
-                        Row(Modifier.height(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    missing.take(maxRows).forEach { r ->
+                        Row(Modifier.height((20 * textScale).dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(app.itemName(r.itemId).replace(Regex("§."), ""), style = SbText.body(12, Sb.Text), maxLines = 1,
                                 overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             Text("${formatNumber(r.have.toLong())}/${formatNumber(kotlin.math.ceil(r.needed).toLong())}",
                                 style = SbText.pixel(11, Sb.TextDim))
                             Spacer(Modifier.width(6.dp))
                             Text(formatPercent((r.have / r.needed).coerceIn(0.0, 1.0), 0), style = SbText.pixel(11, Sb.Gold),
-                                modifier = Modifier.width(34.dp))
+                                modifier = Modifier.width((34 * textScale).dp))
                         }
                     }
                     if (more > 0) Text("+ ${more}종 더", style = SbText.body(11, Sb.TextFaint))

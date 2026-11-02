@@ -478,7 +478,7 @@ private fun OverlayControls(controller: AppController, state: AppState) {
     val d = state.device
     Spacer(Modifier.height(6.dp))
     SwitchRow("게임 오버레이 (PC)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
-        "Hypixel SkyBlock 에서 게임 화면 구석에 이 목표의 진행도를 보여 줘요. Ctrl+Shift+O 로 숨기기/보이기.")
+        "Hypixel SkyBlock 에서 게임 화면 구석에 이 목표의 진행도를 보여 줘요. 게임 중 Ctrl+Shift+O 로 숨기기/보이기.")
     if (!d.overlayEnabled) return
     val status by overlay.status.collectAsState()
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -507,5 +507,30 @@ private fun OverlayControls(controller: AppController, state: AppState) {
     Segmented(trans.map { "$it%" }, trans.indexOf(cur), { i ->
         controller.repo.updateDevice { it.copy(overlayOpacity = 100 - trans[i]) }
     })
+    Spacer(Modifier.height(10.dp))
+    Text("글씨 크기", style = SbText.caption(Sb.TextDim))
+    Spacer(Modifier.height(6.dp))
+    val scales = listOf(80, 100, 120, 140, 170)
+    Segmented(scales.map { "$it%" }, scales.indexOf(d.overlayTextScale).let { if (it < 0) 1 else it }, { i ->
+        controller.repo.updateDevice { it.copy(overlayTextScale = scales[i]) }
+    })
+    Spacer(Modifier.height(10.dp))
+    Text("상자 크기", style = SbText.caption(Sb.TextDim))
+    Spacer(Modifier.height(6.dp))
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val widths = listOf(220 to "좁게", 270 to "보통", 340 to "넓게", 420 to "아주 넓게")
+        Segmented(widths.map { it.second }, widths.indexOfFirst { it.first == d.overlayWidth }.let { if (it < 0) 1 else it }, { i ->
+            controller.repo.updateDevice { it.copy(overlayWidth = widths[i].first) }
+        })
+        val rows = listOf(3, 5, 8, 12)
+        Segmented(rows.map { "재료 ${it}줄" }, rows.indexOf(d.overlayRows).let { if (it < 0) 1 else it }, { i ->
+            controller.repo.updateDevice { it.copy(overlayRows = rows[i]) }
+        })
+    }
+    Spacer(Modifier.height(10.dp))
+    // 전체 화면: F11(독점 전체 화면)은 다른 창이 위에 못 뜰 수 있어서, 같은 모양의 '테두리 없는 전체 화면' 을 쓴다
+    SwitchRow("게임을 켜면 자동으로 전체 화면", d.overlayAutoBorderless, { on -> controller.repo.updateDevice { it.copy(overlayAutoBorderless = on) } },
+        "F11 대신 이걸 쓰면 전체 화면에서도 오버레이가 보여요. 게임 중 Ctrl+Shift+F 로 직접 켜고 끌 수도 있어요.")
+    SbButton("지금 게임을 전체 화면으로 / 되돌리기", { overlay.toggleBorderless() }, outlined = true)
 }
 

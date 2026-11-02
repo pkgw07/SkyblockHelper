@@ -100,6 +100,7 @@ fun main(args: Array<String>) {
         kotlin.system.exitProcess(0)
     }
     // 게임 오버레이: 마인크래프트 창 전환 신호 받기 (Windows)
+    GameWatch.autoBorderless = { repo.state.value.device.let { it.overlayEnabled && it.overlayAutoBorderless } }
     GameWatch.start(scope)
 
     // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)

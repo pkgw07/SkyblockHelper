@@ -75,6 +75,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.isBackPressed
+import androidx.compose.ui.input.pointer.isForwardPressed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -213,13 +214,18 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
 
     private data class NavEntry(val screen: Screen, val event: String?, val eventsTab: Int, val wiki: WikiTarget?)
     private val history = ArrayList<NavEntry>()
+    /** 뒤로 간 화면들 (앞으로 가기용). 새 화면으로 가면 비운다 */
+    private val forwardStack = ArrayList<NavEntry>()
     private var historySize by mutableStateOf(0)
     val canGoBack get() = historySize > 0
 
+    private fun current() = NavEntry(screen, event, eventsTab, wiki)
+
     private fun push() {
-        history += NavEntry(screen, event, eventsTab, wiki)
+        history += current()
         if (history.size > 60) history.removeAt(0)
         historySize = history.size
+        forwardStack.clear()
     }
 
     fun showToast(message: String) {
@@ -235,6 +241,16 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     /** 이전 화면으로 (마우스 뒤로 버튼 / 휴대폰 뒤로 버튼). 더 갈 곳이 없으면 false */
     fun back(): Boolean {
         val e = history.removeLastOrNull() ?: return false
+        historySize = history.size
+        forwardStack += current()
+        screen = e.screen; event = e.event; eventsTab = e.eventsTab; wiki = e.wiki
+        return true
+    }
+
+    /** 뒤로 갔던 화면으로 다시 (마우스 앞으로 버튼). 없으면 false */
+    fun forward(): Boolean {
+        val e = forwardStack.removeLastOrNull() ?: return false
+        history += current()
         historySize = history.size
         screen = e.screen; event = e.event; eventsTab = e.eventsTab; wiki = e.wiki
         return true
@@ -283,14 +299,21 @@ fun SkyblockApp(
             // 이스터에그 폭발이 화면 전체 위에 그려지도록 맨 바깥에서 감싼다
             sbhelper.ui.components.ImplosionLayer(controller.implosions) {
             Column(Modifier.fillMaxSize().background(Sb.Window).then(modifier)
-                // 마우스 뒤로 버튼(MB4)으로 이전 화면
+                // 마우스 뒤로(MB4) / 앞으로(MB5) 버튼.
+                // 버튼이 '새로 눌린 순간' 한 번만, 그리고 0.3초 안의 반복(매크로·더블클릭)은 무시
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
+                        var wasBack = false; var wasFwd = false; var lastAt = 0L
                         while (true) {
                             val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
-                            if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press && e.buttons.isBackPressed) {
-                                controller.back()
+                            val back = e.buttons.isBackPressed
+                            val fwd = e.buttons.isForwardPressed
+                            val t = e.changes.firstOrNull()?.uptimeMillis ?: 0L
+                            if (e.type == androidx.compose.ui.input.pointer.PointerEventType.Press && t - lastAt > 300) {
+                                if (back && !wasBack) { lastAt = t; controller.back() }
+                                else if (fwd && !wasFwd) { lastAt = t; controller.forward() }
                             }
+                            wasBack = back; wasFwd = fwd
                         }
                     }
                 }) {

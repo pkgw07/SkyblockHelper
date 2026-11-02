@@ -49,6 +49,8 @@ interface GameOverlayControl {
     fun preview()
     /** 오버레이를 끌어서 원하는 곳에 두기 (저장하면 '직접 지정' 위치가 됨) */
     fun place()
+    /** 게임 창 ↔ 테두리 없는 전체 화면 (Ctrl+Shift+F 와 같음) */
+    fun toggleBorderless()
 }
 
 val LocalPlatform = staticCompositionLocalOf<Platform> { error("Platform not provided") }
