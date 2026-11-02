@@ -39,6 +39,7 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Apps
 import androidx.compose.material.icons.rounded.Category
+import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material.icons.rounded.Newspaper
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.CloudSync
@@ -110,6 +111,7 @@ enum class Screen(val label: String, val title: String, val icon: ImageVector) {
     INVENTORY("인벤토리", "인벤토리 · 장신구 · 자루", Icons.Rounded.Inventory2),
     STATS("기록", "순자산 · HotM · HotF · 도감 · 미니언", Icons.Rounded.Insights),
     GEAR("테크트리", "스킬별 장비 진행", Icons.Rounded.Category),
+    CALC("계산기", "계산기", Icons.Rounded.Calculate),
     TIMERS("타이머", "타이머 & 알림", Icons.Rounded.Timer),
     BAZAAR("바자", "바자", Icons.Rounded.ShowChart),
     AUCTION("경매장", "경매장", Icons.Rounded.Gavel),
@@ -142,6 +144,8 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
     var toast by mutableStateOf<String?>(null)
     var inventoryTab by mutableStateOf(0)
     var ironmanTab by mutableStateOf(0)
+    /** 계산기: 0 제작 플래너, 1 미니언 수익 */
+    var calcTab by mutableStateOf(0)
     /** 테크트리: 고른 스킬 탭, 넓은 화면에서 정보창에 띄운 아이템 */
     var gearTab by mutableStateOf(0)
     var gearSelected by mutableStateOf<String?>(null)
@@ -183,6 +187,7 @@ class AppController(val repo: SkyblockRepository, val scope: CoroutineScope) {
         Screen.STATS -> ":$statsTab"
         Screen.INVENTORY -> ":$inventoryTab"
         Screen.IRONMAN -> ":$ironmanTab"
+        Screen.CALC -> ":$calcTab"
         Screen.GEAR -> ":$gearTab:" + (gearSubTabs[sbhelper.core.data.SkillGuide.skills.getOrNull(gearTab)?.key] ?: 0)
         Screen.EVENTS -> ":$eventsTab"
         Screen.SEARCH -> ":" + (wiki?.toString() ?: "results")
@@ -345,6 +350,7 @@ private fun ScreenContent(controller: AppController, state: AppState, wide: Bool
                     }
                 }
                 Screen.IRONMAN -> IronmanScreen(controller, state, wide)
+                Screen.CALC -> CalculatorScreen(controller, state, wide)
                 Screen.PLAN -> ProgressionScreen(controller, state, wide)
                 Screen.GEAR -> sbhelper.ui.screens.PlayerViewFrame(controller, state, wide) { s -> sbhelper.ui.screens.TechTreeScreen(controller, s, wide) }
                 Screen.PATCH -> PatchNotesScreen(controller, state, wide)
@@ -365,7 +371,7 @@ private fun SideRail(controller: AppController, state: AppState) {
     ) {
         Logo()
         Spacer(Modifier.height(18.dp))
-        val main = listOf(Screen.HOME, Screen.PROFILE, Screen.SEARCH, Screen.PLAN, Screen.GEAR, Screen.INVENTORY, Screen.STATS,
+        val main = listOf(Screen.HOME, Screen.PROFILE, Screen.SEARCH, Screen.PLAN, Screen.GEAR, Screen.CALC, Screen.INVENTORY, Screen.STATS,
             Screen.TIMERS, Screen.EVENTS, Screen.BAZAAR, Screen.AUCTION, Screen.IRONMAN, Screen.PATCH)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             main.forEach { s ->
@@ -424,7 +430,7 @@ private fun BottomNav(controller: AppController, state: AppState) {
     ) {
         items.forEach { s ->
             val selected = controller.screen == s || (s == Screen.BAZAAR && controller.screen == Screen.AUCTION) ||
-                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.SEARCH, Screen.EVENTS, Screen.INVENTORY, Screen.STATS, Screen.GEAR, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
+                (s == Screen.MORE && controller.screen in listOf(Screen.PROFILE, Screen.SEARCH, Screen.EVENTS, Screen.INVENTORY, Screen.STATS, Screen.GEAR, Screen.CALC, Screen.IRONMAN, Screen.PATCH, Screen.SETTINGS))
             Column(
                 Modifier.clip(RoundedCornerShape(12.dp)).clickable { controller.go(s) }.padding(horizontal = 10.dp, vertical = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,

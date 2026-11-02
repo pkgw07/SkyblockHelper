@@ -52,7 +52,8 @@ fun GameOverlay(repo: SkyblockRepository) {
     val app by repo.state.collectAsState()
     val game by GameWatch.state.collectAsState()
     val d = app.device
-    if (!d.overlayEnabled || !game.running || !game.inSkyblock) return
+    // 스카이블록 안(기록 파일을 못 찾으면 게임이 켜져 있는 동안), 또는 미리 보기
+    if (!game.preview && (!d.overlayEnabled || !game.active)) return
 
     // 제작 플래너 목표 → 기본 재료 진행도 (목표·자루·데이터가 바뀔 때만 계산)
     val target = app.synced.craftCurrent
@@ -76,7 +77,7 @@ fun GameOverlay(repo: SkyblockRepository) {
 
     val state = rememberWindowState(size = DpSize(W.dp, height.dp), position = WindowPosition(0.dp, 0.dp))
     LaunchedEffect(height) { state.size = DpSize(W.dp, height.dp) }
-    val visible = game.foreground && !game.hidden
+    val visible = game.shown
 
     Window(
         onCloseRequest = {},
@@ -93,8 +94,12 @@ fun GameOverlay(repo: SkyblockRepository) {
         // 게임이 맨 앞일 때만: 위치 맞추기 + '항상 위' 다시 걸기 (F11 전체 화면 대응), 1초마다
         LaunchedEffect(visible, d.overlayCorner, height) {
             while (visible) {
-                GameWatch.mcRect()?.let { r ->
-                    val scale = window.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
+                // 게임 창 (미리 보기라 게임이 없으면 화면 전체) 구석
+                val scale = window.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
+                val screen = window.graphicsConfiguration?.bounds?.let { b ->
+                    intArrayOf((b.x * scale).toInt(), (b.y * scale).toInt(), ((b.x + b.width) * scale).toInt(), ((b.y + b.height) * scale).toInt())
+                }
+                (GameWatch.mcRect() ?: screen)?.let { r ->
                     val margin = 12
                     val left = r[0] / scale; val top = r[1] / scale; val right = r[2] / scale; val bottom = r[3] / scale
                     // 창 모드면 제목 표시줄 아래로

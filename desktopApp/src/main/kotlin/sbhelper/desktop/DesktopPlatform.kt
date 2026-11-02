@@ -120,6 +120,11 @@ class DesktopPlatform : Platform {
     private val updater = DesktopUpdater { onQuitForUpdate() }
     override val inAppUpdater: sbhelper.ui.InAppUpdater? = updater.takeIf { it.available }
 
+    override val gameOverlay: sbhelper.ui.GameOverlayControl? = if (!GameWatch.supported) null else object : sbhelper.ui.GameOverlayControl {
+        override val status = GameWatch.statusText
+        override fun preview() = GameWatch.preview()
+    }
+
     override fun installUpdate(bytes: ByteArray, fileName: String): Boolean = runCatching {
         val file = java.io.File(System.getProperty("java.io.tmpdir"), fileName)
         file.writeBytes(bytes)

@@ -90,8 +90,8 @@ fun ItemInfo(controller: AppController, state: AppState, id: String, modifier: M
                 SbButton("제작 플래너", {
                     controller.repo.updateSynced { s -> s.copy(craftTargets = (listOf(CraftTarget(id, 1)) + s.craftTargets.filterNot { it.itemId == id }).take(12),
                         craftCurrent = CraftTarget(id, 1)) }
-                    controller.ironmanTab = 1
-                    controller.go(Screen.IRONMAN)
+                    controller.calcTab = 0
+                    controller.go(Screen.CALC)
                 }, icon = Icons.Rounded.Handyman, outlined = true)
             }
             SbButton("자세히", { controller.openItem(id) }, outlined = true, color = Sb.Gold)

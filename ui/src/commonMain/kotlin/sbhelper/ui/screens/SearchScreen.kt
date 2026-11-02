@@ -220,8 +220,8 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
                 SbButton("제작 플래너", {
                     controller.repo.updateSynced { s -> s.copy(craftTargets = (listOf(CraftTarget(id, 1)) + s.craftTargets.filterNot { it.itemId == id }).take(12),
                         craftCurrent = CraftTarget(id, 1)) }
-                    controller.ironmanTab = 1
-                    controller.go(Screen.IRONMAN)
+                    controller.calcTab = 0
+                    controller.go(Screen.CALC)
                 }, icon = Icons.Rounded.Handyman, outlined = true)
             }
             SbButton("위키에서 보기", { platform.openUrl(WikiApi.pageUrl(page)) }, icon = Icons.AutoMirrored.Rounded.OpenInNew, outlined = true, color = Sb.Aqua)

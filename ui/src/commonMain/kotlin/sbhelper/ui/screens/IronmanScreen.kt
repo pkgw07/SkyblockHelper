@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,7 +69,7 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
         val p = state.selectedProfile
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 탭이 먼저 너비를 다 가져가면 오른쪽 표시가 세로로 길게 눌려서(휴대폰) 빈 공간이 생기므로 탭에 남은 너비만
-            Segmented(listOf("진행 가이드", "제작 플래너", "재료 출처", "자루 NPC 가치"), tab, { controller.ironmanTab = it },
+            Segmented(listOf("진행 가이드", "재료 출처", "자루 NPC 가치"), tab.coerceIn(0, 2), { controller.ironmanTab = it },
                 Modifier.weight(1f, fill = false))
             if (p?.gameMode == GameMode.IRONMAN) {
                 Spacer(Modifier.width(8.dp))
@@ -82,8 +83,7 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
         CookieBanner(state)
         when (tab) {
             0 -> IronmanGuide(controller, state, wide)
-            1 -> Planner(controller, state, wide)
-            2 -> MaterialSources(controller, state, wide)
+            1 -> MaterialSources(controller, state, wide)
             else -> SackValues(state, wide)
         }
     }
@@ -91,7 +91,7 @@ fun IronmanScreen(controller: AppController, state: AppState, wide: Boolean) {
 
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
+fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) {
     var query by remember { mutableStateOf(controller.plannerQuery) }
     val current = state.synced.craftCurrent ?: state.synced.craftTargets.firstOrNull()
     val target = current?.itemId
@@ -203,6 +203,7 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             if (inventory == null) "계정을 연결하면 인벤토리에 든 재료도 셀 수 있어요."
             else "인벤토리 등에 든 재료 ${inventory.size}종도 가진 것으로 쳐요. (게임 API 설정에서 인벤토리를 켜야 보여요)",
             enabled = inventory != null)
+        OverlayControls(controller, state)
     }
 
     val progress = remember(id, amount, stock, state.gameData, state.bazaar != null) {
@@ -440,3 +441,31 @@ private fun MaterialSources(controller: AppController, state: AppState, wide: Bo
     }
     selected?.let { ItemInfo(controller, state, it, onClose = { selected = null }) }
 }
+
+/** 게임 오버레이 (PC): 켜기·위치·진하기·미리 보기 */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun OverlayControls(controller: AppController, state: AppState) {
+    val overlay = sbhelper.ui.LocalPlatform.current.gameOverlay ?: return
+    val d = state.device
+    Spacer(Modifier.height(6.dp))
+    SwitchRow("게임 오버레이 (PC)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
+        "Hypixel SkyBlock 에서 게임 화면 구석에 이 목표의 진행도를 보여 줘요. Ctrl+Shift+O 로 숨기기/보이기.")
+    if (!d.overlayEnabled) return
+    val status by overlay.status.collectAsState()
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("● $status", style = SbText.body(12, Sb.TextDim), modifier = Modifier.weight(1f))
+        SbButton("미리 보기", { overlay.preview() }, outlined = true)
+    }
+    Spacer(Modifier.height(8.dp))
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
+            controller.repo.updateDevice { it.copy(overlayCorner = i) }
+        })
+        val ops = listOf(40, 60, 80, 95)
+        Segmented(ops.map { "진하기 $it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
+            controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
+        })
+    }
+}
+

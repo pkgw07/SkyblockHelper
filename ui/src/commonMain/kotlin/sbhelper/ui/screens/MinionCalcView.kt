@@ -158,6 +158,8 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
     val tiles: List<@Composable (Modifier) -> Unit> = listOf(
         { mod -> StatTile("하루 수익" + if (c > 1) " (×$c)" else "", formatCoins(cur.netPerDay * c), mod, color = Sb.Gold,
             sub = if (cur.fuelPerDay > 0) "연료비 ${formatCoins(cur.fuelPerDay * c)} 뺌" else null) },
+        { mod -> StatTile("하루 아이템" + if (c > 1) " (×$c)" else "", "${formatNumber((cur.outputs.sumOf { it.perDay } * c).toLong())}개", mod,
+            color = Sb.Green, sub = cur.outputs.joinToString(" · ") { "${state.itemName(it.id)} ${formatNumber((it.perDay * c).toLong())}" }) },
         { mod -> StatTile("행동 간격", "${fixed(cur.secondsPerAction, 1)}초", mod, color = Sb.Aqua,
             sub = "속도 +${fixed(setup.speedBonus(m) * 100, 0)}%") },
         { mod -> StatTile("가득 차는 시간", cur.hoursToFill?.let { hoursText(it) } ?: "-", mod, color = Sb.Green,
@@ -188,7 +190,7 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
     )
 
     // ---------------- 단계별 비교
-    Panel(Modifier.fillMaxWidth(), caption = "All tiers", title = "단계별 하루 수익" + if (c > 1) " (×$c)" else "", accent = Sb.Aqua) {
+    Panel(Modifier.fillMaxWidth(), caption = "All tiers", title = "단계별 하루 아이템 · 수익" + if (c > 1) " (×$c)" else "", accent = Sb.Aqua) {
         val best = results.maxOf { it.netPerDay }.coerceAtLeast(1.0)
         results.forEach { r ->
             Row(
@@ -202,6 +204,8 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
                 Text("${fixed(r.secondsPerAction, 1)}초", style = SbText.body(12, Sb.TextDim), modifier = Modifier.width(64.dp))
                 XpBar(r.netPerDay / best, Modifier.weight(1f), if (r.tier == tier) Sb.Gold else Sb.Aqua, 6.dp)
                 Spacer(Modifier.width(10.dp))
+                Text("${formatNumber((r.outputs.sumOf { it.perDay } * c).toLong())}개", style = SbText.pixel(12, Sb.Green),
+                    modifier = Modifier.widthIn(min = 70.dp), textAlign = TextAlign.End)
                 Text(formatCoins(r.netPerDay * c), style = SbText.pixel(12, Sb.Gold), modifier = Modifier.widthIn(min = 70.dp), textAlign = TextAlign.End)
             }
         }

@@ -77,7 +77,6 @@ fun SettingsScreen(controller: AppController, state: AppState, wide: Boolean) {
             cell(1f) { m ->
                 Column(m, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     BackgroundPanel(controller, state)
-                    OverlayPanel(controller, state)
                     NotificationPanel(controller, state)
                 }
             },
@@ -313,33 +312,6 @@ private fun DisplayPanel(controller: AppController, state: AppState) {
         }, "비공식 출처(EliteBot, 농사 커뮤니티)예요. 공식 API·위키에는 작물 정보가 없어요.")
         SwitchRow("🌐 패치노트 한국어 번역", d.translatePatchNotes, { on -> controller.repo.updateDevice { it.copy(translatePatchNotes = on) } },
             "비공식 Google 번역을 써요. 번역이 안 되면 원문을 보여 줘요.")
-    }
-}
-
-/** 게임 오버레이 (PC 전용) */
-@Composable
-private fun OverlayPanel(controller: AppController, state: AppState) {
-    if (!LocalPlatform.current.isDesktop) return
-    val d = state.device
-    Panel(Modifier.fillMaxWidth(), caption = "Overlay · PC", title = "게임 오버레이", accent = Sb.Green) {
-        SwitchRow("게임 오버레이 켜기", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
-            "Hypixel SkyBlock 에 들어가면 마인크래프트 화면 구석에 제작 플래너 진행도가 떠요. 마우스는 그대로 게임에 전달돼요. " +
-                "Ctrl+Shift+O 로 잠깐 숨기기/보이기. 게임에는 아무것도 넣지 않고, 마인크래프트가 켜져 있을 때만 게임 기록 파일(latest.log)을 2초마다 새 줄만 읽어요.")
-        if (d.overlayEnabled) {
-            Spacer(Modifier.height(6.dp))
-            Text("오버레이 위치", style = SbText.caption(Sb.TextDim))
-            Spacer(Modifier.height(6.dp))
-            Segmented(listOf("왼쪽 위", "오른쪽 위", "왼쪽 아래", "오른쪽 아래"), d.overlayCorner.coerceIn(0, 3), { i ->
-                controller.repo.updateDevice { it.copy(overlayCorner = i) }
-            })
-            Spacer(Modifier.height(8.dp))
-            Text("오버레이 배경 진하기", style = SbText.caption(Sb.TextDim))
-            Spacer(Modifier.height(6.dp))
-            val ops = listOf(40, 60, 80, 95)
-            Segmented(ops.map { "$it%" }, ops.indexOf(d.overlayOpacity).let { if (it < 0) 2 else it }, { i ->
-                controller.repo.updateDevice { it.copy(overlayOpacity = ops[i]) }
-            })
-        }
     }
 }
 

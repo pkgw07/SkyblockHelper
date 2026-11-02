@@ -37,6 +37,16 @@ interface Platform {
     val inAppUpdater: InAppUpdater? get() = null
     /** 휴대폰에서 QR 스캔으로 연동 코드를 읽는다. 지원하지 않으면 null */
     val scanPairingCode: ((onResult: (String) -> Unit) -> Unit)? get() = null
+    /** 게임 오버레이 (PC 만). null 이면 지원 안 함 */
+    val gameOverlay: GameOverlayControl? get() = null
+}
+
+/** 게임 오버레이 상태 보기·미리 보기 */
+interface GameOverlayControl {
+    /** 지금 상태 한 줄 (예: "마인크래프트를 기다리는 중") */
+    val status: kotlinx.coroutines.flow.StateFlow<String>
+    /** 게임이 없어도 몇 초 동안 화면 구석에 띄워 본다 */
+    fun preview()
 }
 
 val LocalPlatform = staticCompositionLocalOf<Platform> { error("Platform not provided") }

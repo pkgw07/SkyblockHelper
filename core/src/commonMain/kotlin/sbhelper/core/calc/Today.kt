@@ -39,6 +39,15 @@ object Today {
 
     fun customKey(name: String) = "custom:$name"
 
+    /** HotM·HotF 일일 보너스 퍼크 (위키 HotM/HotF 칸 이름): 키, 이름, 설명, 트리 */
+    val PERK_DAILY = listOf(
+        Quad("perk:daily_powder", "Daily Powder (HotM)", "오늘 첫 광석 캐기 · 파우더 보너스", "hotm"),
+        Quad("perk:daily_grind", "Daily Grind (HotM)", "광산마다 오늘 첫 의뢰 완료 · 파우더 보너스", "hotm"),
+        Quad("perk:daily_wishes", "Daily Wishes (HotF)", "Galatea 에서 오늘 첫 통나무 베기 · Whispers 보너스", "hotf"),
+    )
+
+    data class Quad(val first: String, val second: String, val third: String, val fourth: String)
+
     /** 직접 추가한 항목: 이 기기 시각 자정 */
     fun nextLocalMidnight(now: Long, zone: TimeZone = TimeZone.currentSystemDefault()): Long {
         val today = Instant.fromEpochMilliseconds(now).toLocalDateTime(zone).date
@@ -55,6 +64,8 @@ object Today {
         forge: List<ForgeSlotStatus>,
         timers: List<ExtraTimer>,
         timeTowerCharges: Int?,
+        hotmNodes: Map<String, Int> = emptyMap(),
+        hotfNodes: Map<String, Int> = emptyMap(),
     ): List<TodayItem> {
         val out = mutableListOf<TodayItem>()
         // 포지: 다 된 것
@@ -81,6 +92,13 @@ object Today {
             out += TodayItem(key, emoji, title, checkable = true, done = isDone(synced.dailyDone[key], next), resetAt = next)
         }
         val midnight = nextLocalMidnight(now)
+        // HotM·HotF 일일 보너스: 퍼크를 찍었을 때만 (공식 API 에 '오늘 받았는지' 기록이 없어 직접 체크)
+        PERK_DAILY.filter { (key, _, _, tree) -> (if (tree == "hotf") hotfNodes else hotmNodes)[key.removePrefix("perk:")]?.let { it > 0 } == true }
+            .filter { it.first !in synced.dailyHidden }
+            .forEach { (key, title, detail, _) ->
+                out += TodayItem(key, if (key.contains("wish")) "🌳" else "⛏", title, detail, checkable = true,
+                    done = isDone(synced.dailyDone[key], midnight), resetAt = midnight)
+            }
         synced.dailyCustom.forEach { name ->
             val key = customKey(name)
             out += TodayItem(key, "📌", name, checkable = true, done = isDone(synced.dailyDone[key], midnight), resetAt = midnight, custom = true)

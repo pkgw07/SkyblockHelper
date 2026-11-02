@@ -365,7 +365,8 @@ private fun TodayPanel(controller: AppController, state: AppState, now: Long, wi
     var editing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var newItem by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
     val items = sbhelper.core.calc.Today.items(now, state.gameData, state.synced, state.forgeStatuses(),
-        state.extraTimers(now), state.selectedProfile?.timeTowerCharges)
+        state.extraTimers(now), state.selectedProfile?.timeTowerCharges,
+        state.selectedProfile?.hotmNodes.orEmpty(), state.selectedProfile?.hotfNodes.orEmpty())
     val events = state.upcomingEvents(now).filter { it.isActive(now) || it.start - now < 6 * 3_600_000L }.take(4)
     val checks = items.filter { it.checkable }
     Panel(Modifier.fillMaxWidth(), caption = "Today", title = "오늘 할 일", accent = Sb.Green,
@@ -381,7 +382,8 @@ private fun TodayPanel(controller: AppController, state: AppState, now: Long, wi
                 items.forEach { it -> TodayRow(controller, state, it, now, editing) }
                 if (editing) {
                     // 숨긴 기본 항목 되살리기
-                    sbhelper.core.calc.Today.DAILY.filter { it.first in state.synced.dailyHidden }.forEach { (key, emoji, title) ->
+                    (sbhelper.core.calc.Today.DAILY + sbhelper.core.calc.Today.PERK_DAILY.map { Triple(it.first, "⛏", it.second) })
+                        .filter { it.first in state.synced.dailyHidden }.forEach { (key, emoji, title) ->
                         Text("+ $emoji $title 다시 보이기", style = SbText.body(12, Sb.Aqua),
                             modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable {
                                 controller.repo.updateSynced { s -> s.copy(dailyHidden = s.dailyHidden - key) }

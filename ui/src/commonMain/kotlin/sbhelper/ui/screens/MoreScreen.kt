@@ -36,7 +36,8 @@ fun MoreScreen(controller: AppController) {
             Screen.INVENTORY to "인벤토리 · 엔더 상자 · 백팩 · 옷장 · 장신구 · 자루",
             Screen.STATS to "순자산 · HotM 트리 · 도감 · 컬렉션 · 미니언",
             Screen.GEAR to "스킬별 장비 진행",
-            Screen.IRONMAN to "진행 가이드 · 제작 플래너 · 재료 출처 · 자루 가치",
+            Screen.CALC to "제작 플래너 · 미니언 수익 계산",
+            Screen.IRONMAN to "진행 가이드 · 재료 출처 · 자루 가치",
             Screen.PATCH to "최신 패치노트",
             Screen.SETTINGS to "계정 · 알림 · 백그라운드 · 기기 연동 · 업데이트",
         ).forEach { (screen, desc) ->

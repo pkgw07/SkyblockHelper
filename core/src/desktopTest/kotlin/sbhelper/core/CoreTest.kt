@@ -522,6 +522,9 @@ class CoreTest {
         s = sbhelper.core.calc.Today.toggle(s, item, now)
         assertTrue(sbhelper.core.calc.Today.items(now + 1000, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
         assertTrue(!sbhelper.core.calc.Today.items(now + 86_400_000L, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
+        // 퍼크를 찍었을 때만 일일 보너스 항목
+        assertTrue(sbhelper.core.calc.Today.items(now, rules, s, emptyList(), emptyList(), null).none { it.key == "perk:daily_powder" })
+        assertTrue(sbhelper.core.calc.Today.items(now, rules, s, emptyList(), emptyList(), null, mapOf("daily_powder" to 1)).any { it.key == "perk:daily_powder" })
     }
 
     @Test

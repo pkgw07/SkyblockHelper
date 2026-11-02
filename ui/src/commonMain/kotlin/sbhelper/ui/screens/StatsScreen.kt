@@ -508,12 +508,8 @@ private fun toRomanStats(n: Int): String {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MinionsTab(state: AppState, p: ProfileSummary, wide: Boolean) {
-    var sub by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(0) }
-    Segmented(listOf("수익 계산", "만든 미니언"), sub, { sub = it })
-    if (sub == 0) {
-        MinionCalcView(state, p, wide)
-        return
-    }
+    val controller = sbhelper.ui.LocalController.current
+    SbButton("미니언 수익 계산 →", { controller.calcTab = 1; controller.go(sbhelper.ui.Screen.CALC) }, outlined = true, color = Sb.Gold)
     val list = remember(p.craftedMinions, state.gameData) { MinionCalc.crafted(state.gameData, p.craftedMinions) { state.itemName(it) } }
     if (p.craftedMinions.isEmpty()) {
         Panel { EmptyState("미니언 정보가 없어요", "아직 만든 미니언이 없거나 정보를 받지 못했어요.") }

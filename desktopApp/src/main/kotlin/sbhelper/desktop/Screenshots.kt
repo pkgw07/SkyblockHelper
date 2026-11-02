@@ -172,8 +172,9 @@ fun main(args: Array<String>) {
     shot("61-whats-new", Screen.HOME)
     repo.updateDevice { it.copy(lastSeenVersion = sbhelper.ui.AppInfo.VERSION) }
     // 2.0: 미니언 계산, 시세 그래프, 오늘 할 일, 오버레이 기록 줄 판별
-    controller.statsTab = 10; shot("56-minion-calc", Screen.STATS, 1320, 2300)
-    shot("57-mobile-minion-calc", Screen.STATS, 412, 3200)
+    controller.calcTab = 1; shot("56-minion-calc", Screen.CALC, 1320, 2300)
+    shot("57-mobile-minion-calc", Screen.CALC, 412, 3200)
+    controller.calcTab = 0; shot("63-calc-planner", Screen.CALC, 1320, 1800)
     run {
         val pts = (0 until 140).map { i ->
             val t = now - (140 - i) * 10 * 60_000L

@@ -35,10 +35,39 @@ object GameWatch {
         val hidden: Boolean = false,
         /** 지금 읽는 기록 파일 */
         val logFile: String? = null,
-    )
+        /** 기록 파일을 못 찾음 → 게임 화면에서 항상 보여 줌 */
+        val noLog: Boolean = false,
+        /** 설정의 '미리 보기' (몇 초) */
+        val preview: Boolean = false,
+    ) {
+        /** 오버레이 창을 만들어 둘지 */
+        val active get() = preview || (running && (inSkyblock || noLog))
+        /** 지금 화면에 보일지 */
+        val shown get() = preview || (foreground && !hidden)
+    }
 
     private val _state = MutableStateFlow(State())
     val state: StateFlow<State> = _state
+    private val _status = MutableStateFlow("마인크래프트를 기다리는 중")
+    val statusText: StateFlow<String> = _status
+
+    private fun set(f: (State) -> State) {
+        _state.update(f)
+        val st = _state.value
+        _status.value = when {
+            !st.running -> "마인크래프트를 기다리는 중"
+            st.noLog -> "마인크래프트 찾음 · 게임 화면에서 보여요"
+            st.inSkyblock -> "스카이블록 안 · 게임 화면에서 보여요"
+            else -> "마인크래프트 찾음 · 스카이블록에 들어가면 보여요"
+        } + if (st.hidden) " (Ctrl+Shift+O 로 숨김)" else ""
+    }
+
+    /** 게임 없이 10초 동안 화면 구석에 띄워 보기 */
+    fun preview() {
+        if (!started) return
+        set { it.copy(preview = true) }
+        scope.launch { delay(10_000); set { it.copy(preview = false) } }
+    }
 
     @Volatile var mcWindow: Pointer? = null
         private set
@@ -76,7 +105,7 @@ object GameWatch {
         u.GetForegroundWindow()?.let { onForeground(it) }
         val msg = Msg()
         while (u.GetMessageW(msg, null, 0, 0) > 0) {
-            if (msg.message == WM_HOTKEY) _state.update { it.copy(hidden = !it.hidden) }
+            if (msg.message == WM_HOTKEY) set { it.copy(hidden = !it.hidden) }
             u.TranslateMessage(msg)
             u.DispatchMessageW(msg)
         }
@@ -86,10 +115,10 @@ object GameWatch {
         val isMc = isMinecraft(hwnd)
         if (isMc) {
             if (mcWindow != hwnd) mcWindow = hwnd
-            _state.update { it.copy(running = true, foreground = true) }
+            set { it.copy(running = true, foreground = true) }
             if (tailJob?.isActive != true) tailJob = scope.launch { tailWhileRunning() }
         } else {
-            _state.update { it.copy(foreground = false) }
+            set { it.copy(foreground = false) }
         }
     }
 
@@ -112,30 +141,51 @@ object GameWatch {
 
     // ------------------------------------------------------------------ 기록 파일 (마인크래프트가 켜져 있을 때만)
     private suspend fun tailWhileRunning() {
-        val tail = LogTail()
+        // 실행 중인 마인크래프트의 게임 폴더(--gameDir)에서 기록 파일 찾기 (런처마다 위치가 달라서)
+        val gameDir = mcWindow?.let { gameDirOf(it) }
+        val tail = LogTail(gameDir)
         while (scope.isActive) {
             val w = mcWindow
             if (w == null || !U32.INSTANCE.IsWindow(w)) {
                 // 마인크래프트가 꺼짐 → 읽기 멈춤, 오버레이 없애기
                 mcWindow = null
-                _state.update { it.copy(running = false, foreground = false, inSkyblock = false, logFile = null) }
+                set { it.copy(running = false, foreground = false, inSkyblock = false, logFile = null, noLog = false) }
                 return
             }
-            tail.poll()?.let { inSb -> _state.update { it.copy(inSkyblock = inSb) } }
-            if (_state.value.logFile != tail.file?.path) _state.update { it.copy(logFile = tail.file?.path) }
+            tail.poll()?.let { inSb -> set { it.copy(inSkyblock = inSb) } }
+            val noLog = tail.file == null
+            if (_state.value.logFile != tail.file?.path || _state.value.noLog != noLog) set { it.copy(logFile = tail.file?.path, noLog = noLog) }
             delay(2000)
         }
     }
 
+    /** 창 → 프로세스 → 실행 명령의 --gameDir (한 번만, 1초 정도) */
+    private fun gameDirOf(hwnd: Pointer): File? = runCatching {
+        val pid = IntArray(1)
+        U32.INSTANCE.GetWindowThreadProcessId(hwnd, pid)
+        if (pid[0] == 0) return null
+        val p = ProcessBuilder("powershell", "-NoProfile", "-NonInteractive", "-Command",
+            "(Get-CimInstance Win32_Process -Filter \"ProcessId=${pid[0]}\").CommandLine")
+            .redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().readText()
+        p.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)
+        val m = Regex("""--gameDir\s+(?:"([^"]+)"|(\S+))""").find(out) ?: return null
+        File(m.groupValues[1].ifEmpty { m.groupValues[2] }).takeIf { it.isDirectory }
+    }.getOrNull()
+
     /** latest.log 의 새 줄만 읽기 (처음 열 때는 마지막 256KB 로 지금 상태를 알아냄) */
-    class LogTail {
+    class LogTail(private val gameDir: File? = null) {
         var file: File? = null
             private set
         private var pos = 0L
 
         /** @return 스카이블록 안/밖이 바뀌었으면 그 값, 아니면 null */
         fun poll(): Boolean? {
-            val newest = candidates().filter { it.isFile }.maxByOrNull { it.lastModified() } ?: return null
+            // 지금 쓰이고 있는(최근 6시간 안에 바뀐) 기록 파일 중 가장 최근 것
+            val recent = System.currentTimeMillis() - 6 * 3_600_000L
+            val newest = (listOfNotNull(gameDir?.let { File(it, "logs/latest.log") }) + candidates())
+                .filter { it.isFile && it.lastModified() > recent }.maxByOrNull { it.lastModified() }
+            if (newest == null) { file = null; return null }
             var result: Boolean? = null
             if (newest != file) {
                 file = newest
@@ -167,12 +217,14 @@ object GameWatch {
             fun candidates(): List<File> {
                 val appData = System.getenv("APPDATA")?.let(::File)
                 val home = File(System.getProperty("user.home"))
+                // Lunar 는 버전마다 폴더가 달라서 logs/game 안의 기록도 본다
+                val lunarGame = File(home, ".lunarclient/logs/game").listFiles { f -> f.isFile && f.name.endsWith(".log") }.orEmpty().toList()
+                val lunarOffline = File(home, ".lunarclient/offline").listFiles { f -> f.isDirectory }.orEmpty().map { File(it, "logs/latest.log") }
                 return listOfNotNull(
-                    appData?.let { File(it, ".minecraft/logs/latest.log") },                          // 바닐라·Forge
+                    appData?.let { File(it, ".minecraft/logs/latest.log") },                          // 바닐라·Forge·Lunar(기본 게임 폴더)
                     appData?.let { File(it, ".minecraft/logs/blclient/minecraft/latest.log") },       // Badlion
                     File(home, ".lunarclient/offline/multiver/logs/latest.log"),                      // Lunar
-                    File(home, ".lunarclient/offline/1.8/logs/latest.log"),                           // Lunar (예전)
-                )
+                ) + lunarOffline + lunarGame
             }
 
             /** 한 줄 → 스카이블록 들어감(true) / 나감(false) / 상관없음(null) */
@@ -254,6 +306,7 @@ object GameWatch {
         fun GetWindowTextW(hwnd: Pointer, buf: CharArray, max: Int): Int
         fun IsWindow(hwnd: Pointer?): Boolean
         fun GetWindowRect(hwnd: Pointer, rect: IntArray): Boolean
+        fun GetWindowThreadProcessId(hwnd: Pointer, pid: IntArray): Int
         fun GetWindowLongW(hwnd: Pointer, index: Int): Int
         fun SetWindowLongW(hwnd: Pointer, index: Int, value: Int): Int
         fun SetWindowPos(hwnd: Pointer, after: Pointer?, x: Int, y: Int, cx: Int, cy: Int, flags: Int): Boolean
