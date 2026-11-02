@@ -447,7 +447,7 @@ private fun TodayRow(controller: AppController, state: AppState, it: sbhelper.co
                         else s.copy(dailyHidden = s.dailyHidden + it.key)
                     }
                 }.padding(4.dp))
-            it.resetAt != null -> Text(if (it.done) "${formatDuration(it.resetAt - now)} 뒤 초기화" else "${formatDuration(it.resetAt - now)} 남음",
+            it.resetAt != null -> Text(if (it.done) "${formatDuration(it.resetAt!! - now)} 뒤 초기화" else "${formatDuration(it.resetAt!! - now)} 남음",
                 style = SbText.pixel(11, Sb.TextFaint))
             it.ready -> Pill("지금", Sb.Green, filled = true)
         }
