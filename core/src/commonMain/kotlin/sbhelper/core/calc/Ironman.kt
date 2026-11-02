@@ -96,6 +96,24 @@ class CraftPlanner(private val data: GameData) {
         input == output || input in path || data.crafting[input]?.any { output in it.`in` } == true
     }
 
+    /**
+     * 전체 진행도 (0..1). 재료마다 개수 차이가 커서(코블스톤 수천 개 vs 희귀 재료 1개) 재료 가치로 무게를 둔다.
+     * 가진 것 없이 분해한 전체 재료 가치 대비, 가진 것(중간 재료 포함)을 빼고 남은 재료 가치.
+     * @param price 재료 하나의 가치 (없으면 null → 시세가 있는 재료들의 중간값으로)
+     */
+    fun progress(target: String, amount: Int, stock: Map<String, Long>, price: (String) -> Double?): Double {
+        if (stock.isEmpty()) return 0.0
+        val full = plan(target, amount)
+        val now = plan(target, amount, stock)
+        val known = (full.raw + now.raw).map { it.itemId }.distinct().associateWith { price(it)?.takeIf { p -> p > 0 } }
+        val median = known.values.filterNotNull().sorted().let { if (it.isEmpty()) 1.0 else it[it.size / 2] }
+        fun w(id: String) = known[id] ?: median
+        val total = full.raw.sumOf { it.needed * w(it.itemId) }
+        if (total <= 0) return 0.0
+        val missing = now.raw.sumOf { it.missing * w(it.itemId) }
+        return (1 - missing / total).coerceIn(0.0, 1.0)
+    }
+
     /** 만들 수 있는 아이템인가 */
     fun isCraftable(id: String) = data.crafting.containsKey(id) || data.forge.containsKey(id)
 }

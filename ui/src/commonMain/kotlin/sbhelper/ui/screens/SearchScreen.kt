@@ -241,6 +241,13 @@ private fun ItemPage(controller: AppController, state: AppState, id: String, wid
             npc?.let { PriceChip("NPC 판매", it, Sb.Yellow) }
         }
     }
+    // 바자 아이템: 시세 그래프 (볼 때부터 기록 시작)
+    if (bz != null) {
+        androidx.compose.runtime.LaunchedEffect(id) { controller.repo.trackPrice(id) }
+        Panel(Modifier.fillMaxWidth(), caption = "Price History", title = "시세 변화", accent = Sb.Gold) {
+            sbhelper.ui.components.PriceChart(state.priceHistory.series[id].orEmpty())
+        }
+    }
 
     // 게임 툴팁 모양: 스탯·능력·세트 효과 (위키 → 없으면 공식 API 스탯)
     val tooltip = rememberItemTooltip(controller, page, name)

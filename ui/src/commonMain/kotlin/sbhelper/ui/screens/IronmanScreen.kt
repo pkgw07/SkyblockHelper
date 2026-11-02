@@ -44,6 +44,7 @@ import sbhelper.core.util.fixed
 import sbhelper.core.util.formatCoins
 import sbhelper.core.util.formatDuration
 import sbhelper.core.util.formatNumber
+import sbhelper.core.util.formatPercent
 import sbhelper.ui.AppController
 import sbhelper.ui.components.EmptyState
 import sbhelper.ui.components.ItemGlyph
@@ -188,7 +189,12 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
             enabled = sacks != null)
     }
 
-    PlanSummary(plan, wide)
+    val progress = remember(id, amount, useSacks, sacks, state.gameData, state.bazaar != null) {
+        planner.progress(id, amount, if (useSacks) sacks.orEmpty() else emptyMap()) { k ->
+            state.bazaar?.products?.get(k)?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: state.npcPrices[k] ?: state.lowestBin[k]
+        }
+    }
+    PlanSummary(plan, progress, wide)
     Responsive(
         wide,
         cell(1f) { m -> RawMaterials(state, plan, m) },
@@ -201,9 +207,18 @@ private fun Planner(controller: AppController, state: AppState, wide: Boolean) {
 }
 
 @Composable
-private fun PlanSummary(plan: CraftPlan, wide: Boolean) {
+private fun PlanSummary(plan: CraftPlan, progress: Double, wide: Boolean) {
     val missing = plan.raw.count { it.missing > 0 }
+    val pct = if (missing == 0) 1.0 else progress
     val tiles: List<@Composable (Modifier) -> Unit> = listOf(
+        { m ->
+            Column(m) {
+                StatTile("전체 진행도", formatPercent(pct, 0), Modifier.fillMaxWidth(), color = if (pct >= 1.0) Sb.Green else Sb.Gold,
+                    sub = "재료 가치 기준 · 가진 중간 재료 포함")
+                Spacer(Modifier.height(6.dp))
+                XpBar(pct, Modifier.fillMaxWidth(), if (pct >= 1.0) Sb.Green else Sb.Gold, 6.dp)
+            }
+        },
         { m -> StatTile("기본 재료", "${plan.raw.size}종", m, color = Sb.Aqua) },
         { m -> StatTile("부족한 재료", "${missing}종", m, color = if (missing == 0) Sb.Green else Sb.Red,
             sub = if (missing == 0) "바로 만들 수 있어요!" else null) },

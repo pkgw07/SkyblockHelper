@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +41,7 @@ import sbhelper.core.calc.EventOccurrence
 import sbhelper.core.calc.Leveling
 import sbhelper.core.calc.SkyblockCalendar
 import sbhelper.core.model.GameMode
+import sbhelper.core.util.Clock
 import sbhelper.core.util.fixed
 import sbhelper.core.util.formatCoins
 import sbhelper.core.util.formatDuration
@@ -64,6 +67,8 @@ fun HomeScreen(controller: AppController, state: AppState, wide: Boolean) {
         SkyblockClock(state, now, wide)
 
         if (!state.accountLinked) LinkAccountCard(controller)
+
+        TodayPanel(controller, state, now, wide)
 
         val profile = state.selectedProfile
         if (profile?.gameMode == GameMode.IRONMAN) {
@@ -350,6 +355,101 @@ private fun PatchPanel(controller: AppController, state: AppState, modifier: Mod
                     Text("🔥 파이어 세일: ${state.itemName(s.itemId)} — ${s.price} 젬", style = SbText.body(13, Sb.Red))
                 }
             }
+        }
+    }
+}
+
+/** 오늘 할 일: 자동(포지·컴포스터·Time Tower) + 매일 체크(Fetchur·실험대·직접 추가) + 오늘 이벤트 */
+@Composable
+private fun TodayPanel(controller: AppController, state: AppState, now: Long, wide: Boolean) {
+    var editing by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var newItem by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val items = sbhelper.core.calc.Today.items(now, state.gameData, state.synced, state.forgeStatuses(),
+        state.extraTimers(now), state.selectedProfile?.timeTowerCharges)
+    val events = state.upcomingEvents(now).filter { it.isActive(now) || it.start - now < 6 * 3_600_000L }.take(4)
+    val checks = items.filter { it.checkable }
+    Panel(Modifier.fillMaxWidth(), caption = "Today", title = "오늘 할 일", accent = Sb.Green,
+        trailing = {
+            if (checks.isNotEmpty()) Pill("${checks.count { it.done }}/${checks.size}", if (checks.all { it.done }) Sb.Green else Sb.TextDim)
+            Spacer(Modifier.width(8.dp))
+            Text(if (editing) "완료" else "편집", style = SbText.body(12, Sb.Aqua),
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable { editing = !editing }.padding(4.dp))
+        }) {
+        val todo: @Composable (Modifier) -> Unit = { m ->
+            Column(m, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (items.isEmpty()) Text("오늘은 할 일이 없어요.", style = SbText.body(13, Sb.TextFaint))
+                items.forEach { it -> TodayRow(controller, state, it, now, editing) }
+                if (editing) {
+                    // 숨긴 기본 항목 되살리기
+                    sbhelper.core.calc.Today.DAILY.filter { it.first in state.synced.dailyHidden }.forEach { (key, emoji, title) ->
+                        Text("+ $emoji $title 다시 보이기", style = SbText.body(12, Sb.Aqua),
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable {
+                                controller.repo.updateSynced { s -> s.copy(dailyHidden = s.dailyHidden - key) }
+                            }.padding(6.dp))
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        sbhelper.ui.components.SbTextField(newItem, { newItem = it.take(40) }, Modifier.weight(1f), "매일 할 일 추가 (예: 가든 방문자)")
+                        Spacer(Modifier.width(8.dp))
+                        SbButton("추가", {
+                            val n = newItem.trim()
+                            if (n.isNotEmpty()) controller.repo.updateSynced { s ->
+                                s.copy(dailyCustom = (s.dailyCustom.filterNot { it == n } + n).take(12))
+                            }
+                            newItem = ""
+                        })
+                    }
+                    Text("직접 추가한 항목은 매일 자정(이 기기 시각)에 다시 빈 칸이 돼요.", style = SbText.body(11, Sb.TextFaint),
+                        modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        val ev: @Composable (Modifier) -> Unit = { m ->
+            Column(m, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("곧 있을 이벤트", style = SbText.caption(Sb.TextDim), modifier = Modifier.padding(start = 8.dp, bottom = 2.dp))
+                if (events.isEmpty()) Text("6시간 안에는 없어요", style = SbText.body(12, Sb.TextFaint), modifier = Modifier.padding(start = 8.dp))
+                events.forEach { EventLine(it, now, state.cropsFor(it)) }
+            }
+        }
+        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+            todo(Modifier.weight(1.2f)); ev(Modifier.weight(1f))
+        } else {
+            todo(Modifier.fillMaxWidth())
+            if (events.isNotEmpty()) { Spacer(Modifier.height(10.dp)); ev(Modifier.fillMaxWidth()) }
+        }
+    }
+}
+
+@Composable
+private fun TodayRow(controller: AppController, state: AppState, it: sbhelper.core.calc.TodayItem, now: Long, editing: Boolean) {
+    val toggle = { controller.repo.updateSynced { s -> sbhelper.core.calc.Today.toggle(s, it, Clock.now()) } }
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(if (it.ready) Sb.Green.copy(alpha = 0.07f) else Color.Transparent)
+            .let { m -> if (it.checkable && !editing) m.clickable { toggle() } else m }
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (it.checkable) Text(if (it.done) "☑" else "☐", style = SbText.body(17, if (it.done) Sb.Green else Sb.TextDim))
+        else Text(it.emoji, style = SbText.body(16))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text((if (it.checkable) it.emoji + " " else "") + it.title,
+                style = SbText.body(14, if (it.done) Sb.TextFaint else Sb.Text, weight = if (it.ready) FontWeight.SemiBold else FontWeight.Normal),
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (it.detail.isNotEmpty()) Text(it.detail, style = SbText.body(12, Sb.TextDim), maxLines = 1)
+        }
+        when {
+            editing && it.checkable -> Text(if (it.custom) "삭제" else "숨기기", style = SbText.body(12, Sb.Red),
+                modifier = Modifier.clip(RoundedCornerShape(6.dp)).clickable {
+                    controller.repo.updateSynced { s ->
+                        if (it.custom) s.copy(dailyCustom = s.dailyCustom.filterNot { n -> sbhelper.core.calc.Today.customKey(n) == it.key })
+                        else s.copy(dailyHidden = s.dailyHidden + it.key)
+                    }
+                }.padding(4.dp))
+            it.resetAt != null -> Text(if (it.done) "${formatDuration(it.resetAt - now)} 뒤 초기화" else "${formatDuration(it.resetAt - now)} 남음",
+                style = SbText.pixel(11, Sb.TextFaint))
+            it.ready -> Pill("지금", Sb.Green, filled = true)
         }
     }
 }

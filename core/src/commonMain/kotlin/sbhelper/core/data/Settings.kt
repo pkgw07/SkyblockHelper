@@ -1,5 +1,7 @@
 package sbhelper.core.data
 
+import kotlinx.datetime.toLocalDateTime
+
 import kotlinx.serialization.Serializable
 import sbhelper.core.calc.EventLabels
 
@@ -23,6 +25,12 @@ data class SyncedSettings(
     val craftCurrent: CraftTarget? = null,
     /** 아이언맨 진행 가이드에서 체크한 항목 (기기 간 동기화) */
     val ironmanChecked: Set<String> = emptySet(),
+    /** 오늘 할 일: 체크한 항목 키 → 체크한 시각 (초기화 시각이 지나면 다시 빈 칸) */
+    val dailyDone: Map<String, Long> = emptyMap(),
+    /** 오늘 할 일에 직접 추가한 항목 (매일 이 기기 시각 자정에 초기화) */
+    val dailyCustom: List<String> = emptyList(),
+    /** 오늘 할 일에서 숨긴 기본 항목 */
+    val dailyHidden: Set<String> = emptySet(),
     val updatedAt: Long = 0,
 )
 
@@ -71,6 +79,14 @@ data class DeviceSettings(
     val notificationsOnThisDevice: Boolean = true,
     /** 알림이 뜰 때 소리 (PC: 차임 소리, 휴대폰: 소리 있는 알림) */
     val alertSound: Boolean = true,
+    /** 마지막으로 '새로워진 점' 을 보여 준 앱 버전 (업데이트 뒤 한 번만 보여 주려고) */
+    val lastSeenVersion: String = "",
+    /** 알림 방해 금지 시간대 (이 기기, 현지 시각 기준 시) */
+    val quietEnabled: Boolean = false,
+    val quietStartHour: Int = 0,
+    val quietEndHour: Int = 8,
+    /** 0 = 소리만 끄기, 1 = 알림도 안 띄우기 (기록에는 남음) */
+    val quietMode: Int = 0,
     /** 알림 소리 크기 0~100 */
     val alertVolume: Int = 70,
     /** 알림 소리 종류 (Synth.TONES 순서) */
@@ -137,3 +153,13 @@ interface KeyValueStorage {
     fun readBytes(name: String): ByteArray? = null
     fun writeBytes(name: String, bytes: ByteArray) {}
 }
+
+/** 지금이 방해 금지 시간인가 (시작 > 끝이면 자정을 넘는 구간, 예: 23시~8시) */
+fun DeviceSettings.isQuiet(nowMillis: Long): Boolean {
+    if (!quietEnabled || quietStartHour == quietEndHour) return false
+    val hour = kotlinx.datetime.Instant.fromEpochMilliseconds(nowMillis)
+        .toLocalDateTime(kotlinx.datetime.TimeZone.currentSystemDefault()).hour
+    return if (quietStartHour < quietEndHour) hour in quietStartHour until quietEndHour
+    else hour >= quietStartHour || hour < quietEndHour
+}
+

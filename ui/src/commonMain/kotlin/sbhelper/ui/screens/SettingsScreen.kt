@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.CloudSync
@@ -72,6 +73,7 @@ fun SettingsScreen(controller: AppController, state: AppState, wide: Boolean) {
                 Column(m, verticalArrangement = Arrangement.spacedBy(18.dp)) {
                     BackgroundPanel(controller, state)
                     NotificationPanel(controller, state)
+                    ChangelogPanel()
                     AboutPanel(state)
                     RemoveAppPanel(controller)
                 }
@@ -370,6 +372,20 @@ private fun NotificationPanel(controller: AppController, state: AppState) {
                 { on -> controller.repo.updateDevice { it.copy(phoneExactAlerts = on) }; platform.onAlertSettingsChanged() },
                 "앱을 꺼 두어도 포지 완료·이벤트·타이머 시각에 정확히 알려요. 끄면 15분마다 확인하는 방식이라 늦을 수 있어요.")
         }
+        // 방해 금지 시간대 (이 기기)
+        SwitchRow("🌙 방해 금지 시간대", state.device.quietEnabled,
+            { on -> controller.repo.updateDevice { it.copy(quietEnabled = on) } },
+            "정한 시간에는 조용히. 이 기기에만 적용돼요.")
+        if (state.device.quietEnabled) {
+            val dev = state.device
+            Row(Modifier.padding(start = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                HourStepper("시작", dev.quietStartHour) { h -> controller.repo.updateDevice { it.copy(quietStartHour = h) } }
+                Text("  ~  ", style = SbText.body(14, Sb.TextDim))
+                HourStepper("끝", dev.quietEndHour) { h -> controller.repo.updateDevice { it.copy(quietEndHour = h) } }
+            }
+            Segmented(listOf("소리만 끄기", "알림도 안 띄우기"), dev.quietMode.coerceIn(0, 1), { i -> controller.repo.updateDevice { it.copy(quietMode = i) } })
+            Text("알림 기록에는 그대로 남아요.", style = SbText.body(12, Sb.TextFaint), modifier = Modifier.padding(top = 4.dp, bottom = 6.dp))
+        }
         Text("PC 에서 전체화면 게임 중 알림 창이 안 보이면: Windows 설정 → 시스템 → 알림 → '자동으로 방해 금지 켜기' 에서 " +
             "'게임을 할 때'·'전체 화면 모드' 를 끄거나, 우선순위 알림에 SkyblockHelper 를 추가하세요.", style = SbText.body(12, Sb.TextFaint))
         Divider(Modifier.padding(vertical = 6.dp))
@@ -490,6 +506,43 @@ private fun RemoveAppPanel(controller: AppController) {
             },
             dismissButton = { SbButton("취소", { ask = false }, outlined = true) },
         )
+    }
+}
+
+/** 앱 업데이트 내역 (짧게) */
+@Composable
+private fun ChangelogPanel() {
+    val entries = sbhelper.ui.rememberChangelog()
+    if (entries.isEmpty()) return
+    var all by remember { mutableStateOf(false) }
+    Panel(Modifier.fillMaxWidth(), caption = "Changelog", title = "업데이트 내역", accent = Sb.Gold) {
+        (if (all) entries else entries.take(3)).forEach { e ->
+            Text("v${e.version}", style = SbText.pixel(13, Sb.Gold, bold = true), modifier = Modifier.padding(top = 8.dp, bottom = 2.dp))
+            e.items.forEach { line ->
+                Row(Modifier.padding(vertical = 1.dp)) {
+                    Text("•", style = SbText.body(13, Sb.TextDim)); Spacer(Modifier.width(8.dp))
+                    Text(line, style = SbText.body(13, Sb.Text))
+                }
+            }
+        }
+        if (entries.size > 3) {
+            Spacer(Modifier.height(8.dp))
+            SbButton(if (all) "접기" else "이전 버전 더 보기", { all = !all }, outlined = true)
+        }
+    }
+}
+
+/** 시(0~23) 고르기: − 23시 + */
+@Composable
+private fun HourStepper(label: String, hour: Int, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, style = SbText.caption(Sb.TextDim))
+        Spacer(Modifier.width(6.dp))
+        Text("−", style = SbText.body(18, Sb.Gold, FontWeight.Bold),
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChange((hour + 23) % 24) }.padding(horizontal = 10.dp, vertical = 2.dp))
+        Text("${hour}시", style = SbText.pixel(14, Sb.Text, bold = true), modifier = Modifier.widthIn(min = 40.dp))
+        Text("+", style = SbText.body(18, Sb.Gold, FontWeight.Bold),
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onChange((hour + 1) % 24) }.padding(horizontal = 10.dp, vertical = 2.dp))
     }
 }
 

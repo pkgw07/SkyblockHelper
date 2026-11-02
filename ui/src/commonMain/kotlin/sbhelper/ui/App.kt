@@ -17,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -311,6 +312,7 @@ fun SkyblockApp(
                     Toast(controller.toast, Modifier.align(Alignment.TopCenter).padding(top = 18.dp))
                     UpdateAvailableDialog(controller, state, platform)
                     UpdateReadyDialog(controller, state, platform)
+                    WhatsNewDialog(controller, state, platform)
                 }
             }
             }
@@ -665,3 +667,54 @@ fun StartRepository(controller: AppController) {
         controller.repo.startLoops()
     }
 }
+
+/** 앱 안 업데이트 내역 (files/changelog.json) */
+@Composable
+fun rememberChangelog(): List<sbhelper.core.data.ChangelogEntry> {
+    val entries by androidx.compose.runtime.produceState(emptyList<sbhelper.core.data.ChangelogEntry>()) {
+        value = sbhelper.core.data.Changelog.parse(sbhelper.ui.generated.Res.readBytes("files/changelog.json").decodeToString())
+    }
+    return entries
+}
+
+/** 업데이트한 뒤 처음 켰을 때 한 번: 새로워진 점 (처음 설치했을 때는 안 띄움) */
+@Composable
+private fun WhatsNewDialog(controller: AppController, state: AppState, platform: Platform) {
+    val current = platform.versionName
+    val seen = state.device.lastSeenVersion
+    val entries = rememberChangelog()
+    LaunchedEffect(seen, state.device.onboardingDone, state.accountLinked) {
+        // 처음 설치: 그냥 지금 버전을 봤다고 기록
+        if (seen.isEmpty() && !state.device.onboardingDone && !state.accountLinked) controller.repo.updateDevice { it.copy(lastSeenVersion = current) }
+    }
+    if (seen == current || entries.isEmpty()) return
+    if (seen.isEmpty() && !state.device.onboardingDone && !state.accountLinked) return
+    // 지난번에 본 버전 이후의 내역 (없으면 지금 버전만)
+    val newer = entries.filter { e -> seen.isEmpty() || sbhelper.core.update.Updates.isNewer(e.version, seen) }
+        .filter { e -> !sbhelper.core.update.Updates.isNewer(e.version, current) }.take(4)
+        .ifEmpty { entries.filter { it.version == current } }
+    if (newer.isEmpty()) { LaunchedEffect(current) { controller.repo.updateDevice { it.copy(lastSeenVersion = current) } }; return }
+    val close = { controller.repo.updateDevice { it.copy(lastSeenVersion = current) } }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = close,
+        containerColor = Sb.SurfaceHigh,
+        title = { Text("업데이트 완료 · v$current", style = SbText.body(17, weight = FontWeight.Bold)) },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                Text("새로워진 점", style = SbText.caption(Sb.Gold))
+                newer.forEach { e ->
+                    Spacer(Modifier.height(8.dp))
+                    if (newer.size > 1) Text("v${e.version}", style = SbText.pixel(12, Sb.TextDim, bold = true))
+                    e.items.forEach { line ->
+                        Row(Modifier.padding(vertical = 2.dp)) {
+                            Text("•", style = SbText.body(14, Sb.Gold)); Spacer(Modifier.width(8.dp))
+                            Text(line, style = SbText.body(14, Sb.Text))
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { sbhelper.ui.components.SbButton("확인", { close() }, color = Sb.Gold) },
+    )
+}
+

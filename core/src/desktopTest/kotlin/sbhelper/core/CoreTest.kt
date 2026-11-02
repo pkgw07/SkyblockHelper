@@ -12,6 +12,7 @@ import sbhelper.core.calc.SkyblockCalendar
 import sbhelper.core.data.GameData
 import sbhelper.core.data.NotifyPrefs
 import sbhelper.core.data.PriceAlert
+import sbhelper.core.data.isQuiet
 import sbhelper.core.model.BazaarResponse
 import sbhelper.core.model.CollectionsResponse
 import sbhelper.core.model.ElectionResponse
@@ -480,5 +481,43 @@ class CoreTest {
         assertEquals(20.0, d.total); assertEquals(listOf("C"), d.unpriced.map { it.id })
         val c = assertNotNull(sbhelper.core.calc.CraftCost.cheapest(data, "A") { price[it] })
         assertEquals(12.0, c.total); assertEquals(listOf("D"), c.buy.map { it.id }); assertEquals(listOf("C"), c.unpriced.map { it.id })
+    }
+
+    @Test
+    fun priceHistoryAndChangelog() {
+        var h = sbhelper.core.calc.PriceHistory().track("A")
+        val p = { _: String -> 10.0 to 8.0 }
+        h = h.record(0, listOf("A"), p)
+        h = h.record(60_000, listOf("A"), p) // 10분 안 → 그대로
+        assertEquals(1, h.series["A"]!!.size)
+        h = h.record(sbhelper.core.calc.PriceHistory.STEP, listOf("A"), p)
+        assertEquals(2, h.series["A"]!!.size)
+        val log = sbhelper.core.data.Changelog.parse(File("../ui/src/commonMain/composeResources/files/changelog.json").readText())
+        assertTrue(log.isNotEmpty() && log.first().items.isNotEmpty())
+        assertTrue(!sbhelper.core.data.DeviceSettings().isQuiet(0)); assertTrue(sbhelper.core.data.DeviceSettings(quietEnabled = true, quietStartHour = 0, quietEndHour = 24).isQuiet(0))
+    }
+
+    @Test
+    fun craftProgressAndToday() {
+        // A = 2 B + 1 C, B = 3 D. D 2코인, C 6코인 → 전체 2*3*2 + 6 = 18
+        val data = GameData(crafting = mapOf(
+            "A" to listOf(GameData.CraftRecipe(mapOf("B" to 2.0, "C" to 1.0))),
+            "B" to listOf(GameData.CraftRecipe(mapOf("D" to 3.0))),
+        ))
+        val price = mapOf("D" to 2.0, "C" to 6.0)
+        val p = CraftPlanner(data)
+        assertEquals(0.0, p.progress("A", 1, emptyMap()) { price[it] })
+        // 중간 재료 B 하나 = D 3개 = 6코인 → 6/18
+        assertEquals(1.0 / 3, p.progress("A", 1, mapOf("B" to 1L)) { price[it] }, 1e-9)
+        assertEquals(1.0, p.progress("A", 1, mapOf("B" to 2L, "C" to 1L)) { price[it] }, 1e-9)
+        // 오늘 할 일: 체크 → 초기화 전까지 완료
+        val rules = GameData(timerRules = GameData.TimerRules(fetchurReset = "UTC 00:00"))
+        val now = 1_700_000_000_000L
+        var s = sbhelper.core.data.SyncedSettings()
+        val item = sbhelper.core.calc.Today.items(now, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }
+        assertTrue(!item.done)
+        s = sbhelper.core.calc.Today.toggle(s, item, now)
+        assertTrue(sbhelper.core.calc.Today.items(now + 1000, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
+        assertTrue(!sbhelper.core.calc.Today.items(now + 86_400_000L, rules, s, emptyList(), emptyList(), null).first { it.key == "fetchur" }.done)
     }
 }

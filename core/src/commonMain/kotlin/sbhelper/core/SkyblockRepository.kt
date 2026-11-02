@@ -1,5 +1,7 @@
 package sbhelper.core
 
+import sbhelper.core.data.isQuiet
+
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -99,6 +101,8 @@ data class AppState(
     val lowestBin: Map<String, Double> = emptyMap(),
     val lowestBinAt: Long = 0,
     val loadingPrices: Boolean = false,
+    /** 앱이 모은 바자 시세 기록 */
+    val priceHistory: sbhelper.core.calc.PriceHistory = sbhelper.core.calc.PriceHistory(),
 ) {
     val priceBook get() = sbhelper.core.calc.PriceBook(bazaar?.products.orEmpty(), lowestBin, npcPrices)
 
@@ -193,7 +197,10 @@ class SkyblockRepository(
         applyGameData(data)
         // 받아 둔 아이콘 묶음
         IconPack.load(storage.read(ICONS_INDEX), storage.readBytes(ICONS_BIN))
-        _state.update { it.copy(stored = stored, iconPackVersion = IconPack.version) }
+        val prices = storage.read(PRICES_FILE)?.let {
+            runCatching { SbJson.decodeFromString(sbhelper.core.calc.PriceHistory.serializer(), it) }.getOrNull()
+        } ?: sbhelper.core.calc.PriceHistory()
+        _state.update { it.copy(stored = stored, iconPackVersion = IconPack.version, priceHistory = prices) }
     }
 
     /** 아이콘 묶음이 새로 나왔으면 받는다 (data 브랜치, 몇 MB) */
@@ -366,6 +373,7 @@ class SkyblockRepository(
         try {
             val bz = api.bazaar()
             _state.update { it.copy(bazaar = bz, networkError = null) }
+            recordPrices()
         } catch (e: ApiException) {
             _state.update { it.copy(networkError = e.message) }
         }
@@ -414,6 +422,32 @@ class SkyblockRepository(
         val garden = runCatching { api.garden(sel.profileId) }.getOrNull()
         val museum = runCatching { sbhelper.core.calc.MuseumCalc.parse(api.museum(sel.profileId), m.id) }.getOrNull()
         return ViewedPlayer(m.name, m.id, profiles, sel.profileId, garden, museum)
+    }
+
+    // ------------------------------------------------------------------ 바자 시세 기록
+    private fun recordPrices() {
+        val s = state.value
+        val products = s.bazaar?.products ?: return
+        val ids = (s.synced.watchlist + s.priceHistory.recent).distinct()
+        val next = s.priceHistory.record(Clock.now(), ids) { id -> products[id]?.quickStatus?.let { it.buyPrice to it.sellPrice } }
+        if (next !== s.priceHistory) {
+            _state.update { it.copy(priceHistory = next) }
+            savePrices()
+        }
+    }
+
+    /** 검색에서 바자 아이템을 보면 시세를 모으기 시작한다 */
+    fun trackPrice(id: String) {
+        if (state.value.bazaar?.products?.containsKey(id) != true) return
+        if (state.value.priceHistory.recent.firstOrNull() == id) return
+        _state.update { it.copy(priceHistory = it.priceHistory.track(id)) }
+        recordPrices()
+        savePrices()
+    }
+
+    private fun savePrices() {
+        val snapshot = state.value.priceHistory
+        scope.launch { runCatching { storage.write(PRICES_FILE, SbJson.encodeToString(sbhelper.core.calc.PriceHistory.serializer(), snapshot)) } }
     }
 
     /** 화면 미리보기·스크린샷 전용: 예시 프로필을 넣는다 */
@@ -566,7 +600,9 @@ class SkyblockRepository(
             st.copy(stored = st.stored.copy(sentAlertKeys = newKeys, history = history))
         }
         persist()
-        if (s.device.notificationsOnThisDevice) result.notifications.forEach { runCatching { notifier.show(it) } }
+        // 방해 금지 '알림도 안 띄우기' 면 기록에만 남긴다
+        val hide = s.device.isQuiet(now) && s.device.quietMode == 1
+        if (s.device.notificationsOnThisDevice && !hide) result.notifications.forEach { runCatching { notifier.show(it) } }
     }
 
     /** 다음에 알림을 확인해야 할 시각 (포지 완료, 이벤트 시작 전, 타이머 1분 전 중 가장 빠른 것) */
@@ -595,6 +631,7 @@ class SkyblockRepository(
 
     companion object {
         const val STATE_FILE = "state.json"
+        const val PRICES_FILE = "prices.json"
         const val GAMEDATA_FILE = "gamedata.json"
         /** v1.5 부터 새 파일 (예전 버전이 저장한 덜 된 번역은 쓰지 않음) */
         const val ICONS_INDEX = "icons.json"

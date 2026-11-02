@@ -1,5 +1,7 @@
 package sbhelper.android
 
+import sbhelper.core.data.isQuiet
+
 import android.Manifest
 import android.app.Application
 import android.app.NotificationChannel
@@ -114,6 +116,6 @@ class AndroidNotifier(private val context: Context, private val device: () -> sb
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(notification.key.hashCode(), n) }
-        device()?.let { d -> if (d.alertSound) AndroidSound.alert(d.alertTone, d.alertVolume) }
+        device()?.let { d -> if (d.alertSound && !d.isQuiet(System.currentTimeMillis())) AndroidSound.alert(d.alertTone, d.alertVolume) }
     }
 }

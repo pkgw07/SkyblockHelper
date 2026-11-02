@@ -125,6 +125,7 @@ fun BazaarScreen(controller: AppController, state: AppState, wide: Boolean) {
                                 HeaderCell("개당 이익", Modifier.weight(1f), sort == BzSort.PROFIT) { sort = BzSort.PROFIT }
                                 if (wide) HeaderCell("마진", Modifier.weight(0.8f), sort == BzSort.MARGIN) { sort = BzSort.MARGIN }
                                 if (wide) HeaderCell("주간 거래", Modifier.weight(1f), sort == BzSort.VOLUME) { sort = BzSort.VOLUME }
+                                if (tab == BzTab.WATCH) HeaderCell("시세 추이", Modifier.weight(1.1f))
                                 HeaderCell("잠재 이익/h", Modifier.weight(1f), sort == BzSort.POTENTIAL) { sort = BzSort.POTENTIAL }
                                 Spacer(Modifier.width(30.dp))
                             }
@@ -143,6 +144,8 @@ fun BazaarScreen(controller: AppController, state: AppState, wide: Boolean) {
                                         if (wide) Cell((if (f.marginRatio > 1.0) "⚠ " else "") + formatPercent(f.marginRatio), Modifier.weight(0.8f),
                                             if (f.marginRatio > 1.0) Sb.Red else Sb.TextDim)
                                         if (wide) Cell(formatNumber(f.weeklyVolume), Modifier.weight(1f), Sb.TextDim)
+                                        if (tab == BzTab.WATCH) sbhelper.ui.components.PriceChart(state.priceHistory.series[f.id].orEmpty(),
+                                            Modifier.weight(1.1f).padding(horizontal = 6.dp), height = 26.dp, compact = true)
                                         Cell(formatCoins(f.hourlyPotential), Modifier.weight(1f), Sb.Gold)
                                         StarButton(f.id in state.synced.watchlist) { controller.repo.toggleWatch(f.id) }
                                     }
@@ -238,6 +241,11 @@ private fun ItemDetail(controller: AppController, state: AppState, id: String, o
         state.items[id]?.npcSellPrice?.let { TooltipLine("NPC 판매가", formatCoins(it), Sb.Yellow) }
         Spacer(Modifier.height(8.dp))
         Text(McColors.rarityLabel(tier), style = SbText.pixel(12, McColors.rarity(tier), bold = true))
+    }
+    Spacer(Modifier.height(12.dp))
+    androidx.compose.runtime.LaunchedEffect(id) { controller.repo.trackPrice(id) }
+    Panel(Modifier.fillMaxWidth(), caption = "Price History", title = "시세 변화", accent = Sb.Gold) {
+        sbhelper.ui.components.PriceChart(state.priceHistory.series[id].orEmpty(), height = 120.dp)
     }
     Spacer(Modifier.height(12.dp))
     Panel(Modifier.fillMaxWidth(), caption = "Price Alert", title = "가격 알림 만들기", accent = Sb.Pink) {

@@ -1,5 +1,7 @@
 package sbhelper.desktop
 
+import sbhelper.core.data.isQuiet
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -122,7 +124,7 @@ fun main(args: Array<String>) {
                     else -> Notification.Type.None
                 }))
                 // 전체화면 게임 중에는 알림 창이 가려질 수 있어서 소리로도
-                repo.state.value.device.let { d -> if (d.alertSound) Sound.alert(d.alertTone, d.alertVolume) }
+                repo.state.value.device.let { d -> if (d.alertSound && !d.isQuiet(System.currentTimeMillis())) Sound.alert(d.alertTone, d.alertVolume) }
             }
             SingleInstance.onShowRequest = { visible = true; bringToFront() }
         }
