@@ -39,6 +39,8 @@ interface Platform {
     val scanPairingCode: ((onResult: (String) -> Unit) -> Unit)? get() = null
     /** 지난번에 앱이 갑자기 꺼졌을 때의 오류 기록 (없으면 null). 읽으면 지운다 */
     fun takeLastCrash(): String? = null
+    /** 게임 모드(26.2)와의 실시간 연결 (PC 만). null 이면 지원 안 함 */
+    val liveGame: kotlinx.coroutines.flow.StateFlow<LiveGame>? get() = null
     /** 게임 오버레이 (PC 만). null 이면 지원 안 함 */
     val gameOverlay: GameOverlayControl? get() = null
 }
@@ -71,3 +73,16 @@ interface InAppUpdater {
     /** 프로그램을 다시 시작한다 */
     fun restart()
 }
+
+/**
+ * 게임 모드가 보내 주는 실시간 정보 (마인크래프트가 켜져 있는 동안). 공식 API 보다 빠르다.
+ * @param stock 내 인벤토리 + 이번에 열어 본 엔더 상자·백팩·개인 금고 (아이템 ID → 개수)
+ */
+data class LiveGame(
+    val connected: Boolean = false,
+    val inSkyblock: Boolean = false,
+    val area: String = "",
+    val purse: String = "",
+    val stock: Map<String, Long>? = null,
+)
+

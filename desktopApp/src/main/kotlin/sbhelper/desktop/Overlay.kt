@@ -55,6 +55,9 @@ fun GameOverlay(repo: SkyblockRepository) {
     val d = app.device
     // 마인크래프트가 켜져 있는 동안, 또는 미리 보기·위치 정하기
     if (!game.preview && !game.placing && (!d.overlayEnabled || !game.active)) return
+    // 게임 모드가 연결돼 있으면 모드가 게임 화면 안에 그린다 (창 오버레이는 띄우지 않음)
+    val live by ModLink.state.collectAsState()
+    if (live.connected && !game.preview && !game.placing) return
 
     // 제작 플래너 목표 → 기본 재료 진행도 (목표·자루·데이터가 바뀔 때만 계산)
     val target = app.synced.craftCurrent

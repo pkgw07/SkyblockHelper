@@ -120,6 +120,8 @@ class DesktopPlatform : Platform {
     private val updater = DesktopUpdater { onQuitForUpdate() }
     override val inAppUpdater: sbhelper.ui.InAppUpdater? = updater.takeIf { it.available }
 
+    override val liveGame: kotlinx.coroutines.flow.StateFlow<sbhelper.ui.LiveGame> = ModLink.state
+
     override val gameOverlay: sbhelper.ui.GameOverlayControl? = if (!GameWatch.supported) null else object : sbhelper.ui.GameOverlayControl {
         override val status = GameWatch.statusText
         override fun preview() = GameWatch.preview()

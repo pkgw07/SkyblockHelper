@@ -108,8 +108,11 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     val invData = state.selectedProfile?.inventories
     val inventory = remember(invData) { invData?.let { sbhelper.core.calc.CraftStock.inventory(it) } }
     val useInv = state.device.plannerUseInventory
-    val stock = remember(sacks, inventory, useSacks, useInv) {
-        sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(), if (useInv) inventory.orEmpty() else emptyMap())
+    // 게임 모드가 연결돼 있으면 인벤토리·엔더 상자·백팩은 게임에서 바로 받은 값 (공식 API 는 1~3분 늦음)
+    val live = sbhelper.ui.LocalPlatform.current.liveGame?.collectAsState()?.value
+    val liveStock = live?.stock?.takeIf { live.connected }
+    val stock = remember(sacks, inventory, liveStock, useSacks, useInv) {
+        sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(), if (useInv) (liveStock ?: inventory.orEmpty()) else emptyMap())
     }
 
     Panel(Modifier.fillMaxWidth(), caption = "Craft Planner", title = "무엇을 만들까요?", accent = Sb.Gold) {
@@ -474,8 +477,21 @@ private fun MaterialSources(controller: AppController, state: AppState, wide: Bo
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun OverlayControls(controller: AppController, state: AppState) {
-    val overlay = sbhelper.ui.LocalPlatform.current.gameOverlay ?: return
+    val platform = sbhelper.ui.LocalPlatform.current
+    val overlay = platform.gameOverlay ?: return
     val d = state.device
+    // 게임 모드 (Minecraft 26.2): 연결되면 게임 화면 안에 HUD 로 그리고, 인벤토리를 실시간으로 받는다
+    val live = platform.liveGame?.collectAsState()?.value
+    Spacer(Modifier.height(6.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (live?.connected == true) "● 게임 모드 연결됨" + (if (live.inSkyblock) " · 스카이블록" + (if (live.area.isNotBlank()) " ${live.area}" else "") else "") +
+                " · 인벤토리 실시간 · HUD 는 게임 안에서 (O 키, /sbh hud)"
+            else "게임 모드 (Minecraft 26.2 · Fabric) 를 쓰면 전체 화면에서도 게임 안에 바로 보이고 인벤토리가 실시간으로 반영돼요",
+            style = SbText.body(12, if (live?.connected == true) Sb.Green else Sb.TextFaint), modifier = Modifier.weight(1f),
+        )
+        if (live?.connected != true) SbButton("모드 받기", { platform.openUrl("https://github.com/pkgw07/SkyblockHelper/releases/latest") }, outlined = true)
+    }
     Spacer(Modifier.height(6.dp))
     SwitchRow("게임 오버레이 (PC)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },
         "마인크래프트 화면 구석에 이 목표의 진행도를 보여 줘요. 게임 중 Ctrl+Shift+O 로 켜고 끄기.")
