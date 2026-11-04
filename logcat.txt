@@ -1,0 +1,21 @@
+--------- beginning of system
+11-04 15:17:41.936   524  1811 W ActivityTaskManager: callingPackage for (uid=2000, pid=3437) has no WPC
+11-04 15:17:42.218   524  2456 W ActivityTaskManager: takeTaskSnapshot: taskId=8 not found or not visible
+11-04 15:17:49.127   524  1796 W ActivityTaskManager: Force removing ActivityRecord{b3a0f5c u0 net.skyblockhelper/sbhelper.android.MainActivity t8 f}}: app died, no saved state
+11-04 15:17:49.753   524  1796 W ActivityTaskManager: callingPackage for (uid=2000, pid=3913) has no WPC
+11-04 15:17:50.277   524   546 W ActivityTaskManager: Activity top resumed state loss timeout for ActivityRecord{f06de45 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity t7}
+--------- beginning of main
+11-04 15:17:55.569  3961  4014 I SbhSelfTest: staged=true
+11-04 15:17:56.894  3961  3961 I SbhUpdate: start apk=99.0.0.apk exists=true size=20470418 canInstall=false intentMode=false
+11-04 15:17:57.445   524   546 W ActivityTaskManager: Activity top resumed state loss timeout for ActivityRecord{9005353 u0 net.skyblockhelper/sbhelper.android.MainActivity t9}
+11-04 15:17:57.446   524   546 W ActivityTaskManager: Activity pause timeout for ActivityRecord{9005353 u0 net.skyblockhelper/sbhelper.android.MainActivity t9}
+11-04 15:17:59.794   524   546 W ActivityTaskManager: Launch timeout has expired, giving up wake lock!
+11-04 15:18:05.586  3961  3961 I SbhUpdate: start apk=99.0.0.apk exists=true size=20470418 canInstall=true intentMode=false
+11-04 15:18:09.032   524   555 W ActivityTaskManager: Force removing ActivityRecord{9005353 u0 net.skyblockhelper/sbhelper.android.MainActivity t9 f}}: app died, no saved state
+11-04 15:18:25.341   524  2267 W ActivityTaskManager: callingPackage for (uid=2000, pid=5230) has no WPC
+11-04 15:18:29.407   524  2267 W ActivityTaskManager: Force removing ActivityRecord{c36784b u0 net.skyblockhelper/sbhelper.android.MainActivity t10 f}}: app died, no saved state
+11-04 15:18:29.710   524  2267 W ActivityTaskManager: callingPackage for (uid=2000, pid=5278) has no WPC
+11-04 15:18:31.981  5288  5322 I SbhSelfTest: staged=true
+11-04 15:18:32.589  5288  5288 I SbhUpdate: start apk=99.0.1.apk exists=true size=20470422 canInstall=true intentMode=false
+11-04 15:18:37.128  5288  5288 I SbhUpdate: status=-1 msg= resumed=true
+11-04 15:18:44.298   524   555 W ActivityTaskManager: Force removing ActivityRecord{cf39126 u0 net.skyblockhelper/sbhelper.android.MainActivity t11 f}}: app died, no saved state
