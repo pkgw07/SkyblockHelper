@@ -60,6 +60,8 @@ public final class Link {
                 JsonObject hello = new JsonObject();
                 hello.addProperty("t", "hello");
                 hello.addProperty("mod", SbhMod.VERSION);
+                // 프로그램이 모드를 자동으로 업데이트할 수 있게 mods 폴더 위치를 알려 준다
+                hello.addProperty("modsDir", net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("mods").toAbsolutePath().toString());
                 send(hello);
                 SkyBlock.resend();
                 BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));

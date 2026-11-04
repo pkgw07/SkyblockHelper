@@ -490,7 +490,11 @@ private fun OverlayControls(controller: AppController, state: AppState) {
             else "게임 모드 (Minecraft 26.2 · Fabric) 를 쓰면 전체 화면에서도 게임 안에 바로 보이고 인벤토리가 실시간으로 반영돼요",
             style = SbText.body(12, if (live?.connected == true) Sb.Green else Sb.TextFaint), modifier = Modifier.weight(1f),
         )
-        if (live?.connected != true) SbButton("모드 받기", { platform.openUrl("https://github.com/pkgw07/SkyblockHelper/releases/latest") }, outlined = true)
+        if (live?.connected != true) platform.modManager?.let { mm -> SbButton("모드 설치", { mm.install() }, outlined = true) }
+    }
+    platform.modManager?.let { mm ->
+        val st by mm.status.collectAsState()
+        Text("모드: $st", style = SbText.body(12, Sb.TextFaint), modifier = Modifier.padding(top = 2.dp))
     }
     Spacer(Modifier.height(6.dp))
     SwitchRow("게임 오버레이 (PC)", d.overlayEnabled, { on -> controller.repo.updateDevice { it.copy(overlayEnabled = on) } },

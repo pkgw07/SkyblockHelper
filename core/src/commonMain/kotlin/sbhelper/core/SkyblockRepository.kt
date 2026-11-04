@@ -277,8 +277,16 @@ class SkyblockRepository(
     }
 
     /** GitHub Releases 에서 새 버전 확인 */
+    /** 마지막으로 확인한 최신 릴리스 (앱이 최신이어도 기록. 게임 모드 업데이트에 씀) */
+    var latestRelease: Release? = null
+        private set
+
+    /** 파일 그대로 내려받기 (화면의 업데이트 진행 표시는 건드리지 않음) */
+    suspend fun downloadFile(url: String): ByteArray? = runCatching { updates.download(url) }.getOrNull()
+
     suspend fun checkForUpdate(): Release? {
         val latest = updates.latestRelease() ?: return null
+        latestRelease = latest
         val newer = latest.takeIf { Updates.isNewer(it.version, appVersion) }
         _state.update { it.copy(availableUpdate = newer) }
         return newer

@@ -22,7 +22,9 @@ import org.lwjgl.glfw.GLFW;
  * 화면에 정보를 보여 주기만 하고 게임을 대신 조작하지 않는다.
  */
 public final class SbhMod implements ClientModInitializer {
-    public static final String VERSION = "1.0.0";
+    /** fabric.mod.json 의 버전 (빌드할 때 채워짐) */
+    public static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("skyblockhelper")
+        .map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("0.0.0");
     private static KeyMapping toggleHud;
     private static boolean openEditor = false;
 

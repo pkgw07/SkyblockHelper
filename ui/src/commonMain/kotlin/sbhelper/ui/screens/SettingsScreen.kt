@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -332,6 +333,19 @@ private fun UpdatePanel(controller: AppController, state: AppState) {
                     controller.showToast(r.exceptionOrNull()?.message ?: r.getOrNull()?.let { "새 버전 ${it.version} 이 있어요" } ?: "최신 버전이에요")
                 }
             }, outlined = true)
+        }
+        // 게임 모드 (PC): 설치·자동 업데이트
+        platform.modManager?.let { mm ->
+            Divider(Modifier.padding(vertical = 10.dp))
+            val st by mm.status.collectAsState()
+            SwitchRow("게임 모드 자동 업데이트", d.modAutoUpdate, { on -> controller.repo.updateDevice { it.copy(modAutoUpdate = on) } },
+                "Minecraft 26.2 모드의 새 버전이 나오면 mods 폴더의 파일을 바꿔 줘요. 게임이 켜져 있으면 끈 뒤에 바꿔요.")
+            Text("모드: $st", style = SbText.body(13, Sb.TextDim))
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SbButton("모드 설치·업데이트", { mm.install() }, outlined = true)
+                SbButton("mods 폴더 열기", { mm.openFolder() }, outlined = true)
+            }
         }
         ChangelogList(platform.versionName)
     }

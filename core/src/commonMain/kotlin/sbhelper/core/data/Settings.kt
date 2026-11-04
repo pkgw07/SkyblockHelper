@@ -112,6 +112,9 @@ data class DeviceSettings(
     val wikiWindow: Boolean = true,
     /** PC 게임 오버레이: Hypixel SkyBlock 에 들어가면 게임 화면 구석에 제작 플래너 */
     val overlayEnabled: Boolean = true,
+    /** 게임 모드: 새 버전이 나오면 자동으로 받아 mods 폴더의 파일을 바꾼다 / mods 폴더 (모드가 알려 준 곳) */
+    val modAutoUpdate: Boolean = true,
+    val modsDir: String = "",
     /** 제작 플래너: 자루 / 인벤토리 재료를 가진 것으로 셀지 (다시 켜도 유지) */
     val plannerUseSacks: Boolean = true,
     val plannerUseInventory: Boolean = true,

@@ -122,6 +122,12 @@ class DesktopPlatform : Platform {
 
     override val liveGame: kotlinx.coroutines.flow.StateFlow<sbhelper.ui.LiveGame> = ModLink.state
 
+    override val modManager: sbhelper.ui.ModManager = object : sbhelper.ui.ModManager {
+        override val status = ModInstaller.status
+        override fun install() = ModInstaller.install()
+        override fun openFolder() = ModInstaller.openFolder()
+    }
+
     override val gameOverlay: sbhelper.ui.GameOverlayControl? = if (!GameWatch.supported) null else object : sbhelper.ui.GameOverlayControl {
         override val status = GameWatch.statusText
         override fun preview() = GameWatch.preview()

@@ -41,8 +41,20 @@ interface Platform {
     fun takeLastCrash(): String? = null
     /** 게임 모드(26.2)와의 실시간 연결 (PC 만). null 이면 지원 안 함 */
     val liveGame: kotlinx.coroutines.flow.StateFlow<LiveGame>? get() = null
+    /** 게임 모드 설치·업데이트 (PC 만). null 이면 지원 안 함 */
+    val modManager: ModManager? get() = null
     /** 게임 오버레이 (PC 만). null 이면 지원 안 함 */
     val gameOverlay: GameOverlayControl? get() = null
+}
+
+/** 게임 모드 설치·자동 업데이트 */
+interface ModManager {
+    /** 지금 상태 한 줄 (예: "1.0.1 설치됨 · 최신") */
+    val status: kotlinx.coroutines.flow.StateFlow<String>
+    /** 최신 모드를 mods 폴더에 설치 (이미 있으면 업데이트) */
+    fun install()
+    /** mods 폴더 열기 */
+    fun openFolder()
 }
 
 /** 게임 오버레이 상태 보기·미리 보기 */
@@ -84,5 +96,7 @@ data class LiveGame(
     val area: String = "",
     val purse: String = "",
     val stock: Map<String, Long>? = null,
+    /** 연결된 모드 버전 */
+    val modVersion: String = "",
 )
 

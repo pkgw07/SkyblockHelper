@@ -92,8 +92,15 @@ object ModLink {
         }
     }
 
+    /** 모드가 알려 준 mods 폴더 저장 (자동 업데이트용) */
+    @Volatile var onModsDir: (String) -> Unit = {}
+
     private fun handle(m: JsonObject) {
         when (m["t"]?.jsonPrimitive?.content) {
+            "hello" -> {
+                _state.update { it.copy(modVersion = m["mod"]?.jsonPrimitive?.content.orEmpty()) }
+                m["modsDir"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() }?.let { onModsDir(it) }
+            }
             "loc" -> _state.update {
                 it.copy(inSkyblock = m["sb"]?.jsonPrimitive?.content == "true", area = m["area"]?.jsonPrimitive?.content.orEmpty(),
                     purse = m["purse"]?.jsonPrimitive?.content.orEmpty())
