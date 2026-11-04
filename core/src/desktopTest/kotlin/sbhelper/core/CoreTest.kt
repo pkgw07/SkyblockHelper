@@ -565,4 +565,18 @@ class CoreTest {
         if (a.rarity == "Common") { assertEquals(2, mine.level); assertEquals(9, mine.nextAt) }
         assertEquals("moonglade_mastery", sbhelper.core.calc.AttributeCalc.key("Moonglade Mastery"))
     }
+
+    @Test
+    fun liveAndApiStockCombine() {
+        val S = sbhelper.core.calc.CraftStock
+        assertEquals("ender:3", S.liveKey("Ender Chest (3/9)"))
+        assertEquals("backpack:2", S.liveKey("Jumbo Backpack (Slot #2)"))
+        assertEquals("vault", S.liveKey("Personal Vault"))
+        assertNull(S.liveKey("Bazaar Farming"))
+        val api = mapOf("inv" to mapOf("COAL" to 10L), "ender:1" to mapOf("COAL" to 5L), "ender:2" to mapOf("DIAMOND" to 3L))
+        // 게임에서 인벤토리와 엔더 1쪽만 봤음 → 엔더 2쪽은 API 값 그대로
+        val live = mapOf("inv" to mapOf("COAL" to 20L), "ender:1" to emptyMap<String, Long>())
+        val total = S.combine(api, live)
+        assertEquals(20L, total["COAL"]); assertEquals(3L, total["DIAMOND"])
+    }
 }

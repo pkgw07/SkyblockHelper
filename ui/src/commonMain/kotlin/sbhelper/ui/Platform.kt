@@ -90,14 +90,14 @@ interface InAppUpdater {
 
 /**
  * 게임 모드가 보내 주는 실시간 정보 (마인크래프트가 켜져 있는 동안). 공식 API 보다 빠르다.
- * @param stock 내 인벤토리 + 이번에 열어 본 엔더 상자·백팩·개인 금고 (아이템 ID → 개수)
+ * @param containers 상자 키(inv, ender:3, backpack:2, vault) → 아이템 ID → 개수. 이번에 게임에서 본 것만
  */
 data class LiveGame(
     val connected: Boolean = false,
     val inSkyblock: Boolean = false,
     val area: String = "",
     val purse: String = "",
-    val stock: Map<String, Long>? = null,
+    val containers: Map<String, Map<String, Long>>? = null,
     /** 연결된 모드 버전 */
     val modVersion: String = "",
 )

@@ -193,6 +193,46 @@ object CraftStock {
         return out
     }
 
+    /** 공식 API 인벤토리를 상자별로: inv, ender:1..9 (45칸씩), backpack:1.., vault */
+    fun byContainer(inventories: Map<String, String>): Map<String, Map<String, Long>> {
+        fun count(items: List<sbhelper.core.nbt.SbItem?>): Map<String, Long> {
+            val out = HashMap<String, Long>()
+            items.filterNotNull().forEach { item -> if (item.pet == null) item.skyblockId?.let { out[it] = (out[it] ?: 0L) + item.count } }
+            return out
+        }
+        val out = LinkedHashMap<String, Map<String, Long>>()
+        out["inv"] = count(sbhelper.core.nbt.ItemParser.parse(inventories["inv_contents"]))
+        sbhelper.core.nbt.ItemParser.parse(inventories["ender_chest_contents"]).chunked(45).forEachIndexed { i, page -> out["ender:${i + 1}"] = count(page) }
+        inventories.keys.filter { it.startsWith("backpack_") && !it.contains("icons") }.forEach { k ->
+            k.removePrefix("backpack_").toIntOrNull()?.let { n -> out["backpack:${n + 1}"] = count(sbhelper.core.nbt.ItemParser.parse(inventories[k])) }
+        }
+        out["vault"] = count(sbhelper.core.nbt.ItemParser.parse(inventories["personal_vault_contents"]))
+        return out
+    }
+
+    private val ENDER = Regex("Ender Chest \\((\\d+)/\\d+\\)")
+    private val BACKPACK = Regex("Backpack \\(Slot #(\\d+)\\)")
+
+    /** 게임 상자 이름 → 위와 같은 키 (Ender Chest (3/9) → ender:3, Jumbo Backpack (Slot #2) → backpack:2) */
+    fun liveKey(title: String): String? {
+        ENDER.find(title)?.let { return "ender:" + it.groupValues[1] }
+        BACKPACK.find(title)?.let { return "backpack:" + it.groupValues[1] }
+        if (title.contains("Personal Vault", ignoreCase = true)) return "vault"
+        return null
+    }
+
+    /**
+     * 상자마다: 게임에서 이번에 열어 본 건 실시간 값, 아닌 건 공식 API 값. 전부 더한다.
+     * (모드가 연결돼 있어도 안 열어 본 엔더 상자 페이지·백팩을 빠뜨리지 않게)
+     */
+    fun combine(api: Map<String, Map<String, Long>>, live: Map<String, Map<String, Long>>?): Map<String, Long> {
+        val out = HashMap<String, Long>()
+        (api.keys + live?.keys.orEmpty()).forEach { k ->
+            (live?.get(k) ?: api[k]).orEmpty().forEach { (id, n) -> out[id] = (out[id] ?: 0L) + n }
+        }
+        return out
+    }
+
     fun merge(a: Map<String, Long>, b: Map<String, Long>): Map<String, Long> =
         if (b.isEmpty()) a else if (a.isEmpty()) b else (a.keys + b.keys).associateWith { (a[it] ?: 0L) + (b[it] ?: 0L) }
 }

@@ -26,7 +26,8 @@ public final class SbhMod implements ClientModInitializer {
     public static final String VERSION = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("skyblockhelper")
         .map(m -> m.getMetadata().getVersion().getFriendlyString()).orElse("0.0.0");
     private static KeyMapping toggleHud;
-    private static boolean openEditor = false;
+    /** 채팅 화면이 닫힌 다음 틱에 열 화면: 1 설정, 2 HUD 편집 */
+    private static int open = 0;
 
     @Override
     public void onInitializeClient() {
@@ -52,7 +53,8 @@ public final class SbhMod implements ClientModInitializer {
                 mc.gui.setScreen(new UpdateScreen(title));
             }
             // 명령어로 연 편집 화면은 채팅 화면이 닫힌 다음 틱에 연다
-            if (openEditor) { openEditor = false; mc.gui.setScreen(new HudEditScreen()); }
+            if (open == 1) { open = 0; mc.gui.setScreen(new SettingsScreen(null)); }
+            if (open == 2) { open = 0; mc.gui.setScreen(new HudEditScreen(null)); }
         });
 
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("skyblockhelper", "hud"), Hud::extract);
@@ -65,16 +67,47 @@ public final class SbhMod implements ClientModInitializer {
             }
         });
 
-        // /sbh: 상태 · /sbh hud: HUD 위치 정하기
-        ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> dispatcher.register(
-            ClientCommands.literal("sbh")
-                .executes(c -> {
+        // /sbh: 설정 창 · /sbh hud: HUD 위치·크기 · /sbh status: 연결 상태 · /sbh <기능>: 켜기/끄기
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> {
+            var root = ClientCommands.literal("sbh")
+                .executes(c -> { open = 1; return Command.SINGLE_SUCCESS; })
+                .then(ClientCommands.literal("hud").executes(c -> { open = 2; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("status").executes(c -> {
                     c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f프로그램 연결: " + (Link.connected ? "§a됨" : "§c안 됨 (프로그램을 켜 주세요)")
                         + " §f· 스카이블록: " + (SkyBlock.inSkyblock ? "§a" + (SkyBlock.area.isEmpty() ? "예" : SkyBlock.area) : "§7아님")
-                        + " §f· HUD 켜기/끄기: O · 위치: /sbh hud"));
+                        + " §f· 모드 " + VERSION));
                     return Command.SINGLE_SUCCESS;
-                })
-                .then(ClientCommands.literal("hud").executes(c -> { openEditor = true; return Command.SINGLE_SUCCESS; }))
-        ));
+                }));
+            for (String[] f : FEATURES) {
+                root = root.then(ClientCommands.literal(f[0]).executes(c -> {
+                    boolean on = toggle(f[0]);
+                    c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f" + f[1] + ": " + (on ? "§a켜짐" : "§c꺼짐")));
+                    return Command.SINGLE_SUCCESS;
+                }));
+            }
+            dispatcher.register(root);
+        });
+    }
+
+    /** /sbh <이름> 으로 켜고 끄는 기능 */
+    private static final String[][] FEATURES = {
+        {"overlay", "HUD 전체"}, {"plan", "제작 플래너 HUD"}, {"timers", "타이머 HUD"}, {"tooltip", "툴팁 시세"},
+        {"value", "상자 가치"}, {"highlight", "부족한 재료 강조"}, {"onlysb", "스카이블록에서만 HUD"},
+    };
+
+    private static boolean toggle(String name) {
+        Config c = Config.get();
+        boolean on = switch (name) {
+            case "overlay" -> c.hud = !c.hud;
+            case "plan" -> c.planHud = !c.planHud;
+            case "timers" -> c.timerHud = !c.timerHud;
+            case "tooltip" -> c.tooltipPrices = !c.tooltipPrices;
+            case "value" -> c.containerValue = !c.containerValue;
+            case "highlight" -> c.highlightMissing = !c.highlightMissing;
+            case "onlysb" -> c.onlyInSkyblock = !c.onlyInSkyblock;
+            default -> false;
+        };
+        Config.save();
+        return on;
     }
 }

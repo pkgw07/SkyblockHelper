@@ -17,9 +17,14 @@ public final class Config {
     public boolean tooltipPrices = true;
     public boolean containerValue = true;
     public boolean highlightMissing = true;
+    /** 상자 가치 위치: 0 = 상자 이름 옆, 1 = 상자 왼쪽 빈 곳 */
+    public int valuePosition = 0;
     /** HUD 위치 (화면 좌표). timerX < 0 이면 오른쪽 위 */
     public int planX = 4, planY = 4;
     public int timerX = -1, timerY = 4;
+    /** HUD 크기 (배율) · 너비 (0 = 내용에 맞춤) */
+    public float planScale = 1f, timerScale = 1f;
+    public int planWidth = 0, timerWidth = 0;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Config instance;

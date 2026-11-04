@@ -106,13 +106,16 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     val sacks = state.selectedProfile?.sacks
     // 인벤토리·엔더 상자·백팩·금고에 든 재료도 (프로필이 바뀔 때만 다시 읽음)
     val invData = state.selectedProfile?.inventories
+    val apiBoxes = remember(invData) { invData?.let { sbhelper.core.calc.CraftStock.byContainer(it) } }
     val inventory = remember(invData) { invData?.let { sbhelper.core.calc.CraftStock.inventory(it) } }
     val useInv = state.device.plannerUseInventory
     // 게임 모드가 연결돼 있으면 인벤토리·엔더 상자·백팩은 게임에서 바로 받은 값 (공식 API 는 1~3분 늦음)
     val live = sbhelper.ui.LocalPlatform.current.liveGame?.collectAsState()?.value
-    val liveStock = live?.stock?.takeIf { live.connected }
-    val stock = remember(sacks, inventory, liveStock, useSacks, useInv) {
-        sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(), if (useInv) (liveStock ?: inventory.orEmpty()) else emptyMap())
+    val liveBoxes = live?.containers?.takeIf { live.connected }
+    // 상자마다: 게임에서 이번에 본 건 실시간, 아닌 건 공식 API (안 열어 본 엔더 상자·백팩도 빠지지 않게)
+    val stock = remember(sacks, apiBoxes, liveBoxes, useSacks, useInv) {
+        sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(),
+            if (useInv) sbhelper.core.calc.CraftStock.combine(apiBoxes.orEmpty(), liveBoxes) else emptyMap())
     }
 
     Panel(Modifier.fillMaxWidth(), caption = "Craft Planner", title = "무엇을 만들까요?", accent = Sb.Gold) {

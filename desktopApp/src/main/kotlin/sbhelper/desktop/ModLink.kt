@@ -39,10 +39,8 @@ object ModLink {
     val state: StateFlow<LiveGame> = _state
 
     @Volatile private var client: Socket? = null
-    private var inventory: Map<String, Long> = emptyMap()
-    /** 상자 제목 → 내용 (엔더 상자·백팩·개인 금고만: 상점 화면 같은 건 세지 않음) */
+    /** 상자 키(inv, ender:3, backpack:2, vault) → 내용. 상점 화면 같은 건 세지 않음 */
     private val containers = HashMap<String, Map<String, Long>>()
-    private val STORAGE = Regex("Ender Chest|Backpack|Personal Vault", RegexOption.IGNORE_CASE)
 
     fun start(scope: CoroutineScope, repo: SkyblockRepository) {
         Thread({
@@ -87,7 +85,7 @@ object ModLink {
         }
         if (client === s) {
             client = null
-            containers.clear(); inventory = emptyMap()
+            containers.clear()
             _state.value = LiveGame()
         }
     }
@@ -105,10 +103,10 @@ object ModLink {
                 it.copy(inSkyblock = m["sb"]?.jsonPrimitive?.content == "true", area = m["area"]?.jsonPrimitive?.content.orEmpty(),
                     purse = m["purse"]?.jsonPrimitive?.content.orEmpty())
             }
-            "inv" -> { inventory = counts(m); publishStock() }
+            "inv" -> { containers["inv"] = counts(m); publish() }
             "container" -> {
-                val title = m["title"]?.jsonPrimitive?.content.orEmpty()
-                if (STORAGE.containsMatchIn(title)) { containers[title] = counts(m); publishStock() }
+                val key = CraftStock.liveKey(m["title"]?.jsonPrimitive?.content.orEmpty())
+                if (key != null) { containers[key] = counts(m); publish() }
             }
         }
     }
@@ -116,11 +114,7 @@ object ModLink {
     private fun counts(m: JsonObject): Map<String, Long> =
         (m["items"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.content?.toLongOrNull()?.let { k to it } }?.toMap().orEmpty()
 
-    private fun publishStock() {
-        val all = HashMap<String, Long>()
-        (listOf(inventory) + containers.values).forEach { m -> m.forEach { (k, v) -> all[k] = (all[k] ?: 0L) + v } }
-        _state.update { it.copy(stock = all) }
-    }
+    private fun publish() { _state.update { it.copy(containers = HashMap(containers)) } }
 
     private fun send(s: Socket, text: String) {
         runCatching { val o: OutputStream = s.getOutputStream(); o.write((text + "\n").toByteArray(Charsets.UTF_8)); o.flush() }
@@ -149,8 +143,9 @@ object ModLink {
         val t = st.synced.craftCurrent ?: return@buildJsonObject
         val d = st.device
         val p = st.selectedProfile
-        val live = _state.value.stock
-        val inv = if (!d.plannerUseInventory) emptyMap() else live ?: p?.inventories?.let { CraftStock.inventory(it) }.orEmpty()
+        // 상자마다: 게임에서 이번에 본 건 실시간, 아닌 건 공식 API
+        val inv = if (!d.plannerUseInventory) emptyMap()
+            else CraftStock.combine(p?.inventories?.let { CraftStock.byContainer(it) }.orEmpty(), _state.value.containers)
         val stock = CraftStock.merge(if (d.plannerUseSacks) p?.sacks.orEmpty() else emptyMap(), inv)
         val skip = st.synced.craftExcluded[t.itemId].orEmpty()
         val planner = CraftPlanner(st.gameData)

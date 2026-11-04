@@ -1,12 +1,16 @@
 package sbhelper.mod;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import sbhelper.mod.mixin.ContainerScreenAccessor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** 상자 화면: 상자 총가치 (위에 글자), 제작 플래너에 모자란 재료 칸 강조 */
 public final class ContainerOverlay {
@@ -39,9 +43,25 @@ public final class ContainerOverlay {
             if (v < 0) unpriced++; else sum += v * stack.getCount();
         }
         if (sum <= 0 && unpriced == 0) return;
-        int left = ((ContainerScreenAccessor) cs).sbh$leftPos(), top = ((ContainerScreenAccessor) cs).sbh$topPos();
-        String text = "상자 가치 " + Fmt.coins(sum) + (unpriced > 0 ? " (시세 없음 " + unpriced + ")" : "");
-        g.text(Minecraft.getInstance().font, text, left, top - 11, Hud.GOLD, true);
+        ContainerScreenAccessor acc = (ContainerScreenAccessor) cs;
+        int left = acc.sbh$leftPos(), top = acc.sbh$topPos();
+        Font font = Minecraft.getInstance().font;
+        String value = Fmt.coins(sum) + (unpriced > 0 ? " (+" + unpriced + ")" : "");
+        if (c.valuePosition == 0) {
+            // 상자 이름 옆 (예: Ender Chest (1/9)  12.3M). 칸이 모자라면 왼쪽 빈 곳으로
+            int x = left + acc.sbh$titleLabelX() + font.width(cs.getTitle()) + 6;
+            if (x + font.width(value) <= left + acc.sbh$imageWidth() - 6) {
+                g.text(font, value, x, top + acc.sbh$titleLabelY(), Hud.GOLD, false);
+                return;
+            }
+        }
+        // 상자 왼쪽 빈 곳에 작은 상자
+        List<String[]> lines = new ArrayList<>();
+        lines.add(new String[]{"상자 가치", ""});
+        lines.add(new String[]{Fmt.coins(sum), ""});
+        if (unpriced > 0) lines.add(new String[]{"시세 없음 " + unpriced + "개", ""});
+        int w = Hud.measure(font, lines, 0)[0];
+        Hud.box(g, font, Math.max(2, left - w - 6), top, lines, w);
     }
 
     private ContainerOverlay() {}
