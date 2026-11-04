@@ -31,7 +31,9 @@ import java.io.File
 
 /** 앱 전체에서 하나만 쓰는 저장소(Repository)를 들고 있는다. 화면과 백그라운드 작업이 공유한다. */
 class SbApplication : Application() {
-    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    // 백그라운드 작업에서 난 예상 못 한 오류는 앱을 끄지 않고 기록만 남긴다
+    val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default +
+        kotlinx.coroutines.CoroutineExceptionHandler { _, e -> CrashLog.write(this, e, fatal = false) })
     lateinit var repo: SkyblockRepository
         private set
     private val loadLock = Mutex()
@@ -39,6 +41,12 @@ class SbApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 앱이 꺼질 때 오류 위치를 남긴다 (다음에 켜면 화면에 보여 줌, 키·개인정보 없음)
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { t, e ->
+            runCatching { CrashLog.write(this, e, fatal = true) }
+            previous?.uncaughtException(t, e)
+        }
         createChannel()
         val http = defaultHttpClient()
         var ref: SkyblockRepository? = null

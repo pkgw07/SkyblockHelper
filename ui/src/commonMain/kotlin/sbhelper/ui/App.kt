@@ -341,6 +341,7 @@ fun SkyblockApp(
                     UpdateAvailableDialog(controller, state, platform)
                     UpdateReadyDialog(controller, state, platform)
                     WhatsNewDialog(controller, state, platform)
+                    LastCrashDialog(controller, platform)
                 }
             }
             }
@@ -716,6 +717,30 @@ fun StartRepository(controller: AppController) {
     LaunchedEffect(Unit) {
         controller.repo.startLoops()
     }
+}
+
+/** 지난번에 앱이 꺼졌으면 그 이유를 보여 주고 복사할 수 있게 */
+@Composable
+private fun LastCrashDialog(controller: AppController, platform: Platform) {
+    var text by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { text = runCatching { platform.takeLastCrash() }.getOrNull() }
+    val t = text ?: return
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = { text = null },
+        containerColor = Sb.SurfaceHigh,
+        title = { Text("지난번에 앱이 꺼진 이유", style = SbText.body(17, weight = FontWeight.Bold)) },
+        text = {
+            Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                Text("아래 기록을 복사해서 보내 주시면 원인을 고칠 수 있어요. (키·개인정보는 들어 있지 않아요)", style = SbText.body(13, Sb.TextDim))
+                Spacer(Modifier.height(8.dp))
+                Text(t, style = SbText.body(11, Sb.TextFaint))
+            }
+        },
+        confirmButton = {
+            sbhelper.ui.components.SbButton("복사", { platform.copyToClipboard(t); controller.showToast("복사했어요"); text = null }, color = Sb.Aqua)
+        },
+        dismissButton = { sbhelper.ui.components.SbButton("닫기", { text = null }, outlined = true) },
+    )
 }
 
 /** 앱 안 업데이트 내역 (files/changelog.json) */

@@ -37,6 +37,8 @@ interface Platform {
     val inAppUpdater: InAppUpdater? get() = null
     /** 휴대폰에서 QR 스캔으로 연동 코드를 읽는다. 지원하지 않으면 null */
     val scanPairingCode: ((onResult: (String) -> Unit) -> Unit)? get() = null
+    /** 지난번에 앱이 갑자기 꺼졌을 때의 오류 기록 (없으면 null). 읽으면 지운다 */
+    fun takeLastCrash(): String? = null
     /** 게임 오버레이 (PC 만). null 이면 지원 안 함 */
     val gameOverlay: GameOverlayControl? get() = null
 }

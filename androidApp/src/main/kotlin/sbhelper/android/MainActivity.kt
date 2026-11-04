@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
         override fun onAlertSettingsChanged() = AlertAlarm.reschedule(this@MainActivity)
         override fun playSound(samples: ShortArray) = AndroidSound.play(samples)
         override val canUninstall = true
+        override fun takeLastCrash(): String? = CrashLog.take(this@MainActivity)
         /** Android 기본 '앱 삭제' 확인 창 (데이터도 함께 지워짐) */
         override fun uninstall(removeData: Boolean): String? = runCatching {
             startActivity(Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName")))
