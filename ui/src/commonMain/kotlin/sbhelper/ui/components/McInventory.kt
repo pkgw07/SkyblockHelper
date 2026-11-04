@@ -244,7 +244,7 @@ fun McSlotGrid(
         val h = hovered
         if (h != null) {
             Popup(offset = IntOffset(pointer.x.toInt() + 18, pointer.y.toInt() + 6), properties = PopupProperties(focusable = false)) {
-                ItemTooltip(h, extraTooltip(h))
+                ItemTooltip(h, extraTooltip(h) + priceLines(state, h))
             }
         }
     }
@@ -333,6 +333,24 @@ fun ItemTooltip(item: SbItem, extra: List<String> = emptyList()) {
             if (line.isBlank()) Spacer(Modifier.height(6.dp)) else McText(line, size = 12)
         }
     }
+}
+
+/** 툴팁 아래 시세: 바자 즉시 판매가 → 최저 BIN → NPC 판매가 (순자산과 같은 기준) */
+fun priceLines(state: AppState, item: SbItem): List<String> {
+    val book = state.priceBook
+    val total = book.itemValue(item)
+    return listOf("") + when {
+        total == null -> listOf("§8시세 정보 없음")
+        item.count > 1 -> listOf("§6가치: ${sbhelper.core.util.formatCoins(total)} §8(개당 ${sbhelper.core.util.formatCoins(total / item.count)})")
+        else -> listOf("§6가치: ${sbhelper.core.util.formatCoins(total)}")
+    }
+}
+
+/** 상자 제목 옆에 붙일 가치 (예: " · 12.3M 코인") */
+fun valueSuffix(state: AppState, items: List<SbItem?>): String {
+    val (sum, unpriced) = state.priceBook.containerValue(items)
+    if (sum <= 0 && unpriced == 0) return ""
+    return " · ${sbhelper.core.util.formatCoins(sum)} 코인" + if (unpriced > 0) " (시세 없음 ${unpriced}개)" else ""
 }
 
 /** 장비 칸처럼 아이템 하나를 큰 칸으로 */

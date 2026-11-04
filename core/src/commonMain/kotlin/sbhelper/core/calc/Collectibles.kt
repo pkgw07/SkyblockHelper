@@ -94,6 +94,19 @@ class PriceBook(val bazaar: Map<String, BazaarProduct>, val lowestBin: Map<Strin
     fun valueOf(id: String): Double? =
         bazaar[id]?.quickStatus?.sellPrice?.takeIf { it > 0 } ?: lowestBin[id] ?: npc[id]
 
+    /** 아이템 한 칸의 가치 (개수 곱함, 펫은 PET_종류). 시세가 없으면 null */
+    fun itemValue(item: SbItem): Double? {
+        val id = item.pet?.let { "PET_${it.type}" } ?: item.skyblockId ?: return null
+        return valueOf(id)?.times(item.count)
+    }
+
+    /** 상자 하나의 가치: (합계, 시세 없는 아이템 수) */
+    fun containerValue(items: List<SbItem?>): Pair<Double, Int> {
+        var sum = 0.0; var unpriced = 0
+        items.filterNotNull().forEach { val v = itemValue(it); if (v == null) unpriced++ else sum += v }
+        return sum to unpriced
+    }
+
     /** 살 때 드는 값 (바자 즉시 구매가 → 최저 BIN) */
     fun costOf(id: String): Double? = bazaar[id]?.quickStatus?.buyPrice?.takeIf { it > 0 } ?: lowestBin[id]
 

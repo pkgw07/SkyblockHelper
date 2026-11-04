@@ -91,7 +91,7 @@ private fun MainInventory(state: AppState, p: ProfileSummary, slot: androidx.com
     val inv = remember(p.inventories["inv_contents"]) { ItemParser.parse(p.inventories["inv_contents"]) }
     val armor = remember(p.inventories["inv_armor"]) { ItemParser.parse(p.inventories["inv_armor"]).reversed() } // 투구가 위
     val equip = remember(p.inventories["equipment_contents"]) { ItemParser.parse(p.inventories["equipment_contents"]) }
-    McPanel("인벤토리") {
+    McPanel("인벤토리" + sbhelper.ui.components.valueSuffix(state, inv + armor + equip)) {
         Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Column {
                 Text("갑옷", style = SbText.pixel(11, androidx.compose.ui.graphics.Color(0xFF404040)))
@@ -123,7 +123,7 @@ private fun Pages(state: AppState, data: String?, perPage: Int, title: String, s
     val items = remember(data) { ItemParser.parse(data) }
     if (items.isEmpty()) { Panel { EmptyState("$title 이 비어 있거나 API 가 꺼져 있어요", "") }; return }
     items.chunked(perPage).forEachIndexed { i, page ->
-        if (page.any { it != null }) McPanel("$title ${i + 1}") { McSlotGrid(state, page, 9, slot) }
+        if (page.any { it != null }) McPanel("$title ${i + 1}" + sbhelper.ui.components.valueSuffix(state, page)) { McSlotGrid(state, page, 9, slot) }
     }
 }
 
@@ -133,7 +133,7 @@ private fun Backpacks(state: AppState, p: ProfileSummary, slot: androidx.compose
     if (keys.isEmpty()) { Panel { EmptyState("백팩이 없어요", "") }; return }
     keys.forEach { k ->
         val items = remember(p.inventories[k]) { ItemParser.parse(p.inventories[k]) }
-        McPanel("백팩 ${(k.removePrefix("backpack_").toIntOrNull() ?: 0) + 1}") { McSlotGrid(state, items, 9, slot) }
+        McPanel("백팩 ${(k.removePrefix("backpack_").toIntOrNull() ?: 0) + 1}" + sbhelper.ui.components.valueSuffix(state, items)) { McSlotGrid(state, items, 9, slot) }
     }
 }
 
@@ -141,7 +141,7 @@ private fun Backpacks(state: AppState, p: ProfileSummary, slot: androidx.compose
 private fun Bag(state: AppState, data: String?, title: String, slot: androidx.compose.ui.unit.Dp) {
     val items = remember(data) { ItemParser.parse(data) }
     if (items.isEmpty()) return
-    McPanel("$title · ${items.count { it != null }}개") { McSlotGrid(state, items, 9, slot) }
+    McPanel("$title · ${items.count { it != null }}개" + sbhelper.ui.components.valueSuffix(state, items)) { McSlotGrid(state, items, 9, slot) }
 }
 
 /** 자루: 자루 가방(Sack of Sacks) + 자루 속 아이템 개수 */
@@ -228,7 +228,7 @@ private fun WardrobeView(state: AppState, p: ProfileSummary, slot: androidx.comp
     val maxSlot = (armor.keys.maxOrNull() ?: 0).coerceAtLeast(9)
     val pages = (1..maxSlot).chunked(9)
     pages.forEachIndexed { pi, nums ->
-        McPanel("옷장 ${pi + 1}쪽") {
+        McPanel("옷장 ${pi + 1}쪽" + sbhelper.ui.components.valueSuffix(state, nums.flatMap { armor[it].orEmpty() })) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 nums.forEach { n ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -241,7 +241,7 @@ private fun WardrobeView(state: AppState, p: ProfileSummary, slot: androidx.comp
         }
     }
     if (equip.isNotEmpty()) {
-        McPanel("장비 세트") {
+        McPanel("장비 세트" + sbhelper.ui.components.valueSuffix(state, equip.values.flatten())) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                 equip.keys.sorted().forEach { n ->
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
