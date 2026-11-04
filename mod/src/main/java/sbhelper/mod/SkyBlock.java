@@ -106,7 +106,7 @@ public final class SkyBlock {
 
     /** 열어 둔 상자(엔더 상자·백팩·창고 등)의 내용: 내 인벤토리 칸은 빼고 */
     private static void syncContainer(Minecraft mc) {
-        Screen screen = mc.screen;
+        Screen screen = mc.gui.screen();
         if (!(screen instanceof AbstractContainerScreen<?> cs)) { lastContainer = ""; return; }
         Map<String, Long> counts = new TreeMap<>();
         for (Slot slot : cs.getMenu().slots) {

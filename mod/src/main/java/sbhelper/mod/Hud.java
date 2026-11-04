@@ -15,7 +15,7 @@ public final class Hud {
     public static void extract(GuiGraphicsExtractor g, DeltaTracker delta) {
         Minecraft mc = Minecraft.getInstance();
         Config c = Config.get();
-        if (!c.hud || mc.player == null || mc.options.hideGui) return;
+        if (!c.hud || mc.player == null) return;
         if (c.onlyInSkyblock && !SkyBlock.inSkyblock) return;
         if (!Link.connected) return;
         if (c.planHud) drawPlan(g, mc.font, c.planX, c.planY);
