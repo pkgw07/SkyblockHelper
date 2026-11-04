@@ -1,0 +1,20 @@
+{
+	"schemaVersion": 1,
+	"id": "skyblockhelper",
+	"version": "${version}",
+	"name": "SkyblockHelper",
+	"description": "SkyblockHelper 프로그램과 실시간으로 연동: 제작 플래너·타이머 HUD, 툴팁 시세, 상자 가치, 부족한 재료 표시. 화면에 정보만 보여 주고 게임을 대신 조작하지 않아요.",
+	"authors": ["SkyblockHelper"],
+	"license": "MIT",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["sbhelper.mod.SbhMod"]
+	},
+	"mixins": ["skyblockhelper.mixins.json"],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.2",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}
