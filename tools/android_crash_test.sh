@@ -5,6 +5,8 @@ PKG=net.skyblockhelper
 ACT=$PKG/sbhelper.android.MainActivity
 adb install -r app.apk
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS
+echo "user=${#SB_USER} key=${#SB_KEY}"
+adb shell ping -c 1 -W 3 api.hypixel.net > /dev/null 2>&1 && echo "net ok" || echo "net fail"
 adb logcat -c
 adb shell am start -S -W -n $ACT --es sbhelper.selftest_user "$SB_USER" --es sbhelper.selftest_key "$SB_KEY" > /dev/null
 for i in $(seq 1 30); do
@@ -14,7 +16,7 @@ for i in $(seq 1 30); do
 done
 # 꺼진 기록 (스택만), 진행 기록
 {
-  echo "진행: $(adb logcat -d -s SbhSelfTest:I | grep -o 'linked=.*\|screen=.*\|visited=.*' | tr '\n' ' ')"
+  echo "진행: $(adb logcat -d -s SbhSelfTest:I | grep -o 'linked=.*\|profiles=.*\|screen=.*\|visited=.*' | tr '\n' ' ')"
   adb logcat -d -b crash | grep -E "FATAL|Exception|Error|Caused by|	at sbhelper|	at androidx.compose" | head -60
 } | sed "s/$SB_KEY/***/g" > crash.txt
 cat crash.txt

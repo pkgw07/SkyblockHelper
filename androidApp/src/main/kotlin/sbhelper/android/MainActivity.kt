@@ -151,8 +151,9 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 app.ensureLoaded()
                 val r = app.repo.linkAccount(user, key)
-                android.util.Log.i("SbhSelfTest", "linked=${r.isSuccess}")
-                kotlinx.coroutines.delay(15_000)
+                android.util.Log.i("SbhSelfTest", "linked=${r.isSuccess} ${r.exceptionOrNull()?.let { it::class.simpleName + ": " + it.message?.take(160) } ?: ""} keyLen=${key.length}")
+                kotlinx.coroutines.delay(25_000)
+                android.util.Log.i("SbhSelfTest", "profiles=${app.repo.state.value.profiles.size} error=${app.repo.state.value.profileError?.take(120)}")
                 for (s in sbhelper.ui.Screen.entries) {
                     controller.go(s)
                     android.util.Log.i("SbhSelfTest", "screen=${s.name}")
