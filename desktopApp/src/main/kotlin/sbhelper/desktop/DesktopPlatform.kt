@@ -126,6 +126,7 @@ class DesktopPlatform : Platform {
         override val status = ModInstaller.status
         override fun install() = ModInstaller.install()
         override fun openFolder() = ModInstaller.openFolder()
+        override fun chooseFolder() = ModInstaller.chooseFolder()
     }
 
     override val gameOverlay: sbhelper.ui.GameOverlayControl? = if (!GameWatch.supported) null else object : sbhelper.ui.GameOverlayControl {

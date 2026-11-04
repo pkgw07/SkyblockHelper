@@ -14,8 +14,8 @@ import java.io.File
 /**
  * 게임 모드 설치·자동 업데이트.
  *  - mods 폴더: 모드가 연결될 때 알려 준 곳 → 없으면 기본 %APPDATA%\.minecraft\mods
- *  - 최신 릴리스의 SkyblockHelper-mod-버전.jar 가 더 새것이면 받아서 예전 파일과 바꾼다
- *  - 게임이 켜져 있으면 파일이 잠겨 있으니, 게임을 끈 뒤에 바꾼다
+ *  - '모드 설치' 를 누르면 최신 릴리스의 SkyblockHelper-mod-버전.jar 를 넣는다 (예전 파일은 지움)
+ *  - 그 뒤의 업데이트는 게임 안에서 모드가 직접 물어본다 (게임을 켜면 업데이트 창)
  */
 object ModInstaller {
     private val _status = MutableStateFlow("확인 중…")
@@ -27,19 +27,20 @@ object ModInstaller {
 
     fun start(scope: CoroutineScope, repo: SkyblockRepository) {
         this.repo = repo; this.scope = scope
-        scope.launch {
-            delay(15_000) // 앱 시작 직후 업데이트 확인이 끝난 뒤
-            while (true) {
-                runCatching { check(install = false) }
-                delay(3 * 3_600_000L)
-            }
-        }
-        // 게임을 끄면 미뤄 둔 업데이트를 바로
-        scope.launch {
-            var wasRunning = false
-            GameWatch.state.collect { st ->
-                if (wasRunning && !st.running) runCatching { check(install = false) }
-                wasRunning = st.running
+        // 상태만 확인 (업데이트는 게임 안에서 모드가 직접 물어봄)
+        scope.launch { delay(15_000); runCatching { check(install = false) } }
+    }
+
+    /** mods 폴더 직접 고르기 */
+    fun chooseFolder() {
+        javax.swing.SwingUtilities.invokeLater {
+            val fc = javax.swing.JFileChooser(modsDir() ?: File(System.getProperty("user.home")))
+            fc.fileSelectionMode = javax.swing.JFileChooser.DIRECTORIES_ONLY
+            fc.dialogTitle = "마인크래프트 mods 폴더 고르기"
+            if (fc.showOpenDialog(null) == javax.swing.JFileChooser.APPROVE_OPTION) {
+                val dir = fc.selectedFile.absolutePath
+                repo.updateDevice { it.copy(modsDir = dir) }
+                scope.launch { runCatching { check(install = false) } }
             }
         }
     }
@@ -79,8 +80,8 @@ object ModInstaller {
                 _status.value = "설치 안 됨 · 최신 $latestVer"
             haveVer != null && !Updates.isNewer(latestVer, haveVer) && !(install && have.size > 1) ->
                 _status.value = "$haveVer 설치됨 · 최신 버전"
-            !install && !repo.state.value.device.modAutoUpdate ->
-                _status.value = "$haveVer 설치됨 · 새 버전 $latestVer 있음"
+            !install ->
+                _status.value = "$haveVer 설치됨 · 새 버전 $latestVer 있음 (게임을 켜면 업데이트 창이 떠요)"
             GameWatch.state.value.running ->
                 _status.value = "게임을 끄면 $latestVer 로 ${if (haveVer == null) "설치" else "업데이트"}돼요"
             else -> {

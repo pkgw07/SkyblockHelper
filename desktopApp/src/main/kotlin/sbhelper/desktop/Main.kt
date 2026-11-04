@@ -103,9 +103,10 @@ fun main(args: Array<String>) {
     GameWatch.autoBorderless = { repo.state.value.device.let { it.overlayEnabled && it.overlayAutoBorderless } }
     GameWatch.start(scope)
     // 게임 모드(26.2)와 실시간 연결 (이 컴퓨터 안에서만)
-    ModLink.onModsDir = { dir -> if (repo.state.value.device.modsDir != dir) repo.updateDevice { it.copy(modsDir = dir) } }
+    // 직접 고른 폴더가 없을 때만 모드가 알려 준 폴더를 쓴다
+    ModLink.onModsDir = { dir -> if (repo.state.value.device.modsDir.isBlank()) repo.updateDevice { it.copy(modsDir = dir) } }
     ModLink.start(scope, repo)
-    // 게임 모드 자동 업데이트
+    // 게임 모드 설치 상태
     ModInstaller.start(scope, repo)
 
     // 새 버전 확인만: 켤 때 + 6시간마다. 받기·적용은 사용자가 동의해야 (화면에 "업데이트할까요?" 창)

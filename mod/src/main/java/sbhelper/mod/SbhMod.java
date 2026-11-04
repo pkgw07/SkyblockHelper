@@ -31,6 +31,9 @@ public final class SbhMod implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         Link.start();
+        Updater.start();
+        // 게임을 끌 때 받아 둔 새 버전으로 바꾼다
+        net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> Updater.applyOnExit());
 
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("skyblockhelper", "main"));
         toggleHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblockhelper.hud", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, category));
@@ -42,6 +45,11 @@ public final class SbhMod implements ClientModInitializer {
                 c.hud = !c.hud;
                 Config.save();
                 if (mc.player != null) mc.player.sendSystemMessage(Component.literal("§6[SkyblockHelper] §fHUD " + (c.hud ? "켜짐" : "꺼짐")));
+            }
+            // 타이틀 화면에서 구버전이면 업데이트 창 (확인이 끝나는 대로, 한 번만)
+            if (!Updater.asked && Updater.available() && mc.gui.screen() instanceof net.minecraft.client.gui.screens.TitleScreen title) {
+                Updater.asked = true;
+                mc.gui.setScreen(new UpdateScreen(title));
             }
             // 명령어로 연 편집 화면은 채팅 화면이 닫힌 다음 틱에 연다
             if (openEditor) { openEditor = false; mc.gui.setScreen(new HudEditScreen()); }

@@ -318,6 +318,7 @@ private fun DisplayPanel(controller: AppController, state: AppState) {
 
 /** 업데이트: 자동 확인 · 지금 확인 · 업데이트 내역 (이번 버전만, 더 보기로 이전 버전) */
 @Composable
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 private fun UpdatePanel(controller: AppController, state: AppState) {
     val platform = LocalPlatform.current
     val d = state.device
@@ -338,12 +339,14 @@ private fun UpdatePanel(controller: AppController, state: AppState) {
         platform.modManager?.let { mm ->
             Divider(Modifier.padding(vertical = 10.dp))
             val st by mm.status.collectAsState()
-            SwitchRow("게임 모드 자동 업데이트", d.modAutoUpdate, { on -> controller.repo.updateDevice { it.copy(modAutoUpdate = on) } },
-                "Minecraft 26.2 모드의 새 버전이 나오면 mods 폴더의 파일을 바꿔 줘요. 게임이 켜져 있으면 끈 뒤에 바꿔요.")
+            Text("게임 모드 (Minecraft 26.2)", style = SbText.body(15, Sb.Text, FontWeight.SemiBold))
             Text("모드: $st", style = SbText.body(13, Sb.TextDim))
+            Text("mods 폴더: " + d.modsDir.ifBlank { "자동 (%APPDATA%\\.minecraft\\mods)" }, style = SbText.body(12, Sb.TextFaint))
+            Text("새 버전은 게임을 켤 때 모드가 직접 물어보고, 게임을 다시 시작하면 적용돼요.", style = SbText.body(12, Sb.TextFaint))
             Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SbButton("모드 설치·업데이트", { mm.install() }, outlined = true)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SbButton("모드 설치", { mm.install() }, outlined = true)
+                SbButton("mods 폴더 고르기", { mm.chooseFolder() }, outlined = true)
                 SbButton("mods 폴더 열기", { mm.openFolder() }, outlined = true)
             }
         }

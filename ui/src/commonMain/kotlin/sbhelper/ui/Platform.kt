@@ -55,6 +55,8 @@ interface ModManager {
     fun install()
     /** mods 폴더 열기 */
     fun openFolder()
+    /** mods 폴더 직접 고르기 */
+    fun chooseFolder()
 }
 
 /** 게임 오버레이 상태 보기·미리 보기 */
