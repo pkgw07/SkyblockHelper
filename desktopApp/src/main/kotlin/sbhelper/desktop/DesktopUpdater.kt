@@ -34,8 +34,8 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
 
     override suspend fun stage(release: Release, download: suspend (String) -> ByteArray?): InAppUpdater.Result {
         val app = bundled ?: return InAppUpdater.Result.NEEDS_INSTALLER
-        val manifestAsset = release.assets.firstOrNull { it.name == MANIFEST } ?: return InAppUpdater.Result.NEEDS_INSTALLER
-        val text = download(manifestAsset.url)?.decodeToString() ?: return InAppUpdater.Result.FAILED
+        // 업데이트 파일: 릴리스에 있으면 거기서, 없으면 updates 브랜치에서 (릴리스에는 사람이 받는 파일만 둔다)
+        val text = download(assetUrl(release, MANIFEST))?.decodeToString() ?: return InAppUpdater.Result.NEEDS_INSTALLER
         return withContext(Dispatchers.IO) {
             val root = runCatching { SbJson.parseToJsonElement(text).jsonObject }.getOrNull() ?: return@withContext InAppUpdater.Result.FAILED
             val version = root["version"]?.jsonPrimitive?.content ?: return@withContext InAppUpdater.Result.FAILED
@@ -48,6 +48,8 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
             } ?: return@withContext InAppUpdater.Result.FAILED
 
             if (Patches.isBroken(version)) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
+            // updates 브랜치가 아직 이 릴리스로 안 바뀌었으면 설치 파일로
+            if (version != release.version) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
             // 자바 런타임이 바뀐 버전만 설치 파일로 (네이티브 파일은 아래에서 따로 받는다)
             if (javaMajor != Runtime.version().feature()) return@withContext InAppUpdater.Result.NEEDS_INSTALLER
             // 네이티브 파일 교체는 설치본의 시작 코드(Boot)가 지원할 때만 (1.4.1 이하 설치본은 설치 파일로)
@@ -62,9 +64,8 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
                 val target = File(Patches.nativeDir(), dirName)
                 val ok = files.all { (path, sha, size) -> File(target, path).let { it.isFile && it.length() == size && sha256(it) == sha } }
                 if (!ok) {
-                    val asset = release.assets.firstOrNull { it.name == "SkyblockHelper-$version-patch-native.zip" }
+                    val bytes = download(assetUrl(release, "SkyblockHelper-$version-patch-native.zip"))
                         ?: return@withContext InAppUpdater.Result.NEEDS_INSTALLER
-                    val bytes = download(asset.url) ?: return@withContext InAppUpdater.Result.FAILED
                     target.deleteRecursively(); target.mkdirs()
                     ZipInputStream(bytes.inputStream()).use { zin ->
                         while (true) {
@@ -92,9 +93,8 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
                 }
             }
             for (pack in missing.map { it.pack }.distinct()) {
-                val asset = release.assets.firstOrNull { it.name == "SkyblockHelper-$version-patch-$pack.zip" }
+                val bytes = download(assetUrl(release, "SkyblockHelper-$version-patch-$pack.zip"))
                     ?: return@withContext InAppUpdater.Result.NEEDS_INSTALLER
-                val bytes = download(asset.url) ?: return@withContext InAppUpdater.Result.FAILED
                 val wanted = missing.filter { it.pack == pack }.associateBy { it.name }
                 ZipInputStream(bytes.inputStream()).use { zin ->
                     while (true) {
@@ -121,6 +121,11 @@ class DesktopUpdater(private val onQuit: () -> Unit) : InAppUpdater {
 
     companion object {
         const val MANIFEST = "update-manifest.json"
+        /** 앱 안 업데이트 파일을 두는 곳 (최신 버전 것만) */
+        const val UPDATES_BASE = "https://raw.githubusercontent.com/pkgw07/SkyblockHelper/updates"
+
+        fun assetUrl(release: Release, name: String): String =
+            release.assets.firstOrNull { it.name == name }?.url ?: "$UPDATES_BASE/$name"
 
         /** 같은 이름이라도 내용이 다르면 다른 파일로 보관 (실행 중인 jar 는 Windows 에서 덮어쓸 수 없다) */
         private fun storeName(j: Jar) = j.sha256.take(16) + "-" + j.name

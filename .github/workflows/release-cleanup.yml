@@ -1,0 +1,29 @@
+name: Release cleanup
+
+# 릴리스에서 앱 안 업데이트용 파일(patch-*.zip, update-manifest.json)을 지운다.
+# 사람이 받는 파일(설치 파일·압축판·APK·게임 모드)만 남는다. 업데이트 파일은 updates 브랜치에 있다.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove in-app update files from releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          for tag in $(gh release list --repo "${{ github.repository }}" --limit 100 --json tagName -q '.[].tagName'); do
+            for a in $(gh release view "$tag" --repo "${{ github.repository }}" --json assets -q '.assets[].name'); do
+              case "$a" in
+                *-patch-*.zip|update-manifest.json)
+                  gh release delete-asset "$tag" "$a" --repo "${{ github.repository }}" -y
+                  echo "::notice title=$tag::지움 $a" ;;
+              esac
+            done
+          done

@@ -301,10 +301,23 @@ jobs:
           tag_name: ${{ inputs.release_version != '' && format('v{0}', inputs.release_version) || github.ref_name }}
           name: SkyblockHelper ${{ inputs.release_version != '' && inputs.release_version || github.ref_name }}
           target_commitish: ${{ github.sha }}
+          # 사람이 받는 파일만: 설치 파일, 압축판, 휴대폰 APK, 게임 모드
           files: |
-            dist/windows-installer/**/*
-            dist/android-apk/*
-            dist/minecraft-mod/*
+            dist/windows-installer/*.exe
+            dist/windows-installer/*-portable.zip
+            dist/android-apk/*.apk
+            dist/minecraft-mod/*.jar
           # 업데이트 내역은 직접 쓴 한국어 글 (자동 커밋 목록은 쓰지 않음)
           body: ${{ inputs.notes }}
           generate_release_notes: false
+      # 앱 안 업데이트 파일(바뀐 부분만 받기)은 릴리스 대신 updates 브랜치에 (최신 버전 것만)
+      - name: Publish in-app update files
+        shell: bash
+        run: |
+          mkdir upd
+          cp dist/windows-installer/update-manifest.json dist/windows-installer/*-patch-*.zip upd/
+          cd upd
+          git init -q && git checkout -q -b updates
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -q -m "in-app update files ${{ inputs.release_version }}"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" updates
