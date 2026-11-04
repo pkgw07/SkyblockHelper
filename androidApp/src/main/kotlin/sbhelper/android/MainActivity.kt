@@ -144,6 +144,27 @@ class MainActivity : ComponentActivity() {
      */
     private fun selfTest(intent: Intent?) {
         if (!BuildConfig.SELF_TEST) return
+        // CI 확인용: 실제 계정을 연결하고 모든 화면을 차례로 열어 본다 (꺼지면 기록에 남음)
+        val user = intent?.getStringExtra("sbhelper.selftest_user")
+        val key = intent?.getStringExtra("sbhelper.selftest_key")
+        if (user != null && key != null) {
+            lifecycleScope.launch {
+                app.ensureLoaded()
+                val r = app.repo.linkAccount(user, key)
+                android.util.Log.i("SbhSelfTest", "linked=${r.isSuccess}")
+                kotlinx.coroutines.delay(15_000)
+                for (s in sbhelper.ui.Screen.entries) {
+                    controller.go(s)
+                    android.util.Log.i("SbhSelfTest", "screen=${s.name}")
+                    kotlinx.coroutines.delay(2_500)
+                    if (s == sbhelper.ui.Screen.STATS) for (t in 0..13) { controller.statsTab = t; kotlinx.coroutines.delay(1_500) }
+                    if (s == sbhelper.ui.Screen.CALC) for (t in 0..1) { controller.calcTab = t; kotlinx.coroutines.delay(2_000) }
+                    if (s == sbhelper.ui.Screen.INVENTORY) for (t in 0..6) { controller.inventoryTab = t; kotlinx.coroutines.delay(1_500) }
+                }
+                android.util.Log.i("SbhSelfTest", "visited=all")
+            }
+            return
+        }
         val url = intent?.getStringExtra("sbhelper.selftest_update") ?: return
         if (!url.startsWith("http://127.0.0.1:") && !url.startsWith("http://10.0.2.2:")) return
         val ver = intent.getStringExtra("sbhelper.selftest_version") ?: "99.0.0"
