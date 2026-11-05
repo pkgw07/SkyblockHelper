@@ -51,7 +51,7 @@ public final class Config {
     /** 표지판 입력 기록: 표지판 아래 줄 → 최근 값 */
     public Map<String, List<String>> signValues = new HashMap<>();
     /** 설정 파일 형식 (옛 파일 옮기기용) */
-    public int layout = 0;
+    public int layout = 1;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Config instance;
@@ -60,17 +60,21 @@ public final class Config {
 
     public static Config get() {
         if (instance == null) {
-            try { instance = GSON.fromJson(Files.readString(file()), Config.class); } catch (Exception ignored) {}
+            String text = null;
+            try { text = Files.readString(file()); instance = GSON.fromJson(text, Config.class); } catch (Exception ignored) {}
             if (instance == null) instance = new Config();
             if (instance.hiddenTimers == null) instance.hiddenTimers = new ArrayList<>();
             if (instance.signValues == null) instance.signValues = new HashMap<>();
-            // 1.0.1 까지: timerX < 0 이면 오른쪽 위
-            if (instance.layout < 1) {
+            // 1.0.1 까지의 파일: timerX < 0 이면 오른쪽 위, 아니면 왼쪽 기준
+            if (text != null && !text.contains("\"layout\"")) {
                 if (instance.timerX < 0) { instance.timerRight = true; instance.timerX = 4; }
                 else instance.timerRight = false;
                 instance.planRight = false; instance.planBottom = false; instance.timerBottom = false;
-                instance.layout = 1;
             }
+            // 1.0.2 에서 새로 깔면 두 HUD 가 같은 자리에 겹쳤다 → 타이머를 오른쪽 위로
+            if (!instance.planRight && !instance.timerRight && instance.planBottom == instance.timerBottom
+                && instance.planX == instance.timerX && instance.planY == instance.timerY) instance.timerRight = true;
+            instance.layout = 1;
         }
         return instance;
     }

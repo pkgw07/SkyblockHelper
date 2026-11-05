@@ -177,7 +177,7 @@ public final class Storage {
         layout(cs, cur, first);
 
         int W = cs.width, H = cs.height;
-        g.fill(0, 0, W, H, 0xE80C0E13);
+        g.fill(0, 0, W, H, 0xF50C0E13);
 
         // 1층: 상자 · 칸 · 기억한 아이템
         g.enableScissor(0, areaTop - 2, W, areaBottom + 2);
@@ -269,6 +269,7 @@ public final class Storage {
         for (int h : colH) contentH = Math.max(contentH, h - GAP);
         maxScroll = Math.max(0, contentH - (areaBottom - areaTop));
         // 새로 연 페이지가 보이게
+        if (first && cur == null) scroll = 0;
         if (first && cur != null) {
             for (Box b : raw) if (b.active()) {
                 if (b.y() < scroll) scroll = b.y();
