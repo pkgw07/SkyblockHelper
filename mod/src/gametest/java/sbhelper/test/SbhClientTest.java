@@ -107,6 +107,11 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.waitTicks(5);
             ctx.getInput().typeChars("hyp");
             ctx.waitTicks(15);
+            Link.auctionHits = List.of(
+                new Link.AuctionHit("a1", "Hyperion", "LEGENDARY", 812_000_000, true, now2 + 3 * 3_600_000L),
+                new Link.AuctionHit("a2", "Hyperion", "LEGENDARY", 829_500_000, true, now2 + 26 * 3_600_000L),
+                new Link.AuctionHit("a3", "Hyperion", "MYTHIC", 905_000_000, false, now2 + 40 * 60_000L));
+            ctx.waitTicks(3);
             ctx.takeScreenshot("13-ah-search");
             ctx.setScreen(() -> new sbhelper.mod.LogScreen(null));
             ctx.waitTicks(5);

@@ -63,7 +63,7 @@ public final class LogScreen extends SearchScreen {
                 for (int i = matches.size() - 1; i >= 0 && out.size() < MAX; i--) {
                     String line = matches.get(i);
                     String time = line.length() > 10 && line.charAt(0) == '[' ? line.substring(1, Math.min(9, line.length())) : "";
-                    String text = line.replaceFirst("^\\[[^\\]]*\\] \\[[^\\]]*\\]: ", "").replace("[CHAT] ", "");
+                    String text = line.replaceFirst("^\\[[^\\]]*\\] \\[[^\\]]*\\](?: \\([^)]*\\))?:? ", "").replace("[CHAT] ", "");
                     String copy = text;
                     out.add(new Row(SkyBlock.strip(text), day + " " + time, 0xFF8A8F99,
                         () -> Minecraft.getInstance().keyboardHandler.setClipboard(copy), "누르면 복사"));
