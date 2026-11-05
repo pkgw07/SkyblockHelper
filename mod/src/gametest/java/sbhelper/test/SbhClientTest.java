@@ -36,7 +36,7 @@ public class SbhClientTest implements FabricClientGameTest {
             fakeData();
             ctx.takeScreenshot("01-hud");
 
-            for (int i = 0; i < 7; i++) {
+            for (int i = 0; i < 9; i++) {
                 SettingsScreen.selectTab(i);
                 ctx.setScreen(() -> new SettingsScreen(null));
                 ctx.waitTicks(15);
@@ -93,6 +93,9 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.setScreen(SbhClientTest::pets);
             ctx.waitTicks(10);
             ctx.takeScreenshot("10-pets-wide");
+            ctx.setScreen(() -> new sbhelper.mod.PlannerScreen(null));
+            ctx.waitTicks(15);
+            ctx.takeScreenshot("12-planner");
             sbhelper.mod.Updater.latest = "9.9.9";
             ctx.setScreen(() -> new sbhelper.mod.UpdateScreen(null));
             ctx.waitTicks(15);
@@ -117,6 +120,17 @@ public class SbhClientTest implements FabricClientGameTest {
             new Link.PlanRow("NECRON_HANDLE", "Necron's Handle", 1, 1),
             new Link.PlanRow("WITHER_CATALYST", "Wither Catalyst", 12, 24),
             new Link.PlanRow("GIANT_FRAGMENT_LASER", "L.A.S.R.'s Eye", 3, 8)), 2);
+        Link.goals = List.of(new Link.Goal("HYPERION", "Hyperion", 1), new Link.Goal("TERMINATOR", "Terminator", 1),
+            new Link.Goal("ENCHANTED_DIAMOND_BLOCK", "Enchanted Diamond Block", 32));
+        Link.currentGoal = "HYPERION";
+        Link.currentAmount = 1;
+        Link.materials = List.of(
+            new Link.Material("NECRON_HANDLE", "Necron's Handle", 1, 1, false),
+            new Link.Material("WITHER_CATALYST", "Wither Catalyst", 12, 24, false),
+            new Link.Material("GIANT_FRAGMENT_LASER", "L.A.S.R.'s Eye", 3, 8, false),
+            new Link.Material("DIAMOND", "Diamond", 120000, 409600, false),
+            new Link.Material("IRON_INGOT", "Iron Ingot", 0, 25600, true));
+        Link.craftables = List.of(new String[]{"HYPERION", "Hyperion"}, new String[]{"TERMINATOR", "Terminator"});
     }
 
     private static ItemStack named(Item item, int count, String name, String... lore) {
