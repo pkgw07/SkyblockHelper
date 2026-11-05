@@ -168,15 +168,30 @@ object ModLink {
         }
     }
 
-    /** 다가오는 타이머: 포지 + 알림 타이머 (가까운 순) */
+    /**
+     * 타이머: 포지(칸마다) + 컴포스터·Time Tower 같은 알림 타이머. 다 된 것 먼저, 나머지는 가까운 순.
+     * kind 로 종류를 알려 주면 모드에서 종류별로 켜고 끈다. 마인크래프트 글꼴에 없는 이모지는 빼고 보낸다.
+     */
     private fun timersJson(repo: SkyblockRepository) = buildJsonObject {
         put("t", "timers")
         val st = repo.state.value
         val now = System.currentTimeMillis()
+        data class T(val kind: String, val label: String, val at: Long, val done: Boolean, val start: Long?)
         val list = buildList {
-            st.forgeStatuses().forEach { f -> f.endTime?.let { add("포지 #${f.process.slot} ${f.itemName}" to it) } }
-            st.extraTimers(now).filter { !it.done && it.at > now }.forEach { add("${it.emoji} ${it.title}" to it.at) }
-        }.sortedBy { it.second }.take(8)
-        putJsonArray("list") { list.forEach { (label, at) -> add(buildJsonObject { put("label", label); put("at", at) }) } }
+            st.forgeStatuses().forEach { f ->
+                f.endTime?.let { end ->
+                    add(T("forge", "포지 #${f.process.slot} ${f.itemName.replace(Regex("§."), "")}", end, now >= end, f.process.startTime.takeIf { it in 1 until end }))
+                }
+            }
+            st.extraTimers(now).forEach { add(T(it.key, it.title, it.at, it.done, null)) }
+        }.sortedWith(compareBy<T>({ !it.done }, { it.at }))
+        putJsonArray("list") {
+            list.forEach { t ->
+                add(buildJsonObject {
+                    put("kind", t.kind); put("label", t.label); put("at", t.at); put("done", t.done)
+                    t.start?.let { put("start", it) }
+                })
+            }
+        }
     }
 }

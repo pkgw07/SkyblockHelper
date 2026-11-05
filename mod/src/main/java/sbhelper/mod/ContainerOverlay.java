@@ -56,10 +56,10 @@ public final class ContainerOverlay {
             }
         }
         // 상자 왼쪽 빈 곳에 작은 상자
-        List<String[]> lines = new ArrayList<>();
-        lines.add(new String[]{"상자 가치", ""});
-        lines.add(new String[]{Fmt.coins(sum), ""});
-        if (unpriced > 0) lines.add(new String[]{"시세 없음 " + unpriced + "개", ""});
+        List<Hud.Row> lines = new ArrayList<>();
+        lines.add(Hud.Row.head("상자 가치", ""));
+        lines.add(new Hud.Row(Fmt.coins(sum), "", Hud.GOLD, null, -1));
+        if (unpriced > 0) lines.add(Hud.Row.text("시세 없음 " + unpriced + "개", ""));
         int w = Hud.measure(font, lines, 0)[0];
         Hud.box(g, font, Math.max(2, left - w - 6), top, lines, w);
     }

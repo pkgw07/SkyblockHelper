@@ -1,70 +1,339 @@
 package sbhelper.mod;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.KeyEvent;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.ARGB;
+import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
-import java.util.function.Consumer;
-import java.util.function.Function;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.function.IntConsumer;
 
-/** /sbh 로 여는 모드 설정 창 */
+/**
+ * /sbh 로 여는 모드 설정 창. 탭(일반 · HUD · 타이머 · 상자)과 켜고 끄는 스위치.
+ * 열고 닫을 때 미끄러지며 나타나고, 스위치·탭 밑줄·버튼은 부드럽게 움직인다.
+ */
 public final class SettingsScreen extends Screen {
+    private static final Identifier ICON = Identifier.fromNamespaceAndPath("skyblockhelper", "icon.png");
+    private static final String[] TABS = {"일반", "HUD", "타이머", "상자"};
+    private static final int PANEL = 0xF0141820, BORDER = 0x38FFFFFF, CARD = 0x10FFFFFF, CARD_HOVER = 0x24FFFFFF,
+        TRACK = 0xFF3A404C, ACCENT = Hud.ACCENT, ACCENT_HI = 0xFFFFBE5C, DARK_TEXT = 0xFF1B1405;
+    /** 마지막으로 본 탭 (다시 열면 그대로) */
+    private static int tab = 0;
+
     private final Screen parent;
+    private final Ui.Anim anim = new Ui.Anim();
+    private long openedAt = System.currentTimeMillis();
+    private long closingAt = 0;
+    private long tabAt = 0;
+    private int tabDir = 1;
+    private final List<Hit> hits = new ArrayList<>();
+    private String tooltip;
+
+    private record Hit(int x1, int y1, int x2, int y2, Runnable action) {}
 
     public SettingsScreen(Screen parent) { super(Component.literal("SkyblockHelper 설정")); this.parent = parent; }
 
     @Override
-    protected void init() {
-        int col = this.width / 2 - 155, y = 40;
-        Config c = Config.get();
-        toggle(col, y, "HUD", x -> x.hud, (x) -> x.hud = !x.hud);
-        toggle(col + 160, y, "스카이블록에서만", x -> x.onlyInSkyblock, x -> x.onlyInSkyblock = !x.onlyInSkyblock);
-        y += 24;
-        toggle(col, y, "제작 플래너 HUD", x -> x.planHud, x -> x.planHud = !x.planHud);
-        toggle(col + 160, y, "타이머 HUD", x -> x.timerHud, x -> x.timerHud = !x.timerHud);
-        y += 24;
-        toggle(col, y, "툴팁 시세", x -> x.tooltipPrices, x -> x.tooltipPrices = !x.tooltipPrices);
-        toggle(col + 160, y, "상자 가치", x -> x.containerValue, x -> x.containerValue = !x.containerValue);
-        y += 24;
-        toggle(col, y, "부족한 재료 강조", x -> x.highlightMissing, x -> x.highlightMissing = !x.highlightMissing);
-        this.addRenderableWidget(Button.builder(valueLabel(c), b -> { c.valuePosition = 1 - c.valuePosition; Config.save(); b.setMessage(valueLabel(c)); })
-            .pos(col + 160, y).size(150, 20).build());
-        y += 34;
-        this.addRenderableWidget(Button.builder(Component.literal("HUD 위치·크기·너비 편집"), b -> this.minecraft.gui.setScreen(new HudEditScreen(this)))
-            .pos(col, y).size(310, 20).build());
-        y += 24;
-        this.addRenderableWidget(Button.builder(Component.literal("HUD 크기 기본으로"), b -> {
-            c.planScale = 1f; c.timerScale = 1f; c.planWidth = 0; c.timerWidth = 0; Config.save();
-        }).pos(col, y).size(150, 20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("완료"), b -> onClose()).pos(col + 160, y).size(150, 20).build());
+    public void added() {
+        super.added();
+        openedAt = System.currentTimeMillis();
+        closingAt = 0;
     }
 
-    private static Component valueLabel(Config c) {
-        return Component.literal("상자 가치 위치: " + (c.valuePosition == 0 ? "이름 옆" : "왼쪽 빈 곳"));
+    /** 0 (안 보임) ~ 1 (다 열림) */
+    private float openness() {
+        long now = System.currentTimeMillis();
+        float open = Ui.easeOut((now - openedAt) / 260f);
+        if (closingAt > 0) open = Math.min(open, 1 - Ui.easeOut((now - closingAt) / 160f));
+        return Math.max(0, open);
     }
 
-    private void toggle(int x, int y, String name, Function<Config, Boolean> get, Consumer<Config> flip) {
+    @Override
+    public void extractBackground(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
+        float a = openness();
+        g.fillGradient(0, 0, this.width, this.height, Ui.alpha(0x88000000, a), Ui.alpha(0xB0000000, a));
+    }
+
+    @Override
+    public void extractRenderState(GuiGraphicsExtractor g, int mx, int my, float delta) {
+        super.extractRenderState(g, mx, my, delta);
+        anim.frame();
+        hits.clear();
+        tooltip = null;
+        long now = System.currentTimeMillis();
+        float a = openness();
+        if (a <= 0.01f) return;
+
+        int pw = Math.min(340, this.width - 24), ph = Math.min(222, this.height - 12);
+        int px = (this.width - pw) / 2;
+        int py = (this.height - ph) / 2 + Math.round((1 - a) * 16);
+
+        // 창
+        Ui.shadow(g, px, py, px + pw, py + ph, a);
+        Ui.card(g, px, py, px + pw, py + ph, Ui.alpha(PANEL, a), Ui.alpha(BORDER, a));
+        g.fill(px + 2, py, px + pw - 2, py + 1, Ui.alpha(ACCENT, a));
+        // 위쪽 선을 따라 지나가는 빛
+        int sweep = (int) ((now / 6) % (pw + 80)) - 40;
+        for (int i = 0; i < 40; i++) {
+            int x = px + sweep + i;
+            if (x < px + 2 || x >= px + pw - 2) continue;
+            float k = 1 - Math.abs(i - 20) / 20f;
+            g.fill(x, py, x + 1, py + 1, Ui.alpha(0xFFFFFFFF, a * k * 0.8f));
+        }
+
+        // 머리: 아이콘 · 이름 · 버전 · 연결 상태
+        float pop = Ui.easeBack((now - openedAt) / 420f);
+        g.pose().pushMatrix();
+        g.pose().translate(px + 20, py + 18);
+        g.pose().scale(pop, pop);
+        g.blit(RenderPipelines.GUI_TEXTURED, ICON, -10, -10, 0f, 0f, 20, 20, 128, 128, 128, 128, ARGB.white(a));
+        g.pose().popMatrix();
+        text(g, Component.literal("SkyblockHelper").withStyle(ChatFormatting.BOLD), px + 36, py + 9, Ui.alpha(Hud.GOLD, a));
+        text(g, "게임 모드 " + SbhMod.VERSION, px + 36, py + 20, Ui.alpha(Hud.GRAY, a));
+
+        boolean on = Link.connected;
+        String status = on ? "프로그램 연결됨" : "프로그램 꺼짐";
+        int sw = this.font.width(status);
+        int sx2 = px + pw - 10, sx1 = sx2 - sw - 20;
+        int statusColor = on ? Hud.GREEN : Hud.RED;
+        Ui.round(g, sx1, py + 10, sx2, py + 25, Ui.alpha(on ? 0x2855FF55 : 0x28FF6B6B, a));
+        float pulse = 0.55f + 0.45f * (float) Math.sin(now / 280.0);
+        Ui.round(g, sx1 + 5, py + 15, sx1 + 10, py + 20, Ui.alpha(statusColor, a * pulse));
+        text(g, status, sx1 + 14, py + 14, Ui.alpha(statusColor, a));
+        if (Ui.inside(mx, my, sx1, py + 10, sx2, py + 25))
+            tooltip = on ? "SkyblockHelper 프로그램과 연결돼 있어요" : "PC 에서 SkyblockHelper 프로그램을 켜면 자동으로 연결돼요";
+
+        // 탭
+        int ty = py + 36;
+        g.fill(px + 8, ty + 17, px + pw - 8, ty + 18, Ui.alpha(0x22FFFFFF, a));
+        int tx = px + 10;
+        int[] tabX = new int[TABS.length], tabW = new int[TABS.length];
+        for (int i = 0; i < TABS.length; i++) {
+            int w = this.font.width(TABS[i]) + 18;
+            tabX[i] = tx; tabW[i] = w;
+            boolean hov = Ui.inside(mx, my, tx, ty, tx + w, ty + 17);
+            float hv = anim.to("tab" + i, hov ? 1 : 0, 16);
+            float act = anim.to("tabA" + i, i == tab ? 1 : 0, 14);
+            if (hv > 0.01f) Ui.round(g, tx, ty + 1, tx + w, ty + 16, Ui.alpha(0x18FFFFFF, a * hv));
+            int color = Ui.mix(Math.max(act, hv * 0.6f), 0xFF8A8F99, 0xFFFFFFFF);
+            text(g, TABS[i], tx + 9, ty + 5, Ui.alpha(color, a));
+            int idx = i;
+            hits.add(new Hit(tx, ty, tx + w, ty + 17, () -> setTab(idx)));
+            tx += w + 2;
+        }
+        float ux = anim.to("ux", tabX[tab], 18), uw = anim.to("uw", tabW[tab], 18);
+        Ui.round(g, Math.round(ux) + 5, ty + 15, Math.round(ux + uw) - 5, ty + 18, Ui.alpha(ACCENT, a));
+
+        // 내용 (탭을 바꾸면 옆에서 미끄러져 들어옴)
+        float ct = Ui.easeOut((now - tabAt) / 240f);
+        float ca = a * ct;
+        int cx = px + 10 + Math.round((1 - ct) * 14 * tabDir), cy = ty + 24, cw = pw - 20;
+        switch (tab) {
+            case 0 -> general(g, mx, my, cx, cy, cw, ca);
+            case 1 -> hud(g, mx, my, cx, cy, cw, ca);
+            case 2 -> timers(g, mx, my, cx, cy, cw, ca);
+            default -> containers(g, mx, my, cx, cy, cw, ca);
+        }
+
+        // 아래: 안내 + 완료
+        int fy = py + ph - 24;
+        g.fill(px + 8, fy - 5, px + pw - 8, fy - 4, Ui.alpha(0x16FFFFFF, a));
+        button(g, mx, my, px + pw - 70, fy, 60, 16, "done", "완료", true, () -> { Ui.click(); onClose(); }, a);
+        text(g, Hud.fit(this.font, "Tab 키로 탭 이동 · /sbh <기능> 으로도 켜고 꺼요", pw - 96), px + 12, fy + 4, Ui.alpha(0xFF6F7580, a));
+
+        if (tooltip != null && a > 0.9f) g.setTooltipForNextFrame(this.font, Component.literal(tooltip), mx, my);
+    }
+
+    private void general(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
         Config c = Config.get();
-        this.addRenderableWidget(Button.builder(label(name, get.apply(c)), b -> {
-            flip.accept(c);
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "hud", "HUD 전체", "단축키 O 로도 켜고 꺼요", null, c.hud, () -> c.hud = !c.hud, a);
+        toggle(g, mx, my, x + half + 6, y, half, "onlysb", "스카이블록에서만", "스카이블록 밖에서는 HUD 를 숨겨요", null, c.onlyInSkyblock, () -> c.onlyInSkyblock = !c.onlyInSkyblock, a);
+        toggle(g, mx, my, x, y + 26, half, "tooltip", "툴팁 시세", "아이템 설명에 바자 · 경매장 · NPC 가격", null, c.tooltipPrices, () -> c.tooltipPrices = !c.tooltipPrices, a);
+
+        // 지금 상태
+        int sy = y + 56;
+        Ui.round2(g, x, sy, x + w, sy + 50, Ui.alpha(0x0CFFFFFF, a));
+        text(g, "지금 상태", x + 8, sy + 6, Ui.alpha(0xFF8A8F99, a));
+        String where = !Link.connected ? "-" : SkyBlock.inSkyblock ? (SkyBlock.area.isEmpty() ? "스카이블록" : SkyBlock.area) : "스카이블록 아님";
+        Link.Plan plan = Link.plan;
+        int col2 = x + w / 2 + 4;
+        info(g, x + 8, sy + 19, w / 2 - 12, "위치", where, a);
+        info(g, col2, sy + 19, w / 2 - 12, "시세", Link.prices.isEmpty() ? "없음" : String.format("%,d개", Link.prices.size()), a);
+        info(g, x + 8, sy + 32, w / 2 - 12, "제작 목표", plan == null ? "없음" : plan.title(), a);
+        info(g, col2, sy + 32, w / 2 - 12, "타이머", Link.timers.size() + "개", a);
+    }
+
+    private void hud(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "plan", "제작 플래너 HUD", "프로그램 제작 플래너의 목표와 모자란 재료", null, c.planHud, () -> c.planHud = !c.planHud, a);
+        toggle(g, mx, my, x + half + 6, y, half, "timers", "타이머 HUD", "포지 · 컴포스터 같은 타이머", null, c.timerHud, () -> c.timerHud = !c.timerHud, a);
+        button(g, mx, my, x, y + 30, w, 20, "edit", "HUD 위치 · 크기 · 너비 편집", true,
+            () -> { Ui.click(); this.minecraft.gui.setScreen(new HudEditScreen(this)); }, a);
+        button(g, mx, my, x, y + 56, half, 18, "resetSize", "크기 · 너비 기본으로", false, () -> {
+            Ui.click(); c.planScale = 1f; c.timerScale = 1f; c.planWidth = 0; c.timerWidth = 0; Config.save();
+        }, a);
+        button(g, mx, my, x + half + 6, y + 56, half, 18, "resetPos", "위치 기본으로", false, () -> {
+            Ui.click();
+            c.planX = 4; c.planY = 4; c.planRight = false; c.planBottom = false;
+            c.timerX = 4; c.timerY = 4; c.timerRight = true; c.timerBottom = false;
             Config.save();
-            b.setMessage(label(name, get.apply(c)));
-        }).pos(x, y).size(150, 20).build());
+        }, a);
+        text(g, Hud.fit(this.font, "편집 화면: 끌어서 옮기기 · 휠로 크기 · 노란 막대로 너비", w), x + 2, y + 84, Ui.alpha(0xFF8A8F99, a));
+        text(g, Hud.fit(this.font, "화면 끝에 붙이면 줄이 늘어도 반대쪽으로 자라요", w), x + 2, y + 96, Ui.alpha(0xFF6F7580, a));
     }
 
-    private static Component label(String name, boolean on) { return Component.literal(name + ": " + (on ? "§a켜짐" : "§c꺼짐")); }
+    private void timers(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        int i = 0;
+        for (Map.Entry<String, String> k : Hud.TIMER_KINDS.entrySet()) {
+            String key = k.getKey();
+            int col = i % 2, row = i / 2;
+            toggle(g, mx, my, x + col * (half + 6), y + row * 24, half, "t:" + key, k.getValue(), null, Hud.icon(key),
+                c.showTimer(key), () -> c.toggleTimer(key), a);
+            i++;
+        }
+    }
+
+    private void containers(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "value", "상자 가치", "열어 본 상자 안 아이템의 총가치", null, c.containerValue, () -> c.containerValue = !c.containerValue, a);
+        toggle(g, mx, my, x + half + 6, y, half, "highlight", "부족한 재료 강조", "제작 플래너에 모자란 재료 칸을 초록색으로", null,
+            c.highlightMissing, () -> c.highlightMissing = !c.highlightMissing, a);
+        segment(g, mx, my, x, y + 26, w, "가치 위치", new String[]{"이름 옆", "왼쪽 빈 곳"}, c.valuePosition, v -> c.valuePosition = v, a);
+    }
+
+    // ---------- 부품 ----------
+
+    /** 켜고 끄는 카드: 이름 + 오른쪽 스위치 (손잡이가 미끄러지고 색이 바뀜) */
+    private void toggle(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, String key, String name, String desc, ItemStack icon,
+                        boolean on, Runnable flip, float a) {
+        int h = 20;
+        boolean hov = Ui.inside(mx, my, x, y, x + w, y + h);
+        float hv = anim.to("h:" + key, hov ? 1 : 0, 14);
+        float sv = anim.to("s:" + key, on ? 1 : 0, 14);
+        Ui.round2(g, x, y, x + w, y + h, Ui.alpha(Ui.mix(hv, CARD, CARD_HOVER), a));
+        int lx = x + 7;
+        if (icon != null) {
+            if (a > 0.6f) {
+                g.pose().pushMatrix();
+                g.pose().translate(lx, y + 3);
+                g.pose().scale(0.875f, 0.875f);
+                g.item(icon, 0, 0);
+                g.pose().popMatrix();
+            }
+            lx += 17;
+        }
+        text(g, Hud.fit(this.font, name, x + w - 34 - lx), lx, y + 6, Ui.alpha(Ui.mix(sv, 0xFFB8BCC4, 0xFFFFFFFF), a));
+        int tx = x + w - 27, ty = y + 5;
+        Ui.round(g, tx, ty, tx + 20, ty + 10, Ui.alpha(Ui.mix(sv, TRACK, ACCENT), a));
+        int kx = tx + 1 + Math.round(sv * 10);
+        Ui.round(g, kx, ty + 1, kx + 8, ty + 9, Ui.alpha(0xFFFFFFFF, a));
+        hits.add(new Hit(x, y, x + w, y + h, () -> { flip.run(); Config.save(); Ui.click(); }));
+        if (hov && desc != null) tooltip = desc;
+    }
+
+    /** 버튼: 주황(주요) 또는 반투명, 마우스를 올리면 밝아짐 */
+    private void button(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, int h, String key, String label, boolean primary, Runnable action, float a) {
+        boolean hov = Ui.inside(mx, my, x, y, x + w, y + h);
+        float hv = anim.to("b:" + key, hov ? 1 : 0, 16);
+        int bg = primary ? Ui.mix(hv, ACCENT, ACCENT_HI) : Ui.mix(hv, 0x1CFFFFFF, 0x34FFFFFF);
+        Ui.round2(g, x, y, x + w, y + h, Ui.alpha(bg, a));
+        String s = Hud.fit(this.font, label, w - 8);
+        int color = primary ? DARK_TEXT : 0xFFFFFFFF;
+        int textX = x + (w - this.font.width(s)) / 2, textY = y + (h - 8) / 2;
+        if (ARGB.alpha(Ui.alpha(color, a)) >= 8) g.text(this.font, s, textX, textY, Ui.alpha(color, a), !primary);
+        hits.add(new Hit(x, y, x + w, y + h, action));
+    }
+
+    /** 둘 중 하나 고르기: 고른 쪽 배경이 미끄러져 옮겨 감 */
+    private void segment(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, String name, String[] opts, int sel, IntConsumer set, float a) {
+        int h = 20;
+        Ui.round2(g, x, y, x + w, y + h, Ui.alpha(CARD, a));
+        text(g, name, x + 7, y + 6, Ui.alpha(0xFFFFFFFF, a));
+        int ow = 0;
+        for (String o : opts) ow = Math.max(ow, this.font.width(o) + 16);
+        int sx = x + w - 4 - ow * opts.length, sy = y + 3;
+        Ui.round(g, sx, sy, sx + ow * opts.length, sy + 14, Ui.alpha(0x40000000, a));
+        float pos = anim.to("seg:" + name, sel, 16);
+        int hx = sx + Math.round(pos * ow);
+        Ui.round(g, hx, sy, hx + ow, sy + 14, Ui.alpha(ACCENT, a));
+        for (int i = 0; i < opts.length; i++) {
+            int ox = sx + i * ow;
+            float near = 1 - Math.min(1, Math.abs(pos - i));
+            int color = Ui.mix(near, 0xFFB8BCC4, DARK_TEXT);
+            int c2 = Ui.alpha(color, a);
+            if (ARGB.alpha(c2) >= 8) g.text(this.font, opts[i], ox + (ow - this.font.width(opts[i])) / 2, sy + 3, c2, false);
+            int v = i;
+            hits.add(new Hit(ox, sy, ox + ow, sy + 14, () -> { if (v != sel) { set.accept(v); Config.save(); Ui.click(); } }));
+        }
+    }
+
+    private void info(GuiGraphicsExtractor g, int x, int y, int w, String label, String value, float a) {
+        text(g, label, x, y, Ui.alpha(0xFF6F7580, a));
+        int lw = this.font.width(label) + 6;
+        text(g, Hud.fit(this.font, value, w - lw), x + lw, y, Ui.alpha(0xFFE6E8EC, a));
+    }
+
+    private void text(GuiGraphicsExtractor g, String s, int x, int y, int color) {
+        if (ARGB.alpha(color) >= 8) g.text(this.font, s, x, y, color, true);
+    }
+
+    private void text(GuiGraphicsExtractor g, Component s, int x, int y, int color) {
+        if (ARGB.alpha(color) >= 8) g.text(this.font, s, x, y, color, true);
+    }
+
+    private void setTab(int i) {
+        if (i == tab) return;
+        tabDir = i > tab ? 1 : -1;
+        tab = i;
+        tabAt = System.currentTimeMillis();
+        Ui.click();
+    }
+
+    // ---------- 입력 ----------
 
     @Override
-    public void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float delta) {
-        super.extractRenderState(g, mouseX, mouseY, delta);
-        g.centeredText(this.font, this.title.getString(), this.width / 2, 15, Hud.GOLD);
-        g.centeredText(this.font, "프로그램 연결: " + (Link.connected ? "됨" : "안 됨 (SkyblockHelper 프로그램을 켜 주세요)") + " · 모드 " + SbhMod.VERSION,
-            this.width / 2, 27, Link.connected ? Hud.GREEN : Hud.GRAY);
+    public boolean mouseClicked(MouseButtonEvent e, boolean doubleClick) {
+        if (closingAt > 0) return true;
+        if (e.button() == 0) {
+            for (Hit h : List.copyOf(hits)) {
+                if (Ui.inside(e.x(), e.y(), h.x1(), h.y1(), h.x2(), h.y2())) { h.action().run(); return true; }
+            }
+        }
+        return super.mouseClicked(e, doubleClick);
     }
 
     @Override
-    public void onClose() { Config.save(); this.minecraft.gui.setScreen(parent); }
+    public boolean keyPressed(KeyEvent e) {
+        if (e.key() == GLFW.GLFW_KEY_TAB) { setTab((tab + 1) % TABS.length); return true; }
+        return super.keyPressed(e);
+    }
+
+    @Override
+    public void tick() {
+        if (closingAt > 0 && System.currentTimeMillis() - closingAt >= 170) {
+            closingAt = 0;
+            this.minecraft.gui.setScreen(parent);
+        }
+    }
+
+    @Override
+    public void onClose() {
+        if (closingAt == 0) { closingAt = System.currentTimeMillis(); Config.save(); }
+    }
 
     @Override
     public boolean isPauseScreen() { return false; }

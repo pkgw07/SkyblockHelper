@@ -6,6 +6,8 @@ import net.fabricmc.loader.api.FabricLoader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /** 설정 (config/skyblockhelper.json) — 게임을 다시 켜도 유지 */
 public final class Config {
@@ -19,12 +21,21 @@ public final class Config {
     public boolean highlightMissing = true;
     /** 상자 가치 위치: 0 = 상자 이름 옆, 1 = 상자 왼쪽 빈 곳 */
     public int valuePosition = 0;
-    /** HUD 위치 (화면 좌표). timerX < 0 이면 오른쪽 위 */
+    /**
+     * HUD 위치: 가까운 화면 가장자리에서 떨어진 거리.
+     * right 면 x 는 오른쪽 끝에서, bottom 이면 y 는 아래 끝에서 잰다 → 줄이 늘어도 화면 밖으로 나가지 않고 반대쪽으로 자란다.
+     */
     public int planX = 4, planY = 4;
-    public int timerX = -1, timerY = 4;
+    public boolean planRight = false, planBottom = false;
+    public int timerX = 4, timerY = 4;
+    public boolean timerRight = true, timerBottom = false;
     /** HUD 크기 (배율) · 너비 (0 = 내용에 맞춤) */
     public float planScale = 1f, timerScale = 1f;
     public int planWidth = 0, timerWidth = 0;
+    /** 타이머 HUD 에서 숨길 종류 (Timers.KINDS 의 키) */
+    public List<String> hiddenTimers = new ArrayList<>(List.of("fetchur", "experiment", "mayor"));
+    /** 설정 파일 형식 (옛 파일 옮기기용) */
+    public int layout = 0;
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static Config instance;
@@ -35,9 +46,21 @@ public final class Config {
         if (instance == null) {
             try { instance = GSON.fromJson(Files.readString(file()), Config.class); } catch (Exception ignored) {}
             if (instance == null) instance = new Config();
+            if (instance.hiddenTimers == null) instance.hiddenTimers = new ArrayList<>();
+            // 1.0.1 까지: timerX < 0 이면 오른쪽 위
+            if (instance.layout < 1) {
+                if (instance.timerX < 0) { instance.timerRight = true; instance.timerX = 4; }
+                else instance.timerRight = false;
+                instance.planRight = false; instance.planBottom = false; instance.timerBottom = false;
+                instance.layout = 1;
+            }
         }
         return instance;
     }
+
+    public boolean showTimer(String kind) { return !hiddenTimers.contains(kind); }
+
+    public void toggleTimer(String kind) { if (!hiddenTimers.remove(kind)) hiddenTimers.add(kind); }
 
     public static void save() {
         try { Files.writeString(file(), GSON.toJson(get())); } catch (Exception ignored) {}

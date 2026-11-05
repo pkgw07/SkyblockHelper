@@ -40,7 +40,8 @@ public final class Link {
             return false;
         }
     }
-    public record Timer(String label, long at) {}
+    /** kind: forge, composter, timeTower, fetchur, experiment, hoppity, mayor (옛 프로그램이면 other). start 를 모르면 0 */
+    public record Timer(String kind, String label, long at, boolean done, long start) {}
 
     private static volatile Socket socket;
     private static final Object WRITE = new Object();
@@ -106,7 +107,12 @@ public final class Link {
                 List<Timer> list = new ArrayList<>();
                 for (JsonElement e : m.getAsJsonArray("list")) {
                     JsonObject r = e.getAsJsonObject();
-                    list.add(new Timer(r.get("label").getAsString(), r.get("at").getAsLong()));
+                    String label = r.get("label").getAsString();
+                    // 옛 프로그램(2.0.7 이하)은 종류 없이 이모지가 붙은 이름만 보낸다
+                    String kind = r.has("kind") ? r.get("kind").getAsString() : (label.startsWith("포지") ? "forge" : "other");
+                    if (!r.has("kind")) label = label.replaceAll("[^\\x{0000}-\\x{FFFF}]\\s*", "").trim();
+                    list.add(new Timer(kind, label, r.get("at").getAsLong(),
+                        r.has("done") && r.get("done").getAsBoolean(), r.has("start") ? r.get("start").getAsLong() : 0));
                 }
                 timers = list;
             }
