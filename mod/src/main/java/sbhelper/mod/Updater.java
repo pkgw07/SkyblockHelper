@@ -38,33 +38,83 @@ public final class Updater {
     /** 받아 둔 새 파일 (게임을 끌 때 바꿈) */
     private static volatile Path pending = null;
 
-    public static boolean available() { return latest != null && url != null && newer(latest, SbhMod.VERSION) && pending == null; }
+    /** 지금 버전보다, 그리고 이미 받아 둔 버전보다 새 버전이 있는지 */
+    public static boolean available() {
+        if (latest == null || url == null || !newer(latest, SbhMod.VERSION)) return false;
+        String got = pendingVersion();
+        return got == null || newer(latest, got);
+    }
     public static boolean downloaded() { return pending != null; }
 
     /** 게임 시작 때 한 번 (따로 스레드) */
     public static void start() {
-        Thread t = new Thread(() -> {
-            resumePending();
-            try {
-                HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
-                HttpResponse<String> res = http.send(HttpRequest.newBuilder(URI.create(API))
-                    .header("Accept", "application/vnd.github+json").header("User-Agent", "SkyblockHelper-mod").timeout(Duration.ofSeconds(15)).build(),
-                    HttpResponse.BodyHandlers.ofString());
-                if (res.statusCode() != 200) return;
-                JsonObject root = JsonParser.parseString(res.body()).getAsJsonObject();
-                for (JsonElement e : root.getAsJsonArray("assets")) {
-                    JsonObject a = e.getAsJsonObject();
-                    Matcher m = JAR.matcher(a.get("name").getAsString());
-                    if (m.matches()) {
-                        fileName = a.get("name").getAsString();
-                        url = a.get("browser_download_url").getAsString();
-                        latest = m.group(1);
-                    }
-                }
-            } catch (Exception ignored) {}
-        }, "sbh-updater");
+        Thread t = new Thread(() -> { resumePending(); check(); }, "sbh-updater");
         t.setDaemon(true);
         t.start();
+        // 게임 중에도 30분마다 확인 (게임을 켠 뒤 새 버전이 나와도 알 수 있게)
+        Thread loop = new Thread(() -> {
+            while (true) {
+                try { Thread.sleep(30 * 60_000L); } catch (InterruptedException e) { return; }
+                String before = latest;
+                check();
+                if (available() && latest != null && !latest.equals(before)) notifyChat();
+            }
+        }, "sbh-updater-loop");
+        loop.setDaemon(true);
+        loop.start();
+    }
+
+    /** GitHub 최신 릴리스에서 모드 파일 찾기 (실패하면 그대로) */
+    public static synchronized void check() {
+        try {
+            HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).followRedirects(HttpClient.Redirect.NORMAL).build();
+            HttpResponse<String> res = http.send(HttpRequest.newBuilder(URI.create(API))
+                .header("Accept", "application/vnd.github+json").header("User-Agent", "SkyblockHelper-mod").timeout(Duration.ofSeconds(15)).build(),
+                HttpResponse.BodyHandlers.ofString());
+            if (res.statusCode() != 200) return;
+            JsonObject root = JsonParser.parseString(res.body()).getAsJsonObject();
+            for (JsonElement e : root.getAsJsonArray("assets")) {
+                JsonObject a = e.getAsJsonObject();
+                Matcher m = JAR.matcher(a.get("name").getAsString());
+                if (m.matches()) {
+                    fileName = a.get("name").getAsString();
+                    url = a.get("browser_download_url").getAsString();
+                    latest = m.group(1);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    /** /sbh update: 지금 다시 확인하고 새 버전이 있으면 업데이트 창 */
+    public static void checkNowAndOpen() {
+        Thread t = new Thread(() -> {
+            check();
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            mc.execute(() -> {
+                if (available()) { asked = true; mc.gui.setScreen(new UpdateScreen(null)); }
+                else msg(downloaded() ? "새 버전 " + pendingVersion() + " 을 받아 뒀어요. 게임을 다시 시작하면 적용돼요."
+                    : latest == null ? "확인하지 못했어요. 인터넷 연결을 확인해 주세요." : "최신 버전이에요 (" + SbhMod.VERSION + ")");
+            });
+        }, "sbh-updater-now");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static void notifyChat() {
+        msg("새 버전 §e" + latest + "§f 이 나왔어요. §e/sbh update§f 로 받을 수 있어요.");
+    }
+
+    private static void msg(String s) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+        mc.execute(() -> { if (mc.player != null) mc.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("§6[SkyblockHelper] §f" + s)); });
+    }
+
+    /** 받아 둔 새 파일의 버전 (없으면 null) */
+    private static String pendingVersion() {
+        Path p = pending;
+        if (p == null) return null;
+        Matcher m = JAR.matcher(p.getFileName().toString().replace(".jar.new", ".jar"));
+        return m.matches() ? m.group(1) : null;
     }
 
     /** '업데이트' 를 눌렀을 때: 받아서 *.jar.new 로 둔다. 성공하면 true */
@@ -76,6 +126,9 @@ public final class Updater {
             HttpResponse<Path> res = http.send(HttpRequest.newBuilder(URI.create(url)).header("User-Agent", "SkyblockHelper-mod")
                 .timeout(Duration.ofMinutes(2)).build(), HttpResponse.BodyHandlers.ofFile(tmp));
             if (res.statusCode() != 200 || Files.size(tmp) < 1000) { Files.deleteIfExists(tmp); return false; }
+            // 전에 받아 둔 (더 예전) 새 파일은 지운다
+            Path old = pending;
+            if (old != null && !old.equals(tmp)) Files.deleteIfExists(old);
             pending = tmp;
             return true;
         } catch (Exception e) {

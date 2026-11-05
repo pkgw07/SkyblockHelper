@@ -127,10 +127,8 @@ public final class SbhMod implements ClientModInitializer {
                 .executes(c -> { open = 1; return Command.SINGLE_SUCCESS; })
                 .then(ClientCommands.literal("hud").executes(c -> { open = 2; return Command.SINGLE_SUCCESS; }))
                 .then(ClientCommands.literal("update").executes(c -> {
-                    if (Updater.available()) open = 3;
-                    else c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f" + (Updater.downloaded()
-                        ? "새 버전을 받아 뒀어요. 게임을 다시 시작하면 적용돼요."
-                        : "최신 버전이에요 (" + VERSION + ")")));
+                    c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §7새 버전을 확인하는 중…"));
+                    Updater.checkNowAndOpen();
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(ClientCommands.literal("plan").executes(c -> { open = 4; return Command.SINGLE_SUCCESS; }))
