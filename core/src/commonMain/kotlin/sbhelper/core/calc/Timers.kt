@@ -42,12 +42,18 @@ object ExtraTimers {
         "mayor" to "🗳 새 시장 취임",
         "composter" to "🌱 가든 컴포스터 재료 소진",
         "timeTower" to "🍫 초콜릿 공장 Time Tower 충전",
+        "matriarch" to "🦪 Heavy Pearl (Matriarch)",
+        "kat" to "🐾 Kat · 펫 NPC 업그레이드",
     )
 
-    /** 처음 설치했을 때 알림이 켜져 있는 것 */
-    fun enabledByDefault(key: String) = key in setOf("composter", "timeTower", "mayor")
+    /** Matriarch 에게서 Heavy Pearl 을 다시 받을 수 있을 때까지 (위키 Matriarch: 하루 한 번) */
+    const val MATRIARCH_COOLDOWN = 24 * 3_600_000L
 
-    fun all(now: Long, data: GameData, profile: ProfileSummary?, garden: JsonObject?): List<ExtraTimer> {
+    /** 처음 설치했을 때 알림이 켜져 있는 것 */
+    fun enabledByDefault(key: String) = key in setOf("composter", "timeTower", "mayor", "matriarch", "kat")
+
+    fun all(now: Long, data: GameData, profile: ProfileSummary?, garden: JsonObject?,
+            gameTimers: Map<String, sbhelper.core.data.GameTimer> = emptyMap()): List<ExtraTimer> {
         val r = data.timerRules
         val out = mutableListOf<ExtraTimer>()
         r.fetchurReset?.let { nextDaily(now, it) }?.let {
@@ -62,7 +68,25 @@ object ExtraTimers {
         }
         composter(now, r.composter, garden)?.let { out += it }
         timeTower(now, r.timeTower, profile)?.let { out += it }
+        matriarch(now, profile, gameTimers["matriarch"])?.let { out += it }
+        // Kat · 펫 NPC: 게임 모드가 화면에서 읽어 알려 준 것 (공식 API 에는 없음). 끝나고 하루 지나면 뺀다
+        gameTimers.values.filter { it.kind == "kat" && now - it.at < 24 * 3_600_000L }.forEach { t ->
+            out += ExtraTimer("kat", t.label, "🐾", t.at, "펫 업그레이드가 끝나요. NPC 에게 가서 받아 주세요.", "게임 모드 (게임 화면)", done = t.at <= now)
+        }
         return out.filter { it.at > now || it.done }.sortedBy { if (it.done) Long.MIN_VALUE else it.at }
+    }
+
+    /**
+     * Heavy Pearl: 공식 API 의 마지막 받은 시각과 게임 모드가 본 시각 중 더 최근 것 + 하루.
+     * 받을 수 있게 되면 12시간 동안 '지금 받을 수 있어요' 로 남긴다.
+     */
+    private fun matriarch(now: Long, profile: ProfileSummary?, seen: sbhelper.core.data.GameTimer?): ExtraTimer? {
+        val last = listOfNotNull(profile?.matriarchLastAttempt, seen?.let { it.at - MATRIARCH_COOLDOWN }).maxOrNull() ?: return null
+        val at = last + MATRIARCH_COOLDOWN
+        if (now - at > 12 * 3_600_000L) return null
+        val src = if (seen != null && seen.at - MATRIARCH_COOLDOWN >= (profile?.matriarchLastAttempt ?: 0)) "게임 모드" else "공식 프로필 API"
+        return ExtraTimer("matriarch", "Heavy Pearl 다시 받기", "🦪", at,
+            if (at <= now) "Matriarch 에게서 Heavy Pearl 을 다시 받을 수 있어요" else "Matriarch 에게서 Heavy Pearl 을 다시 받을 수 있게 돼요", "$src + 위키 Matriarch", done = at <= now)
     }
 
     /** "America/New_York 00:00" → 다음 그 시각 */

@@ -43,6 +43,8 @@ object ModLink {
     @Volatile private var client: Socket? = null
     /** 상자 키(inv, ender:3, backpack:2, vault) → 내용. 상점 화면 같은 건 세지 않음 */
     private val containers = HashMap<String, Map<String, Long>>()
+    /** 상자 키 → 게임에서 본 시각. 게임을 꺼도 남겨 두고, 공식 API 가 더 새로워지면 API 를 쓴다 */
+    private val containersAt = HashMap<String, Long>()
 
     @Volatile private var repoRef: SkyblockRepository? = null
     @Volatile private var scopeRef: CoroutineScope? = null
@@ -84,6 +86,7 @@ object ModLink {
                     val timers = timersJson(repo).toString()
                     if (timers != lastTimers) { send(c, timers); lastTimers = timers }
                 }
+                publish()
                 delay(2000)
             }
         }
@@ -98,8 +101,8 @@ object ModLink {
         }
         if (client === s) {
             client = null
-            containers.clear()
-            _state.value = LiveGame()
+            // 게임이 꺼져도 마지막으로 본 상자 내용은 남긴다 (API 가 따라잡으면 publish 에서 빠짐)
+            _state.update { it.copy(connected = false, inSkyblock = false, area = "", purse = "") }
         }
     }
 
@@ -116,13 +119,14 @@ object ModLink {
                 it.copy(inSkyblock = m["sb"]?.jsonPrimitive?.content == "true", area = m["area"]?.jsonPrimitive?.content.orEmpty(),
                     purse = m["purse"]?.jsonPrimitive?.content.orEmpty())
             }
-            "inv" -> { containers["inv"] = counts(m); publish() }
+            "inv" -> { containers["inv"] = counts(m); containersAt["inv"] = System.currentTimeMillis(); publish() }
+            "timer.set" -> repoRef?.let { gameTimer(it, m) }
             "ah.search" -> repoRef?.let { auctionSearch(it, m) }
             "player.status" -> repoRef?.let { playerStatus(it, m) }
             "plan.select", "plan.add", "plan.remove", "plan.amount", "plan.exclude", "plan.option" -> repoRef?.let { planCommand(it, m) }
             "container" -> {
                 val key = CraftStock.liveKey(m["title"]?.jsonPrimitive?.content.orEmpty())
-                if (key != null) { containers[key] = counts(m); publish() }
+                if (key != null) { containers[key] = counts(m); containersAt[key] = System.currentTimeMillis(); publish() }
             }
         }
     }
@@ -224,7 +228,34 @@ object ModLink {
     private fun counts(m: JsonObject): Map<String, Long> =
         (m["items"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.content?.toLongOrNull()?.let { k to it } }?.toMap().orEmpty()
 
-    private fun publish() { _state.update { it.copy(containers = HashMap(containers)) } }
+    /**
+     * 게임에서 본 상자 내용 중 아직 공식 API 보다 새로운 것만 내보낸다.
+     * API 는 게임보다 1~3분 늦으니, 프로필을 받은 시각 3분 전보다 나중에 본 것은 게임 쪽이 더 새롭다고 본다.
+     */
+    private fun publish() {
+        val sync = repoRef?.state?.value?.lastProfileSync ?: 0L
+        val fresh = containers.filterKeys { (containersAt[it] ?: 0L) > sync - 3 * 60_000L }
+        _state.update { if (it.containers == fresh) it else it.copy(containers = HashMap(fresh)) }
+    }
+
+    /** 게임 모드가 게임 화면에서 읽은 타이머 (Kat · 펫 NPC · Heavy Pearl) → 동기화 설정에 저장 (게임을 꺼도 알림, 휴대폰에도) */
+    private fun gameTimer(repo: SkyblockRepository, m: JsonObject) {
+        val key = m["key"]?.jsonPrimitive?.content?.takeIf { it.isNotBlank() } ?: return
+        val at = m["at"]?.jsonPrimitive?.content?.toLongOrNull() ?: return
+        val t = sbhelper.core.data.GameTimer(
+            kind = m["kind"]?.jsonPrimitive?.content ?: "kat",
+            label = m["label"]?.jsonPrimitive?.content.orEmpty(),
+            at = at,
+            start = m["start"]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L,
+            seenAt = System.currentTimeMillis(),
+        )
+        repo.updateSynced { s ->
+            if (s.gameTimers[key]?.let { it.at == t.at && it.label == t.label } == true) return@updateSynced s
+            // 끝난 지 이틀 지난 건 정리
+            val keep = s.gameTimers.filterValues { System.currentTimeMillis() - it.at < 2 * 86_400_000L }
+            s.copy(gameTimers = keep + (key to t))
+        }
+    }
 
     private fun send(s: Socket, text: String) {
         runCatching { val o: OutputStream = s.getOutputStream(); o.write((text + "\n").toByteArray(Charsets.UTF_8)); o.flush() }

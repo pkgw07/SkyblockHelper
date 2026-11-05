@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  *  - Dojo (Discipline): 좀비 투구에 맞는 칼을 머리 위에
  *  - Kuudra: 들어간 뒤 지난 시간
  *  - Heavy Pearl (Matriarch): Heavy Pearl 을 받으면 24시간 타이머
- *  - Kat: Kat(Pet Sitter) 화면에서 펫 업그레이드 남은 시간을 읽어 타이머
+ *  - Kat · 펫 레벨링 NPC: 펫을 맡긴 화면에서 남은 시간을 읽어 타이머 (프로그램에도 보내 휴대폰 · 알림)
  */
 public final class Bosses {
     private static final Pattern PILLAR = Pattern.compile("(\\d+)s\\s+(\\d+)\\s*hits?", Pattern.CASE_INSENSITIVE);
@@ -97,46 +97,89 @@ public final class Bosses {
         String low = plain.toLowerCase(Locale.ROOT);
         if (plain.contains("Heavy Pearl") && !plain.contains(":") && !low.contains("bazaar") && !low.contains("auction") && !low.contains("bought") && !low.contains("sold")
             && (low.contains("found") || low.contains("collected") || low.contains("received") || low.contains("got") || low.contains("matriarch"))) {
-            c.matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
-            Config.save();
+            setHeavyPearl(System.currentTimeMillis());
         }
+    }
+
+    /** Heavy Pearl 을 받은 시각 → 하루 뒤까지 타이머 (프로그램에도 알려서 휴대폰 · 알림까지) */
+    public static void setHeavyPearl(long gotAt) {
+        Config c = Config.get();
+        c.matriarchAt = gotAt + 24 * 3_600_000L;
+        Config.save();
+        sendTimer("matriarch", "matriarch", "Heavy Pearl 다시 받기", c.matriarchAt, gotAt);
+    }
+
+    private static void sendTimer(String key, String kind, String label, long at, long start) {
+        com.google.gson.JsonObject m = new com.google.gson.JsonObject();
+        m.addProperty("t", "timer.set");
+        m.addProperty("key", key);
+        m.addProperty("kind", kind);
+        m.addProperty("label", label);
+        m.addProperty("at", at);
+        m.addProperty("start", start);
+        Link.send(m);
+    }
+
+    /** 프로그램과 다시 연결되면 게임에서 본 타이머를 다시 보낸다 */
+    public static void resend() {
+        Config c = Config.get();
+        long now = System.currentTimeMillis();
+        if (c.matriarchAt > now) sendTimer("matriarch", "matriarch", "Heavy Pearl 다시 받기", c.matriarchAt, c.matriarchAt - 24 * 3_600_000L);
+        c.petTimers.forEach((k, t) -> { if (now - t.at < 86_400_000L) sendTimer(k, "kat", t.label, t.at, t.start); });
     }
 
     /** 모드가 직접 세는 타이머 (타이머 HUD 에 같이) */
     public static List<Link.Timer> localTimers() {
         List<Link.Timer> out = new ArrayList<>();
+        // 프로그램과 연결돼 있으면 프로그램이 API · 게임 정보를 합쳐서 보내 주므로 겹치지 않게 뺀다
+        if (Link.connected) return out;
         Config c = Config.get();
-        if (c.matriarchAt > 0) out.add(new Link.Timer("matriarch", "Heavy Pearl (Matriarch)", c.matriarchAt, false, c.matriarchAt - 24 * 3_600_000L));
-        if (c.katAt > 0) out.add(new Link.Timer("kat", "Kat " + (c.katPet.isEmpty() ? "펫 업그레이드" : c.katPet), c.katAt, false, c.katStart));
+        long now = System.currentTimeMillis();
+        if (c.matriarchAt > 0 && now - c.matriarchAt < 12 * 3_600_000L)
+            out.add(new Link.Timer("matriarch", "Heavy Pearl 다시 받기", c.matriarchAt, c.matriarchAt <= now, c.matriarchAt - 24 * 3_600_000L));
+        c.petTimers.forEach((k, t) -> { if (now - t.at < 86_400_000L) out.add(new Link.Timer("kat", t.label, t.at, t.at <= now, t.start)); });
         return out;
     }
 
-    private static final Pattern KAT_TIME = Pattern.compile("(?i)(time remaining|ready in|remaining|upgrade(?:s|d)? in|ends? in|will be ready)");
+    private static final Pattern KAT_TIME = Pattern.compile("(?i)(time remaining|ready in|remaining|upgrad|training|leveling|levelling|will be ready|complete[sd]? in|done in)");
 
-    /** 0.5초마다 열린 상자 화면: Kat(Pet Sitter) 이면 업그레이드 중인 펫의 남은 시간을 읽는다 */
+    /**
+     * 0.5초마다 열린 상자 화면: Kat(Pet Sitter) 나 펫 레벨링 NPC 처럼 펫을 맡기는 화면이면
+     * 펫 아이템 설명의 남은 시간을 읽어 타이머로 (경매장 · 바자 화면은 제외)
+     */
     public static void screen(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
         if (!SkyBlock.inSkyblock) return;
         String title = SkyBlock.strip(cs.getTitle().getString());
-        if (!title.contains("Pet Sitter") && !title.contains("Kat")) return;
+        String low = title.toLowerCase(Locale.ROOT);
+        if (low.contains("auction") || low.contains("bazaar") || low.contains("bids") || low.contains("trade")) return;
         long best = -1;
         String pet = "";
         for (net.minecraft.world.inventory.Slot slot : cs.getMenu().slots) {
             if (slot.container instanceof net.minecraft.world.entity.player.Inventory || slot.getItem().isEmpty()) continue;
+            String name = ItemText.name(slot.getItem());
+            boolean isPet = Pets.level(slot.getItem()) > 0 || name.contains("Pet") || title.contains("Pet Sitter") || title.contains("Kat");
+            if (!isPet) continue;
             for (String line : ItemText.lore(slot.getItem())) {
                 if (!KAT_TIME.matcher(line).find()) continue;
                 long ms = Tooltips.duration(line);
-                if (ms > best) { best = ms; pet = ItemText.name(slot.getItem()); }
+                if (ms > best) { best = ms; pet = name; }
             }
         }
         if (best < 60_000L) return;
+        String npc = title.contains("Pet Sitter") || title.contains("Kat") ? "Kat" : title.replaceAll("\\s*\\(.*\\)$", "");
+        String key = "pet:" + npc;
+        String label = npc + " · " + pet.replaceAll("\\[Lvl \\d+\\] ", "");
+        long now = System.currentTimeMillis(), at = now + best;
         Config c = Config.get();
-        long at = System.currentTimeMillis() + best;
-        if (Math.abs(at - c.katAt) > 120_000L || !pet.equals(c.katPet)) {
-            if (c.katAt <= System.currentTimeMillis() || !pet.equals(c.katPet)) c.katStart = System.currentTimeMillis();
-            c.katAt = at;
-            c.katPet = pet.replaceAll("\\[Lvl \\d+\\] ", "");
-            Config.save();
-        }
+        Config.PetTimer old = c.petTimers.get(key);
+        if (old != null && Math.abs(at - old.at) <= 120_000L && old.label.equals(label)) return;
+        Config.PetTimer t = new Config.PetTimer();
+        t.label = label;
+        t.at = at;
+        t.start = old != null && old.label.equals(label) && old.at > now ? old.start : now;
+        c.petTimers.put(key, t);
+        Config.save();
+        sendTimer(key, "kat", label, t.at, t.start);
     }
 
     /** 화면 가운데 위: 불기둥 경고, Ashfang · Kuudra 정보 */

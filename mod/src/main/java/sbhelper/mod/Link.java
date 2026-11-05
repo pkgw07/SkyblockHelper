@@ -79,6 +79,7 @@ public final class Link {
                 hello.addProperty("modsDir", net.fabricmc.loader.api.FabricLoader.getInstance().getGameDir().resolve("mods").toAbsolutePath().toString());
                 send(hello);
                 SkyBlock.resend();
+                Bosses.resend();
                 BufferedReader in = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
                 String line;
                 while ((line = in.readLine()) != null) {
@@ -166,6 +167,17 @@ public final class Link {
                         r.has("done") && r.get("done").getAsBoolean(), r.has("start") ? r.get("start").getAsLong() : 0));
                 }
                 timers = list;
+                // 프로그램이 꺼져도 남은 시간을 보여 줄 수 있게 기억 · Heavy Pearl 은 API 값이 더 최근이면 받아 둔다
+                Config c = Config.get();
+                List<Config.CachedTimer> cache = new ArrayList<>();
+                for (Timer t : list) {
+                    Config.CachedTimer ct = new Config.CachedTimer();
+                    ct.kind = t.kind(); ct.label = t.label(); ct.at = t.at(); ct.start = t.start(); ct.done = t.done();
+                    cache.add(ct);
+                    if (t.kind().equals("matriarch") && t.at() > c.matriarchAt) c.matriarchAt = t.at();
+                }
+                c.cachedTimers = cache;
+                Config.save();
             }
             default -> {}
         }

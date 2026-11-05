@@ -94,6 +94,8 @@ data class ProfileSummary(
     /** 샤드 ID → 가진 개수 (member.shards.owned) */
     val shardsOwned: Map<String, Long> = emptyMap(),
     val timeTowerLastCharge: Long? = null,
+    /** 크림슨 아일 Matriarch 에게서 Heavy Pearl 을 마지막으로 받은 시각(ms) — nether_island_player_data.matriarch.last_attempt */
+    val matriarchLastAttempt: Long? = null,
 ) {
     val skyblockLevel: Double? get() = skyblockXp?.div(100.0)
 
@@ -206,6 +208,7 @@ object ProfileParser {
             tokensSpent = member.obj("skill_tree", "tokens_spent")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             hotfXp = member.num("skill_tree", "experience", "foraging"),
             timeTowerCharges = member.num("events", "easter", "time_tower", "charges")?.toInt(),
+            matriarchLastAttempt = member.num("nether_island_player_data", "matriarch", "last_attempt")?.toLong()?.takeIf { it > 0 },
             attributeStacks = member.obj("attributes", "stacks")?.mapNotNull { (k, v) -> v.num()?.toInt()?.let { k to it } }?.toMap().orEmpty(),
             shardsOwned = (member.path("shards", "owned") as? kotlinx.serialization.json.JsonArray)?.mapNotNull { e ->
                 val o = e as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null

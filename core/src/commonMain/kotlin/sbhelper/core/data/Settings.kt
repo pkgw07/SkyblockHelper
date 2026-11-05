@@ -27,6 +27,8 @@ data class SyncedSettings(
     val ironmanChecked: Set<String> = emptySet(),
     /** 제작 플래너 Recipe tree 에서 끈 재료: 목표 아이템 → 끈 재료 ID (기기 간 동기화, 다시 켜도 유지) */
     val craftExcluded: Map<String, Set<String>> = emptyMap(),
+    /** 게임 모드가 게임 화면에서 읽어 알려 준 타이머 (Kat · 펫 NPC · Heavy Pearl). 키 → 타이머. 게임을 꺼도 기억하고 기기 간 동기화 */
+    val gameTimers: Map<String, GameTimer> = emptyMap(),
     /** 오늘 할 일: 체크한 항목 키 → 체크한 시각 (초기화 시각이 지나면 다시 빈 칸) */
     val dailyDone: Map<String, Long> = emptyMap(),
     /** 오늘 할 일에 직접 추가한 항목 (매일 이 기기 시각 자정에 초기화) */
@@ -68,6 +70,10 @@ data class PriceAlert(
 
 @Serializable
 data class CraftTarget(val itemId: String, val amount: Int = 1)
+
+/** 게임 모드가 알려 준 타이머: 종류(kat, matriarch), 이름, 끝나는 시각, 시작 시각, 알려 준 시각 */
+@Serializable
+data class GameTimer(val kind: String, val label: String, val at: Long, val start: Long = 0, val seenAt: Long = 0)
 
 /** 이 기기에만 해당하는 설정 */
 @Serializable

@@ -51,9 +51,8 @@ public final class Hud {
         if (!c.hud || mc.player == null) return;
         if (SkyBlock.inSkyblock) Bosses.hud(g);
         if (c.onlyInSkyblock && !SkyBlock.inSkyblock) return;
-        if (!Link.connected && !SkyBlock.TEST) return;
-        if (c.planHud) drawAt(g, mc.font, planLines(), c.planX, c.planY, c.planRight, c.planBottom, c.planScale, c.planWidth);
-        if (c.timerHud) drawAt(g, mc.font, timerLines(), c.timerX, c.timerY, c.timerRight, c.timerBottom, c.timerScale, c.timerWidth);
+        if (c.planHud && (Link.connected || SkyBlock.TEST)) drawAt(g, mc.font, planLines(), c.planX, c.planY, c.planRight, c.planBottom, c.planScale, c.planWidth);
+        if (c.timerHud && (Link.connected || SkyBlock.TEST || !c.cachedTimers.isEmpty() || !Bosses.localTimers().isEmpty())) drawAt(g, mc.font, timerLines(), c.timerX, c.timerY, c.timerRight, c.timerBottom, c.timerScale, c.timerWidth);
     }
 
     /** 가장자리 기준 위치로 그린다. 그린 자리 [x, y, 폭, 높이] */
@@ -90,7 +89,13 @@ public final class Hud {
         List<Row> rows = new ArrayList<>();
         long now = System.currentTimeMillis();
         List<Link.Timer> shown = new ArrayList<>();
-        List<Link.Timer> all = new ArrayList<>(Link.timers);
+        // 프로그램과 연결: 프로그램이 보낸 것 (API + 게임 정보) · 꺼져 있으면: 마지막으로 받은 것 중 남은 것 + 게임에서 본 것
+        List<Link.Timer> all = new ArrayList<>();
+        if (Link.connected || SkyBlock.TEST) all.addAll(Link.timers);
+        else for (Config.CachedTimer t : c.cachedTimers) {
+            if (t.kind.equals("matriarch") || t.kind.equals("kat")) continue;
+            if (t.at > now - 3_600_000L || t.done) all.add(new Link.Timer(t.kind, t.label, t.at, t.done || t.at <= now, t.start));
+        }
         all.addAll(Bosses.localTimers());
         all.sort((a, b) -> a.done() != b.done() ? (a.done() ? -1 : 1) : Long.compare(a.at(), b.at()));
         for (Link.Timer t : all) if (c.showTimer(t.kind())) shown.add(t);

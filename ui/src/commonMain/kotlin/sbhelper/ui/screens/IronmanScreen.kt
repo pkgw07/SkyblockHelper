@@ -111,7 +111,8 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     val useInv = state.device.plannerUseInventory
     // 게임 모드가 연결돼 있으면 인벤토리·엔더 상자·백팩은 게임에서 바로 받은 값 (공식 API 는 1~3분 늦음)
     val live = sbhelper.ui.LocalPlatform.current.liveGame?.collectAsState()?.value
-    val liveBoxes = live?.containers?.takeIf { live.connected }
+    // 게임에서 본 상자 (게임을 꺼도 공식 API 가 따라잡을 때까지 남아 있음)
+    val liveBoxes = live?.containers?.takeIf { it.isNotEmpty() }
     // 상자마다: 게임에서 이번에 본 건 실시간, 아닌 건 공식 API (안 열어 본 엔더 상자·백팩도 빠지지 않게)
     val stock = remember(sacks, apiBoxes, liveBoxes, useSacks, useInv) {
         sbhelper.core.calc.CraftStock.merge(if (useSacks) sacks.orEmpty() else emptyMap(),

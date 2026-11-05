@@ -137,14 +137,12 @@ public final class SbhMod implements ClientModInitializer {
                     .executes(c -> { Stalk.ask(com.mojang.brigadier.arguments.StringArgumentType.getString(c, "name")); return Command.SINGLE_SUCCESS; })))
                 .then(ClientCommands.literal("island").executes(c -> { World.island(); return Command.SINGLE_SUCCESS; }))
                 .then(ClientCommands.literal("heavypearl").executes(c -> {
-                    Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
-                    Config.save();
+                    Bosses.setHeavyPearl(System.currentTimeMillis());
                     c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §fHeavy Pearl 타이머를 24시간으로 맞췄어요"));
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(ClientCommands.literal("matriarch").executes(c -> {
-                    Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
-                    Config.save();
+                    Bosses.setHeavyPearl(System.currentTimeMillis());
                     c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §fMatriarch 타이머를 24시간으로 맞췄어요"));
                     return Command.SINGLE_SUCCESS;
                 }))

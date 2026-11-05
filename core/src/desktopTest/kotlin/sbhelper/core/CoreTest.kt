@@ -372,6 +372,28 @@ class CoreTest {
     }
 
     @Test
+    fun heavyPearlAndKatTimers() {
+        val now = 1_793_500_000_000L
+        val member = SbJson.parseToJsonElement("""{"nether_island_player_data":{"matriarch":{"pearls_collected":3,"last_attempt":${now - 3_600_000L}}}}""").jsonObject
+        val root = SbJson.parseToJsonElement("""{"profile_id":"p","cute_name":"Apple","selected":true,"members":{"u":${member}}}""").jsonObject
+        val profile = assertNotNull(ProfileParser.parse(root, "u"))
+        assertEquals(now - 3_600_000L, profile.matriarchLastAttempt)
+        val data = GameData()
+        // API 만: 마지막 받은 시각 + 하루
+        val api = sbhelper.core.calc.ExtraTimers.all(now, data, profile, null).first { it.key == "matriarch" }
+        assertEquals(now - 3_600_000L + 24 * 3_600_000L, api.at)
+        // 게임 모드가 더 최근에 본 시각이 있으면 그것을 쓴다
+        val seen = sbhelper.core.data.GameTimer("matriarch", "Heavy Pearl", now + 23 * 3_600_000L + 1_800_000L, seenAt = now)
+        val kat = sbhelper.core.data.GameTimer("kat", "Kat · Golden Dragon", now + 5 * 3_600_000L, start = now - 3_600_000L, seenAt = now)
+        val all = sbhelper.core.calc.ExtraTimers.all(now, data, profile, null, mapOf("matriarch" to seen, "pet:Kat" to kat))
+        assertEquals(seen.at, all.first { it.key == "matriarch" }.at)
+        assertEquals(kat.at, all.first { it.key == "kat" }.at)
+        // 끝난 지 하루가 지난 Kat 타이머는 빠진다
+        val old = sbhelper.core.calc.ExtraTimers.all(now + 30 * 3_600_000L, data, null, null, mapOf("pet:Kat" to kat))
+        assertTrue(old.none { it.key == "kat" })
+    }
+
+    @Test
     fun wardrobeFromLoadoutAndDungeonRuns() {
         // 실제 프로필과 같은 위치 (2026-11 진단으로 확인): member.loadout.armor.<n>.<SLOT>.data
         val member = SbJson.parseToJsonElement("""{

@@ -148,7 +148,7 @@ data class AppState(
 
     /** 포지·이벤트 말고 추가 타이머 */
     fun extraTimers(now: Long): List<sbhelper.core.calc.ExtraTimer> =
-        sbhelper.core.calc.ExtraTimers.all(now, gameData, selectedProfile, garden)
+        sbhelper.core.calc.ExtraTimers.all(now, gameData, selectedProfile, garden, synced.gameTimers)
 
     /** 바자 판매 수수료(비율). 위키 기본값 + 시장 효과(예: Derpy 4배) */
     val bazaarTaxRate: Double

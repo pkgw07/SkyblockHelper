@@ -71,9 +71,13 @@ public final class Config {
     public boolean dojoHelper = true;
     public boolean kuudraTimer = true;
     public long matriarchAt = 0;
-    /** Kat 펫 업그레이드: 끝나는 시각 · 시작 시각 · 펫 이름 */
-    public long katAt = 0, katStart = 0;
-    public String katPet = "";
+    /** Kat · 펫 레벨링 NPC: 키(pet:NPC) → 타이머 */
+    public Map<String, PetTimer> petTimers = new HashMap<>();
+    /** 프로그램이 마지막으로 보내 준 타이머 (프로그램이 꺼져 있어도 HUD 에 남은 것을 보여 줌) */
+    public List<CachedTimer> cachedTimers = new ArrayList<>();
+
+    public static final class PetTimer { public String label = ""; public long at = 0, start = 0; }
+    public static final class CachedTimer { public String kind = "", label = ""; public long at = 0, start = 0; public boolean done = false; }
     /** 3단계 (1.3.0) */
     public boolean areaMusic = true;
     public float musicVolume = 0.5f;
@@ -95,6 +99,8 @@ public final class Config {
             if (instance == null) instance = new Config();
             if (instance.hiddenTimers == null) instance.hiddenTimers = new ArrayList<>();
             if (instance.signValues == null) instance.signValues = new HashMap<>();
+            if (instance.petTimers == null) instance.petTimers = new HashMap<>();
+            if (instance.cachedTimers == null) instance.cachedTimers = new ArrayList<>();
             // 1.0.1 까지의 파일: timerX < 0 이면 오른쪽 위, 아니면 왼쪽 기준
             if (text != null && !text.contains("\"layout\"")) {
                 if (instance.timerX < 0) { instance.timerRight = true; instance.timerX = 4; }
