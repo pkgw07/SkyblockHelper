@@ -1,7 +1,7 @@
 name: Mod test
 
 # 진짜 게임(26.2)을 화면 없이(xvfb) 띄워서 모드 화면을 열고 사진을 찍는다.
-# 사진은 ci-screenshots 브랜치에 올린다 (매번 덮어씀).
+# 사진은 mod-screenshots 브랜치에 올린다 (매번 덮어씀).
 on:
   workflow_dispatch:
 
@@ -43,6 +43,6 @@ jobs:
           ls -la shots
           [ -n "$(ls shots)" ] || exit 0
           cd shots
-          git init -q && git checkout -q -b ci-screenshots
+          git init -q && git checkout -q -b mod-screenshots
           git add . && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "screenshots ${GITHUB_SHA::7}"
-          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" mod-screenshots
