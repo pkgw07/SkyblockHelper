@@ -7,6 +7,8 @@ import net.fabricmc.loader.api.FabricLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.List;
 
 /** 설정 (config/skyblockhelper.json) — 게임을 다시 켜도 유지 */
@@ -34,6 +36,20 @@ public final class Config {
     public int planWidth = 0, timerWidth = 0;
     /** 타이머 HUD 에서 숨길 종류 (Timers.KINDS 의 키) */
     public List<String> hiddenTimers = new ArrayList<>(List.of("fetchur", "experiment", "mayor"));
+    /** 상자 · 경매장 · 툴팁 (1.1.0) */
+    public boolean storagePreview = true;
+    public boolean petColors = true;
+    public boolean ahBidStatus = true;
+    public boolean ahSellerView = true;
+    public boolean ahPriceSearch = true;
+    public boolean signHistory = true;
+    public boolean realTimes = true;
+    public boolean itemAge = true;
+    public boolean hideExperimentTips = true;
+    public boolean hideHarpTips = true;
+    public boolean copyKeys = true;
+    /** 표지판 입력 기록: 표지판 아래 줄 → 최근 값 */
+    public Map<String, List<String>> signValues = new HashMap<>();
     /** 설정 파일 형식 (옛 파일 옮기기용) */
     public int layout = 0;
 
@@ -47,6 +63,7 @@ public final class Config {
             try { instance = GSON.fromJson(Files.readString(file()), Config.class); } catch (Exception ignored) {}
             if (instance == null) instance = new Config();
             if (instance.hiddenTimers == null) instance.hiddenTimers = new ArrayList<>();
+            if (instance.signValues == null) instance.signValues = new HashMap<>();
             // 1.0.1 까지: timerX < 0 이면 오른쪽 위
             if (instance.layout < 1) {
                 if (instance.timerX < 0) { instance.timerRight = true; instance.timerX = 4; }

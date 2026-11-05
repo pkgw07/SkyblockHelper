@@ -18,12 +18,12 @@ import java.util.Map;
 import java.util.function.IntConsumer;
 
 /**
- * /sbh 로 여는 모드 설정 창. 탭(일반 · HUD · 타이머 · 상자)과 켜고 끄는 스위치.
+ * /sbh 로 여는 모드 설정 창. 탭(일반 · HUD · 타이머 · 상자 · 경매장 · 툴팁 · 도구)과 켜고 끄는 스위치.
  * 열고 닫을 때 미끄러지며 나타나고, 스위치·탭 밑줄·버튼은 부드럽게 움직인다.
  */
 public final class SettingsScreen extends Screen {
     private static final Identifier ICON = Identifier.fromNamespaceAndPath("skyblockhelper", "icon.png");
-    private static final String[] TABS = {"일반", "HUD", "타이머", "상자"};
+    private static final String[] TABS = {"일반", "HUD", "타이머", "상자", "경매장", "툴팁", "도구"};
     private static final int PANEL = 0xF0141820, BORDER = 0x38FFFFFF, CARD = 0x10FFFFFF, CARD_HOVER = 0x24FFFFFF,
         TRACK = 0xFF3A404C, ACCENT = Hud.ACCENT, ACCENT_HI = 0xFFFFBE5C, DARK_TEXT = 0xFF1B1405;
     /** 마지막으로 본 탭 (다시 열면 그대로) */
@@ -118,14 +118,14 @@ public final class SettingsScreen extends Screen {
         int tx = px + 10;
         int[] tabX = new int[TABS.length], tabW = new int[TABS.length];
         for (int i = 0; i < TABS.length; i++) {
-            int w = this.font.width(TABS[i]) + 18;
+            int w = this.font.width(TABS[i]) + 14;
             tabX[i] = tx; tabW[i] = w;
             boolean hov = Ui.inside(mx, my, tx, ty, tx + w, ty + 17);
             float hv = anim.to("tab" + i, hov ? 1 : 0, 16);
             float act = anim.to("tabA" + i, i == tab ? 1 : 0, 14);
             if (hv > 0.01f) Ui.round(g, tx, ty + 1, tx + w, ty + 16, Ui.alpha(0x18FFFFFF, a * hv));
             int color = Ui.mix(Math.max(act, hv * 0.6f), 0xFF8A8F99, 0xFFFFFFFF);
-            text(g, TABS[i], tx + 9, ty + 5, Ui.alpha(color, a));
+            text(g, TABS[i], tx + 7, ty + 5, Ui.alpha(color, a));
             int idx = i;
             hits.add(new Hit(tx, ty, tx + w, ty + 17, () -> setTab(idx)));
             tx += w + 2;
@@ -141,7 +141,10 @@ public final class SettingsScreen extends Screen {
             case 0 -> general(g, mx, my, cx, cy, cw, ca);
             case 1 -> hud(g, mx, my, cx, cy, cw, ca);
             case 2 -> timers(g, mx, my, cx, cy, cw, ca);
-            default -> containers(g, mx, my, cx, cy, cw, ca);
+            case 3 -> containers(g, mx, my, cx, cy, cw, ca);
+            case 4 -> auction(g, mx, my, cx, cy, cw, ca);
+            case 5 -> tooltips(g, mx, my, cx, cy, cw, ca);
+            default -> tools(g, mx, my, cx, cy, cw, ca);
         }
 
         // 아래: 안내 + 완료
@@ -158,10 +161,9 @@ public final class SettingsScreen extends Screen {
         int half = (w - 6) / 2;
         toggle(g, mx, my, x, y, half, "hud", "HUD 전체", "단축키 O 로도 켜고 꺼요", null, c.hud, () -> c.hud = !c.hud, a);
         toggle(g, mx, my, x + half + 6, y, half, "onlysb", "스카이블록에서만", "스카이블록 밖에서는 HUD 를 숨겨요", null, c.onlyInSkyblock, () -> c.onlyInSkyblock = !c.onlyInSkyblock, a);
-        toggle(g, mx, my, x, y + 26, half, "tooltip", "툴팁 시세", "아이템 설명에 바자 · 경매장 · NPC 가격", null, c.tooltipPrices, () -> c.tooltipPrices = !c.tooltipPrices, a);
 
         // 지금 상태
-        int sy = y + 56;
+        int sy = y + 30;
         Ui.round2(g, x, sy, x + w, sy + 50, Ui.alpha(0x0CFFFFFF, a));
         text(g, "지금 상태", x + 8, sy + 6, Ui.alpha(0xFF8A8F99, a));
         String where = !Link.connected ? "-" : SkyBlock.inSkyblock ? (SkyBlock.area.isEmpty() ? "스카이블록" : SkyBlock.area) : "스카이블록 아님";
@@ -212,7 +214,44 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x, y, half, "value", "상자 가치", "열어 본 상자 안 아이템의 총가치", null, c.containerValue, () -> c.containerValue = !c.containerValue, a);
         toggle(g, mx, my, x + half + 6, y, half, "highlight", "부족한 재료 강조", "제작 플래너에 모자란 재료 칸을 초록색으로", null,
             c.highlightMissing, () -> c.highlightMissing = !c.highlightMissing, a);
-        segment(g, mx, my, x, y + 26, w, "가치 위치", new String[]{"이름 옆", "왼쪽 빈 곳"}, c.valuePosition, v -> c.valuePosition = v, a);
+        toggle(g, mx, my, x, y + 24, half, "storage", "Storage 미리보기", "Storage 를 열면 엔더 체스트 · 백팩을 한 화면에. 눌러서 열기", null,
+            c.storagePreview, () -> c.storagePreview = !c.storagePreview, a);
+        toggle(g, mx, my, x + half + 6, y + 24, half, "pets", "펫 레벨 배경색", "Pets 화면에서 레벨에 따라 칸 색", null, c.petColors, () -> c.petColors = !c.petColors, a);
+        segment(g, mx, my, x, y + 50, w, "가치 위치", new String[]{"이름 옆", "왼쪽 빈 곳"}, c.valuePosition, v -> c.valuePosition = v, a);
+    }
+
+    private void auction(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "bid", "입찰 상태", "내가 최고 입찰이면 초록, 밀렸으면 빨간 테두리", null, c.ahBidStatus, () -> c.ahBidStatus = !c.ahBidStatus, a);
+        toggle(g, mx, my, x + half + 6, y, half, "seller", "판매자 보기", "아이템을 가운데 클릭하면 그 판매자의 경매 목록", null, c.ahSellerView, () -> c.ahSellerView = !c.ahSellerView, a);
+        toggle(g, mx, my, x, y + 24, half, "ahsearch", "가격 검색 칸", "경매 목록 옆 칸에 1m-5m 처럼 적으면 그 가격대를 초록으로", null,
+            c.ahPriceSearch, () -> c.ahPriceSearch = !c.ahPriceSearch, a);
+        toggle(g, mx, my, x + half + 6, y + 24, half, "sign", "표지판 입력 목록", "가격 · 검색어 · 금액을 적는 표지판에서 전에 적은 값 고르기", null,
+            c.signHistory, () -> c.signHistory = !c.signHistory, a);
+    }
+
+    private void tooltips(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "tooltip", "툴팁 시세", "아이템 설명에 바자 · 경매장 · NPC 가격", null, c.tooltipPrices, () -> c.tooltipPrices = !c.tooltipPrices, a);
+        toggle(g, mx, my, x + half + 6, y, half, "times", "남은 시간 → 시각", "경매 종료 · 이벤트 · 은행 이자 · Pet Care 를 실제 시각으로", null,
+            c.realTimes, () -> c.realTimes = !c.realTimes, a);
+        toggle(g, mx, my, x, y + 24, half, "age", "얻은 날", "아이템에 기록이 있으면 얻은 날짜", null, c.itemAge, () -> c.itemAge = !c.itemAge, a);
+        toggle(g, mx, my, x + half + 6, y + 24, half, "exp", "실험대 툴팁 숨기기", "Chronomatron · Ultrasequencer · Superpairs", null,
+            c.hideExperimentTips, () -> c.hideExperimentTips = !c.hideExperimentTips, a);
+        toggle(g, mx, my, x, y + 48, half, "harp", "Harp 툴팁 숨기기", "Melody's Harp 화면", null, c.hideHarpTips, () -> c.hideHarpTips = !c.hideHarpTips, a);
+    }
+
+    private void tools(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "copy", "복사 단축키", "상자 화면에서 Ctrl+C 아이템, Ctrl+Shift+C 화면 전체", null, c.copyKeys, () -> c.copyKeys = !c.copyKeys, a);
+        button(g, mx, my, x + half + 6, y + 1, half, 18, "copyInv", "인벤토리 복사", false, () -> { Ui.click(); Copy.inventory(); }, a);
+        button(g, mx, my, x, y + 26, half, 18, "copyEntity", "보고 있던 엔티티 복사", false, () -> { Ui.click(); Copy.entity(); }, a);
+        button(g, mx, my, x + half + 6, y + 26, half, 18, "storageClear", "Storage 기억 지우기", false, () -> { Ui.click(); Storage.clear(); }, a);
+        text(g, Hud.fit(this.font, "복사한 내용(JSON)을 보내 주시면 기능을 더 정확하게 맞출 수 있어요", w), x + 2, y + 54, Ui.alpha(0xFF8A8F99, a));
+        text(g, Hud.fit(this.font, "명령어: /sbh copy · /sbh entity", w), x + 2, y + 66, Ui.alpha(0xFF6F7580, a));
     }
 
     // ---------- 부품 ----------

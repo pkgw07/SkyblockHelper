@@ -16,12 +16,24 @@ import java.util.List;
 public final class ContainerOverlay {
     private static final int HIGHLIGHT = 0x6655FF55;
 
-    /** 칸 뒤에 (아이템 그림 아래) 초록 강조 */
+    private static final java.util.regex.Pattern PET_LEVEL = java.util.regex.Pattern.compile("\\[Lvl (\\d+)\\]");
+
+    /** 칸 뒤에 (아이템 그림 아래): 모자란 재료 초록 강조, 펫 레벨별 배경색 */
     public static void background(AbstractContainerScreen<?> cs, GuiGraphicsExtractor g) {
         Config c = Config.get();
+        int left = ((ContainerScreenAccessor) cs).sbh$leftPos(), top = ((ContainerScreenAccessor) cs).sbh$topPos();
+        if (c.petColors && SkyBlock.inSkyblock && SkyBlock.strip(cs.getTitle().getString()).startsWith("Pets")) {
+            for (Slot slot : cs.getMenu().slots) {
+                if (slot.container instanceof Inventory) continue;
+                java.util.regex.Matcher m = PET_LEVEL.matcher(ItemText.name(slot.getItem()));
+                if (!m.find()) continue;
+                int lvl = Integer.parseInt(m.group(1));
+                int color = lvl >= 100 ? 0x80FFAA00 : Ui.mix(lvl / 100f, 0x70FF5555, 0x7055FF55);
+                g.fill(left + slot.x, top + slot.y, left + slot.x + 16, top + slot.y + 16, color);
+            }
+        }
         Link.Plan plan = Link.plan;
         if (!c.highlightMissing || plan == null) return;
-        int left = ((ContainerScreenAccessor) cs).sbh$leftPos(), top = ((ContainerScreenAccessor) cs).sbh$topPos();
         for (Slot slot : cs.getMenu().slots) {
             String id = SkyBlock.itemId(slot.getItem());
             if (id != null && plan.needs(id)) g.fill(left + slot.x, top + slot.y, left + slot.x + 16, top + slot.y + 16, HIGHLIGHT);
@@ -31,7 +43,7 @@ public final class ContainerOverlay {
     /** 상자 위쪽에 이 상자의 총가치 (내 인벤토리 칸은 빼고) */
     public static void foreground(AbstractContainerScreen<?> cs, GuiGraphicsExtractor g) {
         Config c = Config.get();
-        if (!c.containerValue || Link.prices.isEmpty()) return;
+        if (!c.containerValue || Link.prices.isEmpty() || Storage.active(cs)) return;
         double sum = 0;
         int unpriced = 0;
         for (Slot slot : cs.getMenu().slots) {

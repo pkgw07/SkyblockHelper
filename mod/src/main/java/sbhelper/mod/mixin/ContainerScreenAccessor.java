@@ -1,6 +1,7 @@
 package sbhelper.mod.mixin;
 
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
@@ -12,4 +13,7 @@ public interface ContainerScreenAccessor {
     @Accessor("imageWidth") int sbh$imageWidth();
     @Accessor("titleLabelX") int sbh$titleLabelX();
     @Accessor("titleLabelY") int sbh$titleLabelY();
+    @Accessor("titleLabelX") void sbh$setTitleLabelX(int x);
+    @Accessor("inventoryLabelX") void sbh$setInventoryLabelX(int x);
+    @Accessor("hoveredSlot") Slot sbh$hoveredSlot();
 }
