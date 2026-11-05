@@ -3,6 +3,11 @@ name: Mod
 # Minecraft 26.2 Fabric 모드 빌드 (mod/ 폴더, 자바 25)
 on:
   workflow_dispatch:
+    inputs:
+      api_dump:
+        description: "javap 로 게임 클래스 목록 출력 (개발용)"
+        type: string
+        default: ""
   push:
     branches: ["claude/skyblock-helper"]
     paths: ["mod/**", ".github/workflows/mod.yml"]
@@ -25,6 +30,20 @@ jobs:
           cd mod
           ./gradlew build --no-daemon 2>&1 | tee ../mod-build.log
           ls -la build/libs
+      - name: API dump
+        if: inputs.api_dump != ''
+        shell: bash
+        run: |
+          jar=$(find ~/.gradle mod/.gradle -name 'minecraft-*.jar' -size +5M 2>/dev/null | grep -iv sources | head -5)
+          echo "$jar"
+          cp=$(echo "$jar" | tr '\n' ':')
+          for c in ${{ inputs.api_dump }}; do echo "=== $c"; javap -cp "$cp" "$c" || true; done > api-dump.txt
+          wc -l api-dump.txt
+      - uses: actions/upload-artifact@v4
+        if: inputs.api_dump != ''
+        with:
+          name: api-dump
+          path: api-dump.txt
       - name: Report build errors as annotations
         if: failure()
         shell: bash
