@@ -39,6 +39,7 @@ public final class Config {
     /** 상자 · 경매장 · 툴팁 (1.1.0) */
     public boolean storagePreview = true;
     public boolean petColors = true;
+    public boolean petPercent = true;
     public boolean ahBidStatus = true;
     public boolean ahSellerView = true;
     public boolean ahPriceSearch = true;

@@ -217,7 +217,9 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x, y + 24, half, "storage", "Storage 미리보기", "Storage 를 열면 엔더 체스트 · 백팩을 한 화면에. 눌러서 열기", null,
             c.storagePreview, () -> c.storagePreview = !c.storagePreview, a);
         toggle(g, mx, my, x + half + 6, y + 24, half, "pets", "펫 레벨 배경색", "Pets 화면에서 레벨에 따라 칸 색", null, c.petColors, () -> c.petColors = !c.petColors, a);
-        segment(g, mx, my, x, y + 50, w, "가치 위치", new String[]{"이름 옆", "왼쪽 빈 곳"}, c.valuePosition, v -> c.valuePosition = v, a);
+        toggle(g, mx, my, x, y + 48, half, "petpct", "펫 만렙 %", "펫 이름 옆 · Pets 칸에 만렙까지 몇 % (1렙 0%, 만렙 100%)", null,
+            c.petPercent, () -> c.petPercent = !c.petPercent, a);
+        segment(g, mx, my, x, y + 74, w, "가치 위치", new String[]{"이름 옆", "왼쪽 빈 곳"}, c.valuePosition, v -> c.valuePosition = v, a);
     }
 
     private void auction(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {

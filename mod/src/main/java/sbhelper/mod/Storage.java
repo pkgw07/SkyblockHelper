@@ -238,38 +238,49 @@ public final class Storage {
         }
     }
 
-    /** 페이지 상자를 열 개수에 맞춰 여러 줄로 배치 (가장 짧은 열에 차례로) */
+    /**
+     * 페이지 상자를 가로 3개씩(화면이 좁으면 더 적게) 줄 맞춰 배치하고,
+     * 페이지들 + 내 인벤토리 묶음을 화면 가운데에 둔다. 다 안 들어가면 페이지 쪽을 스크롤.
+     */
     private static void layout(AbstractContainerScreen<?> cs, String cur, boolean first) {
         int W = cs.width, H = cs.height;
-        invX = (W - 9 * S) / 2;
-        invY = H - (4 * S + 4) - 10;
-        areaTop = 8;
-        areaBottom = invY - 14;
-
         List<String> keys = new ArrayList<>(menu.keySet());
         if (keys.isEmpty()) keys.addAll(pages.keySet());
         if (cur != null && !keys.contains(cur)) keys.add(cur);
         keys.sort(Comparator.comparingInt(Storage::order));
 
-        int cols = Math.max(1, Math.min(Math.max(1, keys.size()), (W - 16 + GAP) / (PAGE_W + GAP)));
-        int startX = (W - (cols * PAGE_W + (cols - 1) * GAP)) / 2;
-        int[] colH = new int[cols];
+        int cols = Math.max(1, Math.min(3, Math.min(Math.max(1, keys.size()), (W - 16 + GAP) / (PAGE_W + GAP))));
+        int gridW = cols * PAGE_W + (cols - 1) * GAP;
+        int startX = (W - gridW) / 2;
         List<Box> raw = new ArrayList<>();
-        for (String k : keys) {
+        int y = 0, rowH = 0;
+        for (int i = 0; i < keys.size(); i++) {
+            String k = keys.get(i);
+            if (i % cols == 0 && i > 0) { y += rowH + GAP; rowH = 0; }
             boolean active = k.equals(cur);
             Page p = pages.get(k);
             int rows = active ? liveRows.size() : p != null ? p.rows : k.startsWith("ender") ? 5 : 3;
-            int col = 0;
-            for (int i = 1; i < cols; i++) if (colH[i] < colH[col]) col = i;
-            Box b = new Box(k, startX + col * (PAGE_W + GAP), colH[col], rows, active, p != null || active);
+            Box b = new Box(k, startX + (i % cols) * (PAGE_W + GAP), y, rows, active, p != null || active);
             raw.add(b);
-            colH[col] += b.h() + GAP;
+            rowH = Math.max(rowH, b.h());
         }
-        int contentH = 0;
-        for (int h : colH) contentH = Math.max(contentH, h - GAP);
-        maxScroll = Math.max(0, contentH - (areaBottom - areaTop));
-        // 새로 연 페이지가 보이게
+        int gridH = keys.isEmpty() ? 30 : y + rowH;
+        int invH = 4 * S + 4;
+        int total = gridH + 16 + invH;
+        if (total <= H - 16) {
+            // 다 들어가면 묶음째 가운데
+            areaTop = (H - total) / 2;
+            areaBottom = areaTop + gridH;
+            invY = areaBottom + 16;
+        } else {
+            invY = H - invH - 10;
+            areaTop = 8;
+            areaBottom = invY - 16;
+        }
+        invX = (W - 9 * S) / 2;
+        maxScroll = Math.max(0, gridH - (areaBottom - areaTop));
         if (first && cur == null) scroll = 0;
+        // 새로 연 페이지가 보이게
         if (first && cur != null) {
             for (Box b : raw) if (b.active()) {
                 if (b.y() < scroll) scroll = b.y();

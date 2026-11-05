@@ -37,6 +37,7 @@ public final class Tooltips {
         if (hidden(c)) { lines.clear(); return; }
         if (c.realTimes && SkyBlock.inSkyblock) realTimes(lines);
         if (c.itemAge && SkyBlock.inSkyblock) itemAge(stack, lines);
+        if (c.petPercent && SkyBlock.inSkyblock) petPercent(stack, lines);
         if (c.tooltipPrices) prices(stack, lines);
     }
 
@@ -103,6 +104,15 @@ public final class Tooltips {
         else if (t.toLocalDate().equals(today.plusDays(1))) day = "내일";
         else day = t.getMonthValue() + "/" + t.getDayOfMonth() + " (" + t.getDayOfWeek().getDisplayName(TextStyle.SHORT, Locale.KOREAN) + ")";
         return day + " " + t.format(HM);
+    }
+
+    /** 펫 이름 옆에 만렙까지 % , 아래에 경험치 기준 % */
+    private static void petPercent(ItemStack stack, List<Component> lines) {
+        int pct = Pets.levelPercent(stack);
+        if (pct < 0 || lines.isEmpty()) return;
+        lines.set(0, lines.get(0).copy().append(Component.literal(" " + pct + "%").withStyle(pct >= 100 ? ChatFormatting.GOLD : ChatFormatting.GRAY)));
+        double xp = Pets.xpPercent(stack);
+        if (xp >= 0 && pct < 100) lines.add(1, Component.literal("만렙까지 경험치 " + String.format("%.1f", xp) + "%").withStyle(ChatFormatting.DARK_GRAY));
     }
 
     /** 아이템에 남아 있는 얻은 시각 (ExtraAttributes timestamp) */

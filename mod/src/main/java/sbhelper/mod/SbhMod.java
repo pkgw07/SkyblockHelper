@@ -29,6 +29,7 @@ public final class SbhMod implements ClientModInitializer {
     /** 채팅 화면이 닫힌 다음 틱에 열 화면: 1 설정, 2 HUD 편집 */
     private static int open = 0;
     private static int screenTick = 0;
+    private static int worldTicks = 0;
 
     @Override
     public void onInitializeClient() {
@@ -49,14 +50,21 @@ public final class SbhMod implements ClientModInitializer {
                 Config.save();
                 if (mc.player != null) mc.player.sendSystemMessage(Component.literal("§6[SkyblockHelper] §fHUD " + (c.hud ? "켜짐" : "꺼짐")));
             }
-            // 타이틀 화면에서 구버전이면 업데이트 창 (확인이 끝나는 대로, 한 번만)
-            if (!Updater.asked && Updater.available() && mc.gui.screen() instanceof net.minecraft.client.gui.screens.TitleScreen title) {
-                Updater.asked = true;
-                mc.gui.setScreen(new UpdateScreen(title));
+            // 구버전이면 업데이트 창 (한 번만): 타이틀 화면, 아니면 서버에 들어와 5초 뒤 (다른 클라이언트는 타이틀 화면이 달라서)
+            worldTicks = mc.player == null ? 0 : worldTicks + 1;
+            if (!Updater.asked && Updater.available()) {
+                if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.TitleScreen title) {
+                    Updater.asked = true;
+                    mc.gui.setScreen(new UpdateScreen(title));
+                } else if (mc.player != null && mc.gui.screen() == null && worldTicks > 100) {
+                    Updater.asked = true;
+                    mc.gui.setScreen(new UpdateScreen(null));
+                }
             }
             // 명령어로 연 편집 화면은 채팅 화면이 닫힌 다음 틱에 연다
             if (open == 1) { open = 0; mc.gui.setScreen(new SettingsScreen(null)); }
             if (open == 2) { open = 0; mc.gui.setScreen(new HudEditScreen(null)); }
+            if (open == 3) { open = 0; mc.gui.setScreen(new UpdateScreen(null)); }
         });
 
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("skyblockhelper", "hud"), Hud::extract);
@@ -88,6 +96,13 @@ public final class SbhMod implements ClientModInitializer {
             var root = ClientCommands.literal("sbh")
                 .executes(c -> { open = 1; return Command.SINGLE_SUCCESS; })
                 .then(ClientCommands.literal("hud").executes(c -> { open = 2; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("update").executes(c -> {
+                    if (Updater.available()) open = 3;
+                    else c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f" + (Updater.downloaded()
+                        ? "새 버전을 받아 뒀어요. 게임을 다시 시작하면 적용돼요."
+                        : "최신 버전이에요 (" + VERSION + ")")));
+                    return Command.SINGLE_SUCCESS;
+                }))
                 .then(ClientCommands.literal("copy").executes(c -> { Copy.inventory(); return Command.SINGLE_SUCCESS; }))
                 .then(ClientCommands.literal("entity").executes(c -> { Copy.entity(); return Command.SINGLE_SUCCESS; }))
                 .then(ClientCommands.literal("storage").then(ClientCommands.literal("clear").executes(c -> {
