@@ -107,7 +107,14 @@ public class SbhClientTest implements FabricClientGameTest {
         return st;
     }
 
-    private static ItemStack filler() { return named(Items.BLACK_STAINED_GLASS_PANE, 1, " "); }
+    /** 이름으로 아이템 찾기 (없으면 유리판) */
+    private static Item item(String id) {
+        Item it = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(net.minecraft.resources.Identifier.withDefaultNamespace(id));
+        System.out.println("[sbh-test] item " + id + " -> " + net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it));
+        return it == Items.AIR ? Items.GLASS_PANE : it;
+    }
+
+    private static ItemStack filler() { return named(item("black_stained_glass_pane"), 1, " "); }
 
     private static ContainerScreen chest(int rows, String title, List<ItemStack> items) {
         Minecraft mc = Minecraft.getInstance();
@@ -134,9 +141,9 @@ public class SbhClientTest implements FabricClientGameTest {
         List<ItemStack> items = new ArrayList<>();
         for (int i = 0; i < 54; i++) items.add(filler());
         items.set(4, named(Items.CHEST, 1, "Storage"));
-        for (int i = 1; i <= 3; i++) items.set(8 + i, named(Items.PURPLE_STAINED_GLASS_PANE, 1, "Ender Chest Page " + i, "Click to open!"));
+        for (int i = 1; i <= 3; i++) items.set(8 + i, named(item("purple_stained_glass_pane"), 1, "Ender Chest Page " + i, "Click to open!"));
         items.set(27, named(Items.PLAYER_HEAD, 1, "Backpack Slot 1", "Medium Backpack"));
-        items.set(28, named(Items.BROWN_STAINED_GLASS_PANE, 1, "Empty Backpack Slot 2"));
+        items.set(28, named(item("brown_stained_glass_pane"), 1, "Empty Backpack Slot 2"));
         return chest(6, "Storage", items);
     }
 

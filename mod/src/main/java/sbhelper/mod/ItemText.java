@@ -53,7 +53,7 @@ public final class ItemText {
     public static boolean isFiller(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;
         String path = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath();
-        return path.endsWith("stained_glass_pane") && name(stack).isBlank();
+        return path.contains("glass_pane") && name(stack).isBlank();
     }
 
     private ItemText() {}
