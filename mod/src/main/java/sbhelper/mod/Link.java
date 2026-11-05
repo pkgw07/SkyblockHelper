@@ -170,11 +170,11 @@ public final class Link {
                 // 프로그램이 꺼져도 남은 시간을 보여 줄 수 있게 기억 · Heavy Pearl 은 API 값이 더 최근이면 받아 둔다
                 Config c = Config.get();
                 List<Config.CachedTimer> cache = new ArrayList<>();
-                for (Timer t : list) {
+                for (Timer tm : list) {
                     Config.CachedTimer ct = new Config.CachedTimer();
-                    ct.kind = t.kind(); ct.label = t.label(); ct.at = t.at(); ct.start = t.start(); ct.done = t.done();
+                    ct.kind = tm.kind(); ct.label = tm.label(); ct.at = tm.at(); ct.start = tm.start(); ct.done = tm.done();
                     cache.add(ct);
-                    if (t.kind().equals("matriarch") && t.at() > c.matriarchAt) c.matriarchAt = t.at();
+                    if (tm.kind().equals("matriarch") && tm.at() > c.matriarchAt) c.matriarchAt = tm.at();
                 }
                 c.cachedTimers = cache;
                 Config.save();
