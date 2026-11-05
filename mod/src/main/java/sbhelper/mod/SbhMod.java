@@ -44,6 +44,7 @@ public final class SbhMod implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             SkyBlock.tick(mc);
             World.tick(mc);
+            if (screenTick % 40 == 0) Music.tick();
             if (++screenTick % 10 == 0 && mc.gui.screen() instanceof AbstractContainerScreen<?> shown) Storage.tick(shown);
             while (toggleHud.consumeClick()) {
                 Config c = Config.get();
@@ -67,6 +68,8 @@ public final class SbhMod implements ClientModInitializer {
             if (open == 2) { open = 0; mc.gui.setScreen(new HudEditScreen(null)); }
             if (open == 3) { open = 0; mc.gui.setScreen(new UpdateScreen(null)); }
             if (open == 4) { open = 0; mc.gui.setScreen(new PlannerScreen(null)); }
+            if (open == 5) { open = 0; mc.gui.setScreen(new AuctionSearchScreen(null)); }
+            if (open == 6) { open = 0; mc.gui.setScreen(new LogScreen(null)); }
         });
 
         // 채팅: 기록 · [파티 초대] 버튼 · /r → 마지막 상대
@@ -100,10 +103,12 @@ public final class SbhMod implements ClientModInitializer {
                     Auction.foreground(cs, g);
                     Storage.foreground(cs, g, mx, my);
                     Shortcuts.draw(cs, g, mx, my);
+                    Enchant.draw(cs, g, mx, my);
                     if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
                 });
                 ScreenEvents.remove(screen).register(s -> Storage.save());
                 Auction.addSearchBox(cs);
+                Enchant.init(cs);
             }
             if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen sign) {
                 Signs.init(sign);
@@ -124,6 +129,11 @@ public final class SbhMod implements ClientModInitializer {
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(ClientCommands.literal("plan").executes(c -> { open = 4; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("ah").executes(c -> { open = 5; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("logs").executes(c -> { open = 6; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("music").executes(c -> { Music.openFolder(); return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("stalk").then(ClientCommands.argument("name", com.mojang.brigadier.arguments.StringArgumentType.word())
+                    .executes(c -> { Stalk.ask(com.mojang.brigadier.arguments.StringArgumentType.getString(c, "name")); return Command.SINGLE_SUCCESS; })))
                 .then(ClientCommands.literal("island").executes(c -> { World.island(); return Command.SINGLE_SUCCESS; }))
                 .then(ClientCommands.literal("matriarch").executes(c -> {
                     Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
@@ -165,7 +175,7 @@ public final class SbhMod implements ClientModInitializer {
         {"chat", "상자 화면 채팅"}, {"shortcuts", "바로가기 메뉴"}, {"partyinvite", "채팅 파티 초대"}, {"ctrlinvite", "Ctrl+우클릭 파티 초대"},
         {"reply", "/r 마지막 상대"}, {"names", "이름 자동완성"}, {"dragon", "드래곤 히트박스"}, {"crystal", "크리스탈 히트박스"},
         {"scrolllock", "드래곤 전투 스크롤 잠금"}, {"tools", "도구 범위"}, {"pillar", "Blaze 기둥 경고"}, {"ashfang", "Ashfang"},
-        {"dojo", "Dojo 도우미"}, {"kuudra", "Kuudra 타이머"},
+        {"dojo", "Dojo 도우미"}, {"kuudra", "Kuudra 타이머"}, {"areamusic", "장소별 음악"}, {"enchant", "마법 부여 도우미"},
     };
 
     private static boolean toggle(String name) {
@@ -203,6 +213,8 @@ public final class SbhMod implements ClientModInitializer {
             case "ashfang" -> c.ashfang = !c.ashfang;
             case "dojo" -> c.dojoHelper = !c.dojoHelper;
             case "kuudra" -> c.kuudraTimer = !c.kuudraTimer;
+            case "areamusic" -> { c.areaMusic = !c.areaMusic; if (!c.areaMusic) Music.stop(); yield c.areaMusic; }
+            case "enchant" -> c.enchantPanel = !c.enchantPanel;
             default -> false;
         };
         Config.save();

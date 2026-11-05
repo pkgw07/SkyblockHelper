@@ -11,6 +11,7 @@ public final class ScreenInput {
     public static boolean mouseClicked(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
         if (Storage.mouseClicked(cs, e)) return true;
         if (e.button() == 0 && Shortcuts.click(cs, e.x(), e.y())) return true;
+        if (e.button() == 0 && Enchant.click(cs, e.x(), e.y())) return true;
         return e.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && Auction.middleClick(cs);
     }
 
@@ -20,6 +21,7 @@ public final class ScreenInput {
 
     public static boolean keyPressed(AbstractContainerScreen<?> cs, KeyEvent e) {
         if (Auction.keyPressed(cs, e)) return true;
+        if (Enchant.keyPressed(cs, e)) return true;
         boolean ctrl = (e.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
         // Ctrl+P: 마우스 아래 아이템을 제작 플래너 목표로
         if (ctrl && e.key() == GLFW.GLFW_KEY_P) {

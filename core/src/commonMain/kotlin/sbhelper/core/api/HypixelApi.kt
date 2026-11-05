@@ -137,6 +137,12 @@ class HypixelApi(
         return root["garden"] as? JsonObject
     }
 
+    /** 접속 상태 (공식 status API, 키 필요): session.online, gameType, mode, map */
+    suspend fun status(uuid: String): JsonObject {
+        val root = SbJson.parseToJsonElement(getText("$BASE/status?uuid=$uuid", MINUTE, needsKey = true)).jsonObject
+        return root["session"] as? JsonObject ?: JsonObject(emptyMap())
+    }
+
     /** 박물관 (공식 museum API, 키 필요) */
     suspend fun museum(profileId: String): JsonObject =
         SbJson.parseToJsonElement(getText("$BASE/skyblock/museum?profile=$profileId", 5 * MINUTE, needsKey = true)).jsonObject

@@ -37,6 +37,11 @@ public final class Link {
     public static volatile boolean useSacks = true, useInventory = true;
     public static volatile List<String[]> craftables = List.of();
     public record Goal(String id, String name, int amount) {}
+    /** 경매장 검색 결과 */
+    public record AuctionHit(String uuid, String name, String tier, double price, boolean bin, long end) {}
+    public static volatile List<AuctionHit> auctionHits = List.of();
+    public static volatile boolean auctionLoading = false;
+    public static volatile long auctionUpdated = 0;
     public record Material(String id, String name, double have, double need, boolean off) {}
     public static volatile List<Timer> timers = List.of();
     public static volatile boolean connected = false;
@@ -102,6 +107,18 @@ public final class Link {
                 }
                 prices = out;
             }
+            case "ah.results" -> {
+                List<AuctionHit> list = new ArrayList<>();
+                for (JsonElement e : m.getAsJsonArray("list")) {
+                    JsonObject r = e.getAsJsonObject();
+                    list.add(new AuctionHit(r.get("uuid").getAsString(), r.get("name").getAsString(), r.get("tier").getAsString(),
+                        r.get("price").getAsDouble(), r.get("bin").getAsBoolean(), r.get("end").getAsLong()));
+                }
+                auctionHits = list;
+                auctionLoading = m.has("loading") && m.get("loading").getAsBoolean();
+                auctionUpdated = m.has("updated") ? m.get("updated").getAsLong() : 0;
+            }
+            case "player.status" -> Stalk.result(m);
             case "craftables" -> {
                 List<String[]> list = new ArrayList<>();
                 for (JsonElement e : m.getAsJsonArray("list")) {
@@ -152,6 +169,14 @@ public final class Link {
             }
             default -> {}
         }
+    }
+
+    public static void auctionSearch(String q, boolean binOnly) {
+        JsonObject m = new JsonObject();
+        m.addProperty("t", "ah.search");
+        m.addProperty("q", q);
+        m.addProperty("bin", binOnly);
+        send(m);
     }
 
     /** 게임 안 제작 플래너 → 프로그램 (앱의 플래너 설정을 바꾼다) */

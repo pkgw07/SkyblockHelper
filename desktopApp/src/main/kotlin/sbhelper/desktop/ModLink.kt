@@ -45,9 +45,11 @@ object ModLink {
     private val containers = HashMap<String, Map<String, Long>>()
 
     @Volatile private var repoRef: SkyblockRepository? = null
+    @Volatile private var scopeRef: CoroutineScope? = null
 
     fun start(scope: CoroutineScope, repo: SkyblockRepository) {
         repoRef = repo
+        scopeRef = scope
         Thread({
             val server = runCatching { ServerSocket(PORT, 4, InetAddress.getLoopbackAddress()) }.getOrNull() ?: return@Thread
             while (true) {
@@ -115,6 +117,8 @@ object ModLink {
                     purse = m["purse"]?.jsonPrimitive?.content.orEmpty())
             }
             "inv" -> { containers["inv"] = counts(m); publish() }
+            "ah.search" -> repoRef?.let { auctionSearch(it, m) }
+            "player.status" -> repoRef?.let { playerStatus(it, m) }
             "plan.select", "plan.add", "plan.remove", "plan.amount", "plan.exclude", "plan.option" -> repoRef?.let { planCommand(it, m) }
             "container" -> {
                 val key = CraftStock.liveKey(m["title"]?.jsonPrimitive?.content.orEmpty())
@@ -155,6 +159,54 @@ object ModLink {
                 d.copy(plannerUseSacks = m["sacks"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: d.plannerUseSacks,
                     plannerUseInventory = m["inventory"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: d.plannerUseInventory)
             }
+        }
+    }
+
+    /** 게임 안 경매장 검색 창: 마지막으로 받은 경매장 전체에서 이름으로 찾기 (싼 순) */
+    private fun auctionSearch(repo: SkyblockRepository, m: JsonObject) {
+        val q = m["q"]?.jsonPrimitive?.content.orEmpty().trim().lowercase()
+        val binOnly = m["bin"]?.jsonPrimitive?.content != "false"
+        val all = repo.auctionsCache
+        val now = System.currentTimeMillis()
+        if (all.isEmpty()) scopeRef?.launch { runCatching { repo.refreshLowestBins(force = true) } }
+        val found = if (q.length < 2) emptyList() else all.asSequence()
+            .filter { it.end > now && (!binOnly || it.bin) && it.itemName.replace(Regex("§."), "").lowercase().contains(q) }
+            .sortedBy { if (it.bin) it.startingBid else maxOf(it.startingBid, it.highestBidAmount) }
+            .take(80).toList()
+        val c = client ?: return
+        send(c, buildJsonObject {
+            put("t", "ah.results")
+            put("q", q)
+            put("loading", all.isEmpty())
+            put("updated", repo.state.value.lowestBinAt)
+            putJsonArray("list") {
+                found.forEach { a ->
+                    add(buildJsonObject {
+                        put("uuid", a.uuid); put("name", a.itemName.replace(Regex("§."), "")); put("tier", a.tier)
+                        put("price", if (a.bin) a.startingBid else maxOf(a.startingBid, a.highestBidAmount)); put("bin", a.bin); put("end", a.end)
+                    })
+                }
+            }
+        }.toString())
+    }
+
+    /** Player Stalking: 닉네임 → 접속 중인지 · 어느 게임인지 (공식 status API, 내 API 키) */
+    private fun playerStatus(repo: SkyblockRepository, m: JsonObject) {
+        val name = m["name"]?.jsonPrimitive?.content.orEmpty().trim()
+        if (name.isEmpty()) return
+        scopeRef?.launch {
+            val out = runCatching {
+                val profile = repo.api.uuidFor(name)
+                val session = repo.api.status(profile.id)
+                buildJsonObject {
+                    put("t", "player.status"); put("name", profile.name)
+                    put("online", session["online"]?.jsonPrimitive?.content == "true")
+                    put("gameType", session["gameType"]?.jsonPrimitive?.content.orEmpty())
+                    put("mode", session["mode"]?.jsonPrimitive?.content.orEmpty())
+                    put("map", session["map"]?.jsonPrimitive?.content.orEmpty())
+                }
+            }.getOrElse { e -> buildJsonObject { put("t", "player.status"); put("name", name); put("error", e.message ?: "확인하지 못했어요") } }
+            client?.let { send(it, out.toString()) }
         }
     }
 

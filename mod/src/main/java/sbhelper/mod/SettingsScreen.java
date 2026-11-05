@@ -234,6 +234,8 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x + half + 6, y, half, "seller", "판매자 보기", "아이템을 가운데 클릭하면 그 판매자의 경매 목록", null, c.ahSellerView, () -> c.ahSellerView = !c.ahSellerView, a);
         toggle(g, mx, my, x, y + 24, half, "ahsearch", "가격 검색 칸", "경매 목록 옆 칸에 1m-5m 처럼 적으면 그 가격대를 초록으로", null,
             c.ahPriceSearch, () -> c.ahPriceSearch = !c.ahPriceSearch, a);
+        button(g, mx, my, x, y + 50, w, 18, "ahwin", "경매장 검색 창 열기 (/sbh ah)", true,
+            () -> { Ui.click(); this.minecraft.gui.setScreen(new AuctionSearchScreen(this)); }, a);
         toggle(g, mx, my, x + half + 6, y + 24, half, "sign", "표지판 입력 목록", "가격 · 검색어 · 금액을 적는 표지판에서 전에 적은 값 고르기", null,
             c.signHistory, () -> c.signHistory = !c.signHistory, a);
     }
@@ -248,6 +250,8 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x + half + 6, y + 24, half, "exp", "실험대 툴팁 숨기기", "Chronomatron · Ultrasequencer · Superpairs", null,
             c.hideExperimentTips, () -> c.hideExperimentTips = !c.hideExperimentTips, a);
         toggle(g, mx, my, x, y + 48, half, "harp", "Harp 툴팁 숨기기", "Melody's Harp 화면", null, c.hideHarpTips, () -> c.hideHarpTips = !c.hideHarpTips, a);
+        toggle(g, mx, my, x + half + 6, y + 48, half, "enchant", "마법 부여 도우미", "Enchant Item 화면 왼쪽에 마법 목록 · 검색 (누르면 그 칸을 한 번)", null,
+            c.enchantPanel, () -> c.enchantPanel = !c.enchantPanel, a);
     }
 
     private void chat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
@@ -295,8 +299,12 @@ public final class SettingsScreen extends Screen {
         button(g, mx, my, x + half + 6, y + 50, half, 18, "matri", "Matriarch 24시간 시작", false, () -> {
             Ui.click(); c.matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L; Config.save();
         }, a);
-        text(g, Hud.fit(this.font, "복사한 내용(JSON)을 보내 주시면 기능을 더 정확하게 맞출 수 있어요", w), x + 2, y + 78, Ui.alpha(0xFF8A8F99, a));
-        text(g, Hud.fit(this.font, "명령어: /sbh copy · entity · island · matriarch · update", w), x + 2, y + 90, Ui.alpha(0xFF6F7580, a));
+        toggle(g, mx, my, x, y + 72, half, "music", "장소별 음악", "music 폴더에 지역이름.ogg (예: Hub.ogg) 를 넣으면 그 지역에서 재생", null,
+            c.areaMusic, () -> { c.areaMusic = !c.areaMusic; if (!c.areaMusic) Music.stop(); }, a);
+        button(g, mx, my, x + half + 6, y + 73, half, 18, "musicdir", "음악 폴더 열기", false, () -> { Ui.click(); Music.openFolder(); }, a);
+        button(g, mx, my, x, y + 97, half, 18, "logs", "로그 검색 (/sbh logs)", false, () -> { Ui.click(); this.minecraft.gui.setScreen(new LogScreen(this)); }, a);
+        text(g, Hud.fit(this.font, "지금 지역: " + (SkyBlock.area.isEmpty() ? "-" : SkyBlock.area), half), x + half + 10, y + 102, Ui.alpha(0xFF8A8F99, a));
+        text(g, Hud.fit(this.font, "/sbh stalk 닉네임 · copy · entity · island · update", w), x + 2, y + 120, Ui.alpha(0xFF6F7580, a));
     }
 
     // ---------- 부품 ----------

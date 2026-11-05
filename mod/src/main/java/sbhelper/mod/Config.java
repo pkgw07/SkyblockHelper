@@ -67,6 +67,10 @@ public final class Config {
     public boolean dojoHelper = true;
     public boolean kuudraTimer = true;
     public long matriarchAt = 0;
+    /** 3단계 (1.3.0) */
+    public boolean areaMusic = true;
+    public float musicVolume = 0.5f;
+    public boolean enchantPanel = true;
     /** 표지판 입력 기록: 표지판 아래 줄 → 최근 값 */
     public Map<String, List<String>> signValues = new HashMap<>();
     /** 설정 파일 형식 (옛 파일 옮기기용) */

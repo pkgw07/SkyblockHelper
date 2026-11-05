@@ -466,12 +466,19 @@ class SkyblockRepository(
         _state.update { it.copy(profiles = profiles, lastProfileSync = Clock.now()) }
     }
 
+    /** 마지막으로 받은 경매장 전체 (가볍게 줄인 것) */
+    @kotlin.concurrent.Volatile var auctionsCache: List<sbhelper.core.model.Auction> = emptyList()
+        private set
+
     /** 경매장 전체를 읽어 아이템별 최저 BIN 을 만든다 (무거워서 30분마다) */
     suspend fun refreshLowestBins(force: Boolean = false) {
         if (!force && Clock.now() - state.value.lowestBinAt < 30 * 60_000L) return
         _state.update { it.copy(loadingPrices = true) }
         try {
-            val bins = sbhelper.core.calc.PriceBook.lowestBins(api.allAuctions())
+            val all = api.allAuctions()
+            // 게임 모드의 경매장 검색 창용 (아이템 원본 데이터는 빼고 가볍게)
+            auctionsCache = all.map { it.copy(itemBytes = null, itemLore = "", bids = emptyList()) }
+            val bins = sbhelper.core.calc.PriceBook.lowestBins(all)
             _state.update { it.copy(lowestBin = bins, lowestBinAt = Clock.now(), loadingPrices = false) }
         } catch (e: Exception) {
             _state.update { it.copy(loadingPrices = false) }
