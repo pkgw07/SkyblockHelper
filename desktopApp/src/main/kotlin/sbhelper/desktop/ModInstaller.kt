@@ -4,6 +4,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -29,6 +31,12 @@ object ModInstaller {
         this.repo = repo; this.scope = scope
         // 상태만 확인 (업데이트는 게임 안에서 모드가 직접 물어봄)
         scope.launch { delay(15_000); runCatching { check(install = false) } }
+        // 게임 안에서 받아 둔 새 모드(.jar.new)가 있으면 게임이 꺼진 뒤 바꿔 준다 (모드 쪽 마무리와 같은 일, 먼저 하는 쪽이 함)
+        scope.launch {
+            GameWatch.state.map { it.running }.distinctUntilChanged().collect { running ->
+                if (!running) { delay(3_000); if (runCatching { applyPending() }.getOrDefault(false)) runCatching { check(install = false) } }
+            }
+        }
     }
 
     /** mods 폴더 직접 고르기 */
@@ -58,6 +66,17 @@ object ModInstaller {
         val dir = modsDir() ?: return
         dir.mkdirs()
         runCatching { java.awt.Desktop.getDesktop().open(dir) }
+    }
+
+    /** 게임 안 업데이트로 받아 둔 SkyblockHelper-mod-버전.jar.new → .jar (게임이 꺼져 있을 때만) */
+    private suspend fun applyPending(): Boolean = lock.withLock {
+        if (GameWatch.state.value.running) return false
+        val dir = modsDir() ?: return false
+        val fresh = dir.listFiles().orEmpty().firstOrNull { it.name.endsWith(".jar.new") && JAR.matches(it.name.removeSuffix(".new")) } ?: return false
+        val target = File(dir, fresh.name.removeSuffix(".new"))
+        installed(dir).forEach { (f, _) -> if (f.name != target.name) f.delete() }
+        target.delete()
+        fresh.renameTo(target)
     }
 
     /** mods 폴더에 있는 이 모드 파일들 (버전과 함께) */

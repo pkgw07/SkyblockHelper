@@ -102,13 +102,19 @@ public final class Updater {
         List<Path> old = currentJars();
         try {
             if (System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows")) {
-                // Windows: 게임이 완전히 꺼진 뒤(파일 잠금이 풀린 뒤) 바꾸는 작은 작업을 따로 띄운다
-                long pid = ProcessHandle.current().pid();
-                StringBuilder cmd = new StringBuilder("Wait-Process -Id " + pid + " -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; ");
-                for (Path o : old) if (!o.equals(target)) cmd.append("Remove-Item -LiteralPath '").append(q(o)).append("' -Force -ErrorAction SilentlyContinue; ");
-                cmd.append("Move-Item -LiteralPath '").append(q(p)).append("' -Destination '").append(q(target)).append("' -Force");
-                new ProcessBuilder("cmd", "/c", "start", "\"\"", "/min", "powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", cmd.toString())
-                    .redirectErrorStream(true).start();
+                // Windows: 게임이 꺼진 뒤(파일 잠금이 풀린 뒤) 바꾸는 작은 자바 프로그램(Swapper)을 같은 자바로 띄운다
+                Path self = net.fabricmc.loader.api.FabricLoader.getInstance().getModContainer("skyblockhelper")
+                    .flatMap(c -> c.getOrigin().getPaths().stream().findFirst()).orElse(null);
+                if (self == null || !Files.isRegularFile(self)) return;
+                Path helper = Path.of(System.getProperty("java.io.tmpdir"), "skyblockhelper-mod-update.jar");
+                Files.copy(self, helper, StandardCopyOption.REPLACE_EXISTING);
+                String java = ProcessHandle.current().info().command().orElse("javaw");
+                Path javaw = Path.of(java).resolveSibling("javaw.exe");
+                if (Files.isRegularFile(javaw)) java = javaw.toString();
+                List<String> cmd = new java.util.ArrayList<>(List.of(java, "-cp", helper.toString(), "sbhelper.mod.Swapper",
+                    String.valueOf(ProcessHandle.current().pid()), p.toString(), target.toString()));
+                for (Path o : old) cmd.add(o.toString());
+                new ProcessBuilder(cmd).start();
             } else {
                 for (Path o : old) if (!o.equals(target)) Files.deleteIfExists(o);
                 Files.move(p, target, StandardCopyOption.REPLACE_EXISTING);
@@ -116,7 +122,6 @@ public final class Updater {
         } catch (Exception ignored) {}
     }
 
-    private static String q(Path p) { return p.toAbsolutePath().toString().replace("'", "''"); }
 
     /** 지금 실행 중인 이 모드 파일(들) */
     private static List<Path> currentJars() {
