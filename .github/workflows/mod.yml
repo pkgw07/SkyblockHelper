@@ -35,9 +35,9 @@ jobs:
         shell: bash
         run: |
           jar=$(find ~/.gradle mod/.gradle -name 'minecraft-*.jar' -size +5M 2>/dev/null | grep -iv sources | head -5)
-          echo "$jar"
-          cp=$(echo "$jar" | tr '\n' ':')
-          for c in ${{ inputs.api_dump }}; do echo "=== $c"; javap -cp "$cp" "$c" || true; done > api-dump.txt
+          fab=$(find ~/.gradle/caches -path '*fabric*' -name '*.jar' 2>/dev/null | grep -iv sources | tr '\n' ':')
+          cp="$(echo "$jar" | tr '\n' ':')$fab"
+          for c in ${{ inputs.api_dump }}; do echo "=== $c"; javap -p -cp "$cp" "$c" 2>&1 | grep -v lambda || true; done > api-dump.txt
           cat api-dump.txt
       - uses: actions/upload-artifact@v4
         if: inputs.api_dump != ''
