@@ -88,8 +88,8 @@ public final class ContainerOverlay {
             if (pct < 0) continue;
             String s = pct + "%";
             g.pose().pushMatrix();
-            g.pose().translate(acc.sbh$leftPos() + slot.x + 17 - font.width(s) * 0.6f, acc.sbh$topPos() + slot.y + 11);
-            g.pose().scale(0.6f, 0.6f);
+            g.pose().translate(acc.sbh$leftPos() + slot.x + 16.5f - font.width(s) * 0.5f, acc.sbh$topPos() + slot.y + 12);
+            g.pose().scale(0.5f, 0.5f);
             g.text(font, s, 0, 0, pct >= 100 ? Hud.GOLD : 0xFFFFFFFF, true);
             g.pose().popMatrix();
         }

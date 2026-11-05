@@ -29,6 +29,15 @@ public final class Link {
     /** 아이템 ID → [바자 즉시 판매가, 바자 즉시 구매가, 최저 BIN, NPC 판매가] (없으면 -1) */
     public static volatile Map<String, double[]> prices = Map.of();
     public static volatile Plan plan = null;
+    /** 게임 안 제작 플래너: 목표 목록 · 지금 목표 · 모든 재료 · 옵션 · 고를 수 있는 아이템 */
+    public static volatile List<Goal> goals = List.of();
+    public static volatile String currentGoal = null;
+    public static volatile int currentAmount = 1;
+    public static volatile List<Material> materials = List.of();
+    public static volatile boolean useSacks = true, useInventory = true;
+    public static volatile List<String[]> craftables = List.of();
+    public record Goal(String id, String name, int amount) {}
+    public record Material(String id, String name, double have, double need, boolean off) {}
     public static volatile List<Timer> timers = List.of();
     public static volatile boolean connected = false;
 
@@ -93,7 +102,32 @@ public final class Link {
                 }
                 prices = out;
             }
+            case "craftables" -> {
+                List<String[]> list = new ArrayList<>();
+                for (JsonElement e : m.getAsJsonArray("list")) {
+                    JsonArray a = e.getAsJsonArray();
+                    list.add(new String[]{a.get(0).getAsString(), a.get(1).getAsString()});
+                }
+                craftables = list;
+            }
             case "plan" -> {
+                List<Goal> gs = new ArrayList<>();
+                if (m.has("targets")) for (JsonElement e : m.getAsJsonArray("targets")) {
+                    JsonObject r = e.getAsJsonObject();
+                    gs.add(new Goal(r.get("id").getAsString(), r.get("name").getAsString(), r.get("amount").getAsInt()));
+                }
+                goals = gs;
+                if (m.has("sacks")) useSacks = m.get("sacks").getAsBoolean();
+                if (m.has("inventory")) useInventory = m.get("inventory").getAsBoolean();
+                currentGoal = m.has("current") ? m.get("current").getAsString() : null;
+                currentAmount = m.has("amount") ? m.get("amount").getAsInt() : 1;
+                List<Material> ms = new ArrayList<>();
+                if (m.has("all")) for (JsonElement e : m.getAsJsonArray("all")) {
+                    JsonObject r = e.getAsJsonObject();
+                    ms.add(new Material(r.get("id").getAsString(), r.get("name").getAsString(), r.get("have").getAsDouble(),
+                        r.get("need").getAsDouble(), r.has("off") && r.get("off").getAsBoolean()));
+                }
+                materials = ms;
                 if (!m.has("title") || m.get("title").isJsonNull()) { plan = null; return; }
                 List<PlanRow> rows = new ArrayList<>();
                 for (JsonElement e : m.getAsJsonArray("rows")) {
@@ -118,6 +152,32 @@ public final class Link {
             }
             default -> {}
         }
+    }
+
+    /** 게임 안 제작 플래너 → 프로그램 (앱의 플래너 설정을 바꾼다) */
+    public static void planCommand(String type, String id, int amount) {
+        JsonObject m = new JsonObject();
+        m.addProperty("t", "plan." + type);
+        if (id != null) m.addProperty("id", id);
+        m.addProperty("amount", amount);
+        send(m);
+    }
+
+    public static void planExclude(String target, String id, boolean off) {
+        JsonObject m = new JsonObject();
+        m.addProperty("t", "plan.exclude");
+        m.addProperty("target", target);
+        m.addProperty("id", id);
+        m.addProperty("off", off);
+        send(m);
+    }
+
+    public static void planOption(boolean sacks, boolean inventory) {
+        JsonObject m = new JsonObject();
+        m.addProperty("t", "plan.option");
+        m.addProperty("sacks", sacks);
+        m.addProperty("inventory", inventory);
+        send(m);
     }
 
     /** 프로그램으로 보내기 (연결이 없으면 버림) */

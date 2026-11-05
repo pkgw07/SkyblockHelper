@@ -20,6 +20,7 @@ import sbhelper.core.SkyblockRepository
 import sbhelper.core.api.SbJson
 import sbhelper.core.calc.CraftPlanner
 import sbhelper.core.calc.CraftStock
+import sbhelper.core.data.CraftTarget
 import sbhelper.ui.LiveGame
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -32,6 +33,7 @@ import java.net.Socket
  * 게임 모드(Minecraft 26.2)와의 연결. 이 컴퓨터 안(127.0.0.1)에서만 받는다.
  *  - 프로그램 → 모드: 시세, 제작 플래너 진행도, 타이머 (모드가 게임 화면에 그림)
  *  - 모드 → 프로그램: 스카이블록 안·지역, 실시간 인벤토리, 열어 본 상자 (공식 API 의 1~3분 지연 보완)
+ *  - 모드 → 프로그램: 게임 안 제작 플래너에서 바꾼 목표 · 수량 · 끈 재료 (앱 화면과 같은 설정을 바꾼다)
  */
 object ModLink {
     const val PORT = 47321
@@ -42,7 +44,10 @@ object ModLink {
     /** 상자 키(inv, ender:3, backpack:2, vault) → 내용. 상점 화면 같은 건 세지 않음 */
     private val containers = HashMap<String, Map<String, Long>>()
 
+    @Volatile private var repoRef: SkyblockRepository? = null
+
     fun start(scope: CoroutineScope, repo: SkyblockRepository) {
+        repoRef = repo
         Thread({
             val server = runCatching { ServerSocket(PORT, 4, InetAddress.getLoopbackAddress()) }.getOrNull() ?: return@Thread
             while (true) {
@@ -55,11 +60,17 @@ object ModLink {
 
         // 보내기: 연결돼 있을 때만. 바뀐 것만 다시 보낸다
         scope.launch {
-            var lastPrices = ""; var lastPlan = ""; var lastTimers = ""; var lastPriceAt = 0L; var lastClient: Socket? = null
+            var lastPrices = ""; var lastPlan = ""; var lastTimers = ""; var lastPriceAt = 0L; var lastClient: Socket? = null; var lastCraftCount = -1
             while (isActive) {
                 val c = client
                 if (c != null && !c.isClosed) {
-                    if (c !== lastClient) { lastClient = c; lastPrices = ""; lastPlan = ""; lastTimers = "" }
+                    if (c !== lastClient) {
+                        lastClient = c; lastPrices = ""; lastPlan = ""; lastTimers = ""; lastCraftCount = -1
+                    }
+                    // 목표로 고를 수 있는 아이템 목록 (게임 데이터를 불러오면 다시)
+                    val gd = repo.state.value.gameData
+                    val craftCount = gd.crafting.size + gd.forge.size
+                    if (craftCount != lastCraftCount) { send(c, craftablesJson(repo).toString()); lastCraftCount = craftCount }
                     val now = System.currentTimeMillis()
                     if (now - lastPriceAt > 60_000 || lastPrices.isEmpty()) {
                         val p = pricesJson(repo).toString()
@@ -104,9 +115,56 @@ object ModLink {
                     purse = m["purse"]?.jsonPrimitive?.content.orEmpty())
             }
             "inv" -> { containers["inv"] = counts(m); publish() }
+            "plan.select", "plan.add", "plan.remove", "plan.amount", "plan.exclude", "plan.option" -> repoRef?.let { planCommand(it, m) }
             "container" -> {
                 val key = CraftStock.liveKey(m["title"]?.jsonPrimitive?.content.orEmpty())
                 if (key != null) { containers[key] = counts(m); publish() }
+            }
+        }
+    }
+
+    /** 게임 안 제작 플래너에서 온 변경: 앱 화면과 같은 설정을 바꾼다 */
+    private fun planCommand(repo: SkyblockRepository, m: JsonObject) {
+        val id = m["id"]?.jsonPrimitive?.content.orEmpty()
+        val amount = m["amount"]?.jsonPrimitive?.content?.toIntOrNull()?.coerceIn(1, 100_000) ?: 1
+        when (m["t"]?.jsonPrimitive?.content) {
+            "plan.select" -> repo.updateSynced { s -> s.craftTargets.firstOrNull { it.itemId == id }?.let { s.copy(craftCurrent = it) } ?: s }
+            "plan.add" -> if (id.isNotBlank()) repo.updateSynced { s ->
+                val t = CraftTarget(id, amount)
+                s.copy(craftTargets = (listOf(t) + s.craftTargets.filterNot { it.itemId == id }).take(12), craftCurrent = t)
+            }
+            "plan.remove" -> repo.updateSynced { s ->
+                val left = s.craftTargets.filterNot { it.itemId == id }
+                s.copy(craftTargets = left, craftCurrent = if (s.craftCurrent?.itemId == id) left.firstOrNull() else s.craftCurrent)
+            }
+            "plan.amount" -> repo.updateSynced { s ->
+                val t = CraftTarget(id, amount)
+                s.copy(craftTargets = s.craftTargets.map { if (it.itemId == id) t else it },
+                    craftCurrent = if (s.craftCurrent?.itemId == id) t else s.craftCurrent)
+            }
+            "plan.exclude" -> {
+                val target = m["target"]?.jsonPrimitive?.content.orEmpty()
+                val off = m["off"]?.jsonPrimitive?.content == "true"
+                if (target.isNotBlank() && id.isNotBlank()) repo.updateSynced { s ->
+                    val cur = s.craftExcluded[target].orEmpty()
+                    val next = if (off) cur + id else cur - id
+                    s.copy(craftExcluded = if (next.isEmpty()) s.craftExcluded - target else s.craftExcluded + (target to next))
+                }
+            }
+            "plan.option" -> repo.updateDevice { d ->
+                d.copy(plannerUseSacks = m["sacks"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: d.plannerUseSacks,
+                    plannerUseInventory = m["inventory"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: d.plannerUseInventory)
+            }
+        }
+    }
+
+    /** 게임 안에서 목표로 고를 수 있는 아이템 (제작 · 포지 레시피가 있는 것): [ID, 이름] */
+    private fun craftablesJson(repo: SkyblockRepository) = buildJsonObject {
+        put("t", "craftables")
+        val st = repo.state.value
+        putJsonArray("list") {
+            (st.gameData.crafting.keys + st.gameData.forge.keys).toSortedSet().forEach { id ->
+                add(buildJsonArray { add(JsonPrimitive(id)); add(JsonPrimitive(st.itemName(id).replace(Regex("§."), ""))) })
             }
         }
     }
@@ -140,8 +198,18 @@ object ModLink {
     private fun planJson(repo: SkyblockRepository) = buildJsonObject {
         put("t", "plan")
         val st = repo.state.value
-        val t = st.synced.craftCurrent ?: return@buildJsonObject
         val d = st.device
+        // 게임 안 플래너 화면용: 목표 목록 · 옵션
+        putJsonArray("targets") {
+            st.synced.craftTargets.forEach { t ->
+                add(buildJsonObject { put("id", t.itemId); put("name", st.itemName(t.itemId).replace(Regex("§."), "")); put("amount", t.amount) })
+            }
+        }
+        put("sacks", d.plannerUseSacks)
+        put("inventory", d.plannerUseInventory)
+        val t = st.synced.craftCurrent ?: return@buildJsonObject
+        put("current", t.itemId)
+        put("amount", t.amount)
         val p = st.selectedProfile
         // 상자마다: 게임에서 이번에 본 건 실시간, 아닌 건 공식 API
         val inv = if (!d.plannerUseInventory) emptyMap()
@@ -163,6 +231,20 @@ object ModLink {
                 add(buildJsonObject {
                     put("id", r.itemId); put("name", st.itemName(r.itemId).replace(Regex("§."), ""))
                     put("have", r.have); put("need", kotlin.math.ceil(r.needed))
+                })
+            }
+        }
+        // 모든 기본 재료 (끈 재료 포함, 게임 안에서 켜고 끄기용)
+        val all = if (skip.isEmpty()) raw else planner.rawProgress(t.itemId, t.amount, stock, emptySet())
+        putJsonArray("all") {
+            val ids = all.map { it.itemId }.toMutableList()
+            skip.filterNot { it in ids }.forEach { ids += it }
+            val byId = raw.associateBy { it.itemId }
+            ids.forEach { id ->
+                val r = byId[id] ?: all.firstOrNull { it.itemId == id }
+                add(buildJsonObject {
+                    put("id", id); put("name", st.itemName(id).replace(Regex("§."), ""))
+                    put("have", r?.have ?: 0.0); put("need", kotlin.math.ceil(r?.needed ?: 0.0)); put("off", id in skip)
                 })
             }
         }

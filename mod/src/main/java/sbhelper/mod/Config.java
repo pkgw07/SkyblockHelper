@@ -49,6 +49,24 @@ public final class Config {
     public boolean hideExperimentTips = true;
     public boolean hideHarpTips = true;
     public boolean copyKeys = true;
+    /** 채팅 · 편의 (1.2.0) */
+    public boolean chatInScreens = true;
+    public boolean shortcuts = true;
+    public boolean chatPartyInvite = true;
+    public boolean ctrlClickInvite = true;
+    public boolean replyLast = true;
+    public boolean nameComplete = true;
+    /** 월드 · 전투 · 보스 (1.2.0) */
+    public boolean dragonHitbox = true;
+    public boolean crystalHitbox = true;
+    public boolean dragonScrollLock = true;
+    public boolean toolRanges = true;
+    public int fishingLineColor = 0;
+    public boolean blazePillar = true;
+    public boolean ashfang = true;
+    public boolean dojoHelper = true;
+    public boolean kuudraTimer = true;
+    public long matriarchAt = 0;
     /** 표지판 입력 기록: 표지판 아래 줄 → 최근 값 */
     public Map<String, List<String>> signValues = new HashMap<>();
     /** 설정 파일 형식 (옛 파일 옮기기용) */

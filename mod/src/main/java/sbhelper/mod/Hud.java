@@ -30,6 +30,7 @@ public final class Hud {
         kind("fetchur", "Fetchur", Items.COMPASS);
         kind("experiment", "실험대", Items.ENCHANTING_TABLE);
         kind("mayor", "새 시장", Items.NAME_TAG);
+        kind("matriarch", "Matriarch", Items.HEART_OF_THE_SEA);
     }
     private static final ItemStack OTHER = new ItemStack(Items.PAPER);
 
@@ -47,6 +48,7 @@ public final class Hud {
         Minecraft mc = Minecraft.getInstance();
         Config c = Config.get();
         if (!c.hud || mc.player == null) return;
+        if (SkyBlock.inSkyblock) Bosses.hud(g);
         if (c.onlyInSkyblock && !SkyBlock.inSkyblock) return;
         if (!Link.connected && !SkyBlock.TEST) return;
         if (c.planHud) drawAt(g, mc.font, planLines(), c.planX, c.planY, c.planRight, c.planBottom, c.planScale, c.planWidth);
@@ -87,7 +89,10 @@ public final class Hud {
         List<Row> rows = new ArrayList<>();
         long now = System.currentTimeMillis();
         List<Link.Timer> shown = new ArrayList<>();
-        for (Link.Timer t : Link.timers) if (c.showTimer(t.kind())) shown.add(t);
+        List<Link.Timer> all = new ArrayList<>(Link.timers);
+        all.addAll(Bosses.localTimers());
+        all.sort((a, b) -> a.done() != b.done() ? (a.done() ? -1 : 1) : Long.compare(a.at(), b.at()));
+        for (Link.Timer t : all) if (c.showTimer(t.kind())) shown.add(t);
         rows.add(Row.head("타이머", shown.isEmpty() ? "" : String.valueOf(shown.size())));
         int n = 0;
         for (Link.Timer t : shown) {
@@ -107,7 +112,7 @@ public final class Hud {
             if (t.start() > 0 && t.at() > t.start()) progress = done ? 1f : (float) Math.max(0, Math.min(1, (now - t.start()) / (double) (t.at() - t.start())));
             rows.add(new Row(t.label(), right, color, icon(t.kind()), progress));
         }
-        if (shown.isEmpty()) rows.add(Row.text(Link.timers.isEmpty() ? "없음" : "숨긴 종류만 있어요", ""));
+        if (shown.isEmpty()) rows.add(Row.text(all.isEmpty() ? "없음" : "숨긴 종류만 있어요", ""));
         return rows;
     }
 

@@ -23,7 +23,7 @@ import java.util.function.IntConsumer;
  */
 public final class SettingsScreen extends Screen {
     private static final Identifier ICON = Identifier.fromNamespaceAndPath("skyblockhelper", "icon.png");
-    private static final String[] TABS = {"일반", "HUD", "타이머", "상자", "경매장", "툴팁", "도구"};
+    private static final String[] TABS = {"일반", "HUD", "타이머", "상자", "경매장", "툴팁", "채팅", "전투", "도구"};
     private static final int PANEL = 0xF0141820, BORDER = 0x38FFFFFF, CARD = 0x10FFFFFF, CARD_HOVER = 0x24FFFFFF,
         TRACK = 0xFF3A404C, ACCENT = Hud.ACCENT, ACCENT_HI = 0xFFFFBE5C, DARK_TEXT = 0xFF1B1405;
     /** 마지막으로 본 탭 (다시 열면 그대로) */
@@ -73,7 +73,7 @@ public final class SettingsScreen extends Screen {
         float a = openness();
         if (a <= 0.01f) return;
 
-        int pw = Math.min(340, this.width - 24), ph = Math.min(222, this.height - 12);
+        int pw = Math.min(390, this.width - 24), ph = Math.min(226, this.height - 12);
         int px = (this.width - pw) / 2;
         int py = (this.height - ph) / 2 + Math.round((1 - a) * 16);
 
@@ -118,14 +118,14 @@ public final class SettingsScreen extends Screen {
         int tx = px + 10;
         int[] tabX = new int[TABS.length], tabW = new int[TABS.length];
         for (int i = 0; i < TABS.length; i++) {
-            int w = this.font.width(TABS[i]) + 14;
+            int w = this.font.width(TABS[i]) + 12;
             tabX[i] = tx; tabW[i] = w;
             boolean hov = Ui.inside(mx, my, tx, ty, tx + w, ty + 17);
             float hv = anim.to("tab" + i, hov ? 1 : 0, 16);
             float act = anim.to("tabA" + i, i == tab ? 1 : 0, 14);
             if (hv > 0.01f) Ui.round(g, tx, ty + 1, tx + w, ty + 16, Ui.alpha(0x18FFFFFF, a * hv));
             int color = Ui.mix(Math.max(act, hv * 0.6f), 0xFF8A8F99, 0xFFFFFFFF);
-            text(g, TABS[i], tx + 7, ty + 5, Ui.alpha(color, a));
+            text(g, TABS[i], tx + 6, ty + 5, Ui.alpha(color, a));
             int idx = i;
             hits.add(new Hit(tx, ty, tx + w, ty + 17, () -> setTab(idx)));
             tx += w + 2;
@@ -144,6 +144,8 @@ public final class SettingsScreen extends Screen {
             case 3 -> containers(g, mx, my, cx, cy, cw, ca);
             case 4 -> auction(g, mx, my, cx, cy, cw, ca);
             case 5 -> tooltips(g, mx, my, cx, cy, cw, ca);
+            case 6 -> chat(g, mx, my, cx, cy, cw, ca);
+            case 7 -> combat(g, mx, my, cx, cy, cw, ca);
             default -> tools(g, mx, my, cx, cy, cw, ca);
         }
 
@@ -180,8 +182,11 @@ public final class SettingsScreen extends Screen {
         int half = (w - 6) / 2;
         toggle(g, mx, my, x, y, half, "plan", "제작 플래너 HUD", "프로그램 제작 플래너의 목표와 모자란 재료", null, c.planHud, () -> c.planHud = !c.planHud, a);
         toggle(g, mx, my, x + half + 6, y, half, "timers", "타이머 HUD", "포지 · 컴포스터 같은 타이머", null, c.timerHud, () -> c.timerHud = !c.timerHud, a);
-        button(g, mx, my, x, y + 30, w, 20, "edit", "HUD 위치 · 크기 · 너비 편집", true,
+        int half2 = (w - 6) / 2;
+        button(g, mx, my, x, y + 30, half2, 20, "edit", "HUD 위치 · 크기 · 너비", true,
             () -> { Ui.click(); this.minecraft.gui.setScreen(new HudEditScreen(this)); }, a);
+        button(g, mx, my, x + half2 + 6, y + 30, half2, 20, "planner", "제작 플래너 편집", true,
+            () -> { Ui.click(); this.minecraft.gui.setScreen(new PlannerScreen(this)); }, a);
         button(g, mx, my, x, y + 56, half, 18, "resetSize", "크기 · 너비 기본으로", false, () -> {
             Ui.click(); c.planScale = 1f; c.timerScale = 1f; c.planWidth = 0; c.timerWidth = 0; Config.save();
         }, a);
@@ -245,6 +250,40 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x, y + 48, half, "harp", "Harp 툴팁 숨기기", "Melody's Harp 화면", null, c.hideHarpTips, () -> c.hideHarpTips = !c.hideHarpTips, a);
     }
 
+    private void chat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "chatscreen", "상자 화면 채팅", "엔더 체스트 · 거래 · 은행 · 제작 화면에서도 최근 채팅", null,
+            c.chatInScreens, () -> c.chatInScreens = !c.chatInScreens, a);
+        toggle(g, mx, my, x + half + 6, y, half, "shortcuts", "바로가기 메뉴", "상자 화면 옆: 엔더 체스트 · 제작대 · 옷장 · 펫 · Storage · 메뉴", null,
+            c.shortcuts, () -> c.shortcuts = !c.shortcuts, a);
+        toggle(g, mx, my, x, y + 24, half, "pinvite", "채팅 파티 초대", "플레이어 채팅 끝의 [파티 초대] 를 누르면 /p invite", null,
+            c.chatPartyInvite, () -> c.chatPartyInvite = !c.chatPartyInvite, a);
+        toggle(g, mx, my, x + half + 6, y + 24, half, "cinvite", "Ctrl+우클릭 초대", "Ctrl 을 누른 채 플레이어를 우클릭하면 파티 초대", null,
+            c.ctrlClickInvite, () -> c.ctrlClickInvite = !c.ctrlClickInvite, a);
+        toggle(g, mx, my, x, y + 48, half, "reply", "/r 마지막 상대", "/r 을 마지막으로 귓속말한 사람에게 (/msg 이름)", null,
+            c.replyLast, () -> c.replyLast = !c.replyLast, a);
+        toggle(g, mx, my, x + half + 6, y + 48, half, "names", "이름 자동완성", "/p · /msg · /invite 등에서 탭 목록 플레이어 이름", null,
+            c.nameComplete, () -> c.nameComplete = !c.nameComplete, a);
+    }
+
+    private void combat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
+        Config c = Config.get();
+        int half = (w - 6) / 2;
+        toggle(g, mx, my, x, y, half, "dragonhb", "드래곤 히트박스", "드래곤이 나타나면 히트박스를 자동으로", null, c.dragonHitbox, () -> c.dragonHitbox = !c.dragonHitbox, a);
+        toggle(g, mx, my, x + half + 6, y, half, "crystalhb", "크리스탈 히트박스", "Dragon's Nest 에서 엔드 크리스탈 히트박스", null, c.crystalHitbox, () -> c.crystalHitbox = !c.crystalHitbox, a);
+        toggle(g, mx, my, x, y + 24, half, "scroll", "드래곤 전투 휠 잠금", "드래곤이 있을 때 마우스 휠로 핫바가 넘어가지 않게", null,
+            c.dragonScrollLock, () -> c.dragonScrollLock = !c.dragonScrollLock, a);
+        toggle(g, mx, my, x + half + 6, y + 24, half, "toolr", "도구 범위", "Builder's Wand · Block Zapper · Bonemerang 범위 미리보기", null,
+            c.toolRanges, () -> c.toolRanges = !c.toolRanges, a);
+        toggle(g, mx, my, x, y + 48, half, "pillar", "Blaze 기둥 경고", "Blaze 슬레이어 불기둥 폭발까지 남은 시간", null, c.blazePillar, () -> c.blazePillar = !c.blazePillar, a);
+        toggle(g, mx, my, x + half + 6, y + 48, half, "ashfang", "Ashfang", "전투 시간 · 체력 · 중력 구 위치", null, c.ashfang, () -> c.ashfang = !c.ashfang, a);
+        toggle(g, mx, my, x, y + 72, half, "dojo", "Dojo 도우미", "Discipline: 좀비 머리 위에 맞는 칼", null, c.dojoHelper, () -> c.dojoHelper = !c.dojoHelper, a);
+        toggle(g, mx, my, x + half + 6, y + 72, half, "kuudra", "Kuudra 타이머", "Kuudra 에 들어간 뒤 지난 시간", null, c.kuudraTimer, () -> c.kuudraTimer = !c.kuudraTimer, a);
+        segment(g, mx, my, x, y + 98, w, "낚싯줄", new String[]{World.LINE_NAMES[c.fishingLineColor], "바꾸기"}, 0,
+            v -> c.fishingLineColor = (c.fishingLineColor + 1) % World.LINE_COLORS.length, a);
+    }
+
     private void tools(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
         Config c = Config.get();
         int half = (w - 6) / 2;
@@ -252,8 +291,12 @@ public final class SettingsScreen extends Screen {
         button(g, mx, my, x + half + 6, y + 1, half, 18, "copyInv", "인벤토리 복사", false, () -> { Ui.click(); Copy.inventory(); }, a);
         button(g, mx, my, x, y + 26, half, 18, "copyEntity", "보고 있던 엔티티 복사", false, () -> { Ui.click(); Copy.entity(); }, a);
         button(g, mx, my, x + half + 6, y + 26, half, 18, "storageClear", "Storage 기억 지우기", false, () -> { Ui.click(); Storage.clear(); }, a);
-        text(g, Hud.fit(this.font, "복사한 내용(JSON)을 보내 주시면 기능을 더 정확하게 맞출 수 있어요", w), x + 2, y + 54, Ui.alpha(0xFF8A8F99, a));
-        text(g, Hud.fit(this.font, "명령어: /sbh copy · /sbh entity", w), x + 2, y + 66, Ui.alpha(0xFF6F7580, a));
+        button(g, mx, my, x, y + 50, half, 18, "island", "섬 분석 (미니언 · 상자 · 호퍼)", false, () -> { Ui.click(); World.island(); }, a);
+        button(g, mx, my, x + half + 6, y + 50, half, 18, "matri", "Matriarch 24시간 시작", false, () -> {
+            Ui.click(); c.matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L; Config.save();
+        }, a);
+        text(g, Hud.fit(this.font, "복사한 내용(JSON)을 보내 주시면 기능을 더 정확하게 맞출 수 있어요", w), x + 2, y + 78, Ui.alpha(0xFF8A8F99, a));
+        text(g, Hud.fit(this.font, "명령어: /sbh copy · entity · island · matriarch · update", w), x + 2, y + 90, Ui.alpha(0xFF6F7580, a));
     }
 
     // ---------- 부품 ----------

@@ -43,6 +43,7 @@ public final class SbhMod implements ClientModInitializer {
 
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             SkyBlock.tick(mc);
+            World.tick(mc);
             if (++screenTick % 10 == 0 && mc.gui.screen() instanceof AbstractContainerScreen<?> shown) Storage.tick(shown);
             while (toggleHud.consumeClick()) {
                 Config c = Config.get();
@@ -65,6 +66,23 @@ public final class SbhMod implements ClientModInitializer {
             if (open == 1) { open = 0; mc.gui.setScreen(new SettingsScreen(null)); }
             if (open == 2) { open = 0; mc.gui.setScreen(new HudEditScreen(null)); }
             if (open == 3) { open = 0; mc.gui.setScreen(new UpdateScreen(null)); }
+            if (open == 4) { open = 0; mc.gui.setScreen(new PlannerScreen(null)); }
+        });
+
+        // 채팅: 기록 · [파티 초대] 버튼 · /r → 마지막 상대
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.GAME.register((message, overlay) -> { if (!overlay) ChatLog.received(message); });
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> overlay ? message : ChatLog.modify(message));
+        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.MODIFY_COMMAND.register(ChatLog::modifyCommand);
+        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.COMMAND.register(ChatLog::sentCommand);
+        // Ctrl + 우클릭으로 플레이어 파티 초대 (진짜 플레이어만, NPC 제외)
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
+            if (!level.isClientSide() || !Config.get().ctrlClickInvite || !SkyBlock.inSkyblock) return net.minecraft.world.InteractionResult.PASS;
+            if (!(entity instanceof net.minecraft.world.entity.player.Player target) || target == player || target.getUUID().version() != 4) return net.minecraft.world.InteractionResult.PASS;
+            Minecraft mc = Minecraft.getInstance();
+            if (!InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_LEFT_CONTROL) && !InputConstants.isKeyDown(mc.getWindow(), GLFW.GLFW_KEY_RIGHT_CONTROL))
+                return net.minecraft.world.InteractionResult.PASS;
+            mc.getConnection().sendCommand("p invite " + target.getName().getString());
+            return net.minecraft.world.InteractionResult.FAIL;
         });
 
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("skyblockhelper", "hud"), Hud::extract);
@@ -81,6 +99,8 @@ public final class SbhMod implements ClientModInitializer {
                     ContainerOverlay.foreground(cs, g);
                     Auction.foreground(cs, g);
                     Storage.foreground(cs, g, mx, my);
+                    Shortcuts.draw(cs, g, mx, my);
+                    if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
                 });
                 ScreenEvents.remove(screen).register(s -> Storage.save());
                 Auction.addSearchBox(cs);
@@ -101,6 +121,14 @@ public final class SbhMod implements ClientModInitializer {
                     else c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f" + (Updater.downloaded()
                         ? "새 버전을 받아 뒀어요. 게임을 다시 시작하면 적용돼요."
                         : "최신 버전이에요 (" + VERSION + ")")));
+                    return Command.SINGLE_SUCCESS;
+                }))
+                .then(ClientCommands.literal("plan").executes(c -> { open = 4; return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("island").executes(c -> { World.island(); return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("matriarch").executes(c -> {
+                    Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
+                    Config.save();
+                    c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §fMatriarch 타이머를 24시간으로 맞췄어요"));
                     return Command.SINGLE_SUCCESS;
                 }))
                 .then(ClientCommands.literal("copy").executes(c -> { Copy.inventory(); return Command.SINGLE_SUCCESS; }))
@@ -133,7 +161,11 @@ public final class SbhMod implements ClientModInitializer {
         {"value", "상자 가치"}, {"highlight", "부족한 재료 강조"}, {"onlysb", "스카이블록에서만 HUD"},
         {"storagepreview", "Storage 미리보기"}, {"pets", "펫 레벨 배경색"}, {"bids", "입찰 상태"}, {"seller", "판매자 보기"},
         {"ahsearch", "경매장 가격 검색"}, {"signs", "표지판 입력 목록"}, {"times", "남은 시간 → 시각"}, {"age", "얻은 날"},
-        {"hideexp", "실험대 툴팁 숨기기"}, {"hideharp", "Harp 툴팁 숨기기"},
+        {"hideexp", "실험대 툴팁 숨기기"}, {"hideharp", "Harp 툴팁 숨기기"}, {"petpct", "펫 만렙 %"},
+        {"chat", "상자 화면 채팅"}, {"shortcuts", "바로가기 메뉴"}, {"partyinvite", "채팅 파티 초대"}, {"ctrlinvite", "Ctrl+우클릭 파티 초대"},
+        {"reply", "/r 마지막 상대"}, {"names", "이름 자동완성"}, {"dragon", "드래곤 히트박스"}, {"crystal", "크리스탈 히트박스"},
+        {"scrolllock", "드래곤 전투 스크롤 잠금"}, {"tools", "도구 범위"}, {"pillar", "Blaze 기둥 경고"}, {"ashfang", "Ashfang"},
+        {"dojo", "Dojo 도우미"}, {"kuudra", "Kuudra 타이머"},
     };
 
     private static boolean toggle(String name) {
@@ -156,6 +188,21 @@ public final class SbhMod implements ClientModInitializer {
             case "age" -> c.itemAge = !c.itemAge;
             case "hideexp" -> c.hideExperimentTips = !c.hideExperimentTips;
             case "hideharp" -> c.hideHarpTips = !c.hideHarpTips;
+            case "petpct" -> c.petPercent = !c.petPercent;
+            case "chat" -> c.chatInScreens = !c.chatInScreens;
+            case "shortcuts" -> c.shortcuts = !c.shortcuts;
+            case "partyinvite" -> c.chatPartyInvite = !c.chatPartyInvite;
+            case "ctrlinvite" -> c.ctrlClickInvite = !c.ctrlClickInvite;
+            case "reply" -> c.replyLast = !c.replyLast;
+            case "names" -> c.nameComplete = !c.nameComplete;
+            case "dragon" -> c.dragonHitbox = !c.dragonHitbox;
+            case "crystal" -> c.crystalHitbox = !c.crystalHitbox;
+            case "scrolllock" -> c.dragonScrollLock = !c.dragonScrollLock;
+            case "tools" -> c.toolRanges = !c.toolRanges;
+            case "pillar" -> c.blazePillar = !c.blazePillar;
+            case "ashfang" -> c.ashfang = !c.ashfang;
+            case "dojo" -> c.dojoHelper = !c.dojoHelper;
+            case "kuudra" -> c.kuudraTimer = !c.kuudraTimer;
             default -> false;
         };
         Config.save();
