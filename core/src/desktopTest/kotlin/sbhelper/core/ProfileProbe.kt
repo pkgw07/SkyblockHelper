@@ -102,6 +102,15 @@ class ProfileProbe {
                         report.appendLine("  HotM·HotF 항목(#$i-$n): " + ch.joinToString(" | "))
                     }
             }
+            // HotM 프리셋: 고른 슬롯 번호를 0부터/1부터로 볼 때 그 트리에 quick_forge 가 있는지 (번호 값 자체는 남기지 않음)
+            run {
+                val st = me?.get("skill_tree") as? JsonObject
+                val nodes = st?.get("nodes") as? JsonObject
+                val sel = ((st?.get("selected_skill_tree_slot") as? JsonObject)?.get("mining") as? JsonPrimitive)?.content?.toDoubleOrNull()?.toInt()
+                fun tree(slot: Int) = if (slot <= 1) "mining" else "mining_$slot"
+                fun qf(slot: Int) = ((nodes?.get(tree(slot)) as? JsonObject)?.get("quick_forge") as? JsonPrimitive)?.content?.toDoubleOrNull()?.let { it > 0 } ?: false
+                if (sel != null) report.appendLine("  HotM 슬롯(#$i): 1부터로 보면 quick_forge=${qf(sel)} · 0부터로 보면 quick_forge=${qf(sel + 1)} · 슬롯 수=${nodes?.keys?.count { it.startsWith("mining") }}")
+            }
             val spots = mutableListOf<String>(); itemSpots(me, "member", spots); itemSpots(JsonObject(p.filterKeys { it != "members" }), "profile", spots)
             val wk = mutableListOf<String>(); wardrobeKeys(p.mapKeys { it.key }.let { JsonObject(it) }, "profile", wk)
             report.appendLine("  아이템 위치(#$i): " + spots.joinToString(" | "))
