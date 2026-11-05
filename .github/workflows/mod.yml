@@ -38,7 +38,7 @@ jobs:
           echo "$jar"
           cp=$(echo "$jar" | tr '\n' ':')
           for c in ${{ inputs.api_dump }}; do echo "=== $c"; javap -cp "$cp" "$c" || true; done > api-dump.txt
-          wc -l api-dump.txt
+          cat api-dump.txt
       - uses: actions/upload-artifact@v4
         if: inputs.api_dump != ''
         with:
