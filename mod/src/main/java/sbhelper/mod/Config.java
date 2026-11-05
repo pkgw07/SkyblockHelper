@@ -52,6 +52,8 @@ public final class Config {
     /** 채팅 · 편의 (1.2.0) */
     public boolean chatInScreens = true;
     public boolean shortcuts = true;
+    /** 상자 화면끼리 옮겨 갈 때 마우스 위치 유지 */
+    public boolean keepCursor = true;
     /** 바로가기 바 위치: 0 오른쪽, 1 왼쪽, 2 위, 3 아래, 4 자유 (shortcutX/Y) */
     public int shortcutPos = 0;
     public int shortcutX = -1, shortcutY = -1;

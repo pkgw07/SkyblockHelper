@@ -204,15 +204,25 @@ private fun hotmLevels(layout: List<GameData.HotmCell>, nodes: Map<String, Int>)
 @Composable
 private fun HotmTab(state: AppState, p: ProfileSummary, wide: Boolean) {
     val layout = state.gameData.hotmLayout
-    val (levels, unmatched) = remember(layout, p.hotmNodes) { hotmLevels(layout, p.hotmNodes) }
+    // 프리셋(슬롯): 처음엔 지금 쓰는 슬롯, 눌러서 다른 슬롯 보기
+    var slot by remember(p.profileId, p.hotmSlot) { mutableStateOf(p.hotmSlot) }
+    val nodes = p.hotmPresets[slot] ?: p.hotmNodes
+    val (levels, unmatched) = remember(layout, nodes) { hotmLevels(layout, nodes) }
+    val qf = sbhelper.core.model.ProfileParser.quickForge(nodes)
+    PresetPicker(p.hotmPresets.keys, p.hotmSlot, slot) { slot = it }
     TreePanel(
-        caption = "Heart of the Mountain", title = "내 HotM 트리", accent = Sb.Aqua, short = "HotM",
-        xp = p.hotmXp, table = state.gameData.leveling.hotm, tokens = p.tokensSpent["mountain"],
-        layout = layout, levels = levels, unmatched = unmatched, noData = p.hotmNodes.isEmpty(), wiki = "Heart of the Mountain", wide = wide,
+        caption = "Heart of the Mountain", title = if (slot == p.hotmSlot) "내 HotM 트리 (지금 쓰는 프리셋 $slot)" else "HotM 프리셋 $slot",
+        accent = Sb.Aqua, short = "HotM",
+        xp = p.hotmXp, table = state.gameData.leveling.hotm, tokens = p.tokensSpent[if (slot <= 1) "mountain" else "mountain_$slot"],
+        layout = layout, levels = levels, unmatched = unmatched, noData = nodes.isEmpty(), wiki = "Heart of the Mountain", wide = wide,
     ) {
-        StatTile("Quick Forge", if (p.quickForgeLevel > 0) "레벨 ${p.quickForgeLevel}" else "없음",
-            color = if (p.quickForgeLevel > 0) Sb.Green else Sb.TextFaint,
-            sub = if (p.quickForgeLevel > 0) "포지 시간 -${sbhelper.core.util.fixed(state.gameData.rules.quickForge.percent(p.quickForgeLevel), 1)}%" else null)
+        StatTile("Quick Forge", if (qf > 0) "레벨 $qf" else "없음",
+            color = if (qf > 0) Sb.Green else Sb.TextFaint,
+            sub = when {
+                qf > 0 && slot == p.hotmSlot -> "포지 시간 -${sbhelper.core.util.fixed(state.gameData.rules.quickForge.percent(qf), 1)}% (적용 중)"
+                qf > 0 -> "이 프리셋으로 바꾸면 -${sbhelper.core.util.fixed(state.gameData.rules.quickForge.percent(qf), 1)}%"
+                else -> null
+            })
         p.powders.forEach { (k, v) ->
             StatTile(when (k) { "mithril" -> "미스릴 파우더"; "gemstone" -> "젬스톤 파우더"; else -> "글라사이트 파우더" }, formatNumber(v),
                 color = when (k) { "mithril" -> Sb.DarkGreen; "gemstone" -> Sb.Pink; else -> Sb.Aqua })
@@ -223,14 +233,27 @@ private fun HotmTab(state: AppState, p: ProfileSummary, wide: Boolean) {
 @Composable
 private fun HotfTab(state: AppState, p: ProfileSummary, wide: Boolean) {
     val layout = state.gameData.hotfLayout
-    val (levels, unmatched) = remember(layout, p.hotfNodes) { hotmLevels(layout, p.hotfNodes) }
+    var slot by remember(p.profileId, p.hotfSlot) { mutableStateOf(p.hotfSlot) }
+    val nodes = p.hotfPresets[slot] ?: p.hotfNodes
+    val (levels, unmatched) = remember(layout, nodes) { hotmLevels(layout, nodes) }
+    PresetPicker(p.hotfPresets.keys, p.hotfSlot, slot) { slot = it }
     TreePanel(
-        caption = "Heart of the Forest", title = "내 HotF 트리", accent = Sb.Green, short = "HotF",
-        xp = p.hotfXp, table = state.gameData.leveling.hotf, tokens = p.tokensSpent["forest"],
-        layout = layout, levels = levels, unmatched = unmatched, noData = p.hotfNodes.isEmpty(), wiki = "Heart of the Forest", wide = wide,
+        caption = "Heart of the Forest", title = if (slot == p.hotfSlot) "내 HotF 트리 (지금 쓰는 프리셋 $slot)" else "HotF 프리셋 $slot",
+        accent = Sb.Green, short = "HotF",
+        xp = p.hotfXp, table = state.gameData.leveling.hotf, tokens = p.tokensSpent[if (slot <= 1) "forest" else "forest_$slot"],
+        layout = layout, levels = levels, unmatched = unmatched, noData = nodes.isEmpty(), wiki = "Heart of the Forest", wide = wide,
     ) {
         levels["Center of the Forest"]?.let { StatTile("Center of the Forest", "레벨 $it", color = Sb.Green) }
     }
+}
+
+/** 프리셋(슬롯)이 2개 이상이면 고르기. 지금 쓰는 슬롯에 '사용 중' */
+@Composable
+private fun PresetPicker(slots: Set<Int>, current: Int, selected: Int, onSelect: (Int) -> Unit) {
+    val list = slots.sorted()
+    if (list.size < 2) return
+    Segmented(list.map { if (it == current) "프리셋 $it · 사용 중" else "프리셋 $it" }, list.indexOf(selected).coerceAtLeast(0), { onSelect(list[it]) })
+    Spacer(Modifier.height(8.dp))
 }
 
 /** HotM·HotF 같은 모양: 레벨·진행도·쓴 토큰·찍은 칸 + 트리 */

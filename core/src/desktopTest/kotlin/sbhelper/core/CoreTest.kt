@@ -372,6 +372,27 @@ class CoreTest {
     }
 
     @Test
+    fun hotmPresetUsesSelectedSlot() {
+        // 진단으로 확인한 구조: skill_tree.nodes.mining(슬롯1), mining_2(슬롯2) …, selected_skill_tree_slot.mining
+        fun member(selected: String) = SbJson.parseToJsonElement("""{"skill_tree":{
+            "nodes":{"mining":{"quick_forge":20,"toggle_quick_forge":true,"mining_speed":50},"mining_2":{"mining_speed":10,"gem_lover":5},"mining_3":{},
+                     "foraging":{"sweep":3},"foraging_2":{"sweep":7}},
+            $selected "experience":{"mining":1}},
+            "mining_core":{"nodes":{"quick_forge":20}}}""").jsonObject
+        val slot2 = member(""""selected_skill_tree_slot":{"mining":2,"foraging":2},""")
+        assertEquals(0, ProfileParser.quickForge(ProfileParser.hotmNodes(slot2)))
+        assertEquals(mapOf("mining_speed" to 10, "gem_lover" to 5), ProfileParser.hotmNodes(slot2))
+        assertEquals(setOf(1, 2), ProfileParser.presets(slot2, "mining").keys)
+        assertEquals(2, ProfileParser.selectedSlot(slot2, "mining"))
+        assertEquals(7, ProfileParser.presets(slot2, "foraging")[2]?.get("sweep"))
+        // 고른 슬롯 정보가 없으면 슬롯 1
+        assertEquals(20, ProfileParser.quickForge(ProfileParser.hotmNodes(member(""))))
+        // 새 구조가 없을 때만 옛 구조
+        val legacy = SbJson.parseToJsonElement("""{"mining_core":{"nodes":{"quick_forge":3}}}""").jsonObject
+        assertEquals(3, ProfileParser.quickForge(ProfileParser.hotmNodes(legacy)))
+    }
+
+    @Test
     fun heavyPearlAndKatTimers() {
         val now = 1_793_500_000_000L
         val member = SbJson.parseToJsonElement("""{"nether_island_player_data":{"matriarch":{"pearls_collected":3,"last_attempt":${now - 3_600_000L}}}}""").jsonObject

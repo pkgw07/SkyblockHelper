@@ -12,13 +12,13 @@ import org.lwjgl.glfw.GLFW;
 import sbhelper.mod.mixin.ContainerScreenAccessor;
 
 /**
- * 상자 화면 바로가기 바: 엔더 체스트 · 제작 · 옷장 · 펫 · Storage · 스카이블록 메뉴 (누르면 그 명령어 한 번).
+ * 상자 화면 바로가기 바: 엔더 상자 · 제작 · 옷장 · 펫 · Storage · 스카이블록 메뉴 (누르면 그 명령어 한 번).
  * 위치: 오른쪽 · 왼쪽 · 위 · 아래 · 자유 (Ctrl 을 누른 채 끌어서 옮김). 아이템 설명(툴팁)보다 아래에 그린다.
  */
 public final class Shortcuts {
     private record Entry(String command, String name, ItemStack icon) {}
     private static final Entry[] ENTRIES = {
-        e("enderchest", "엔더 체스트", Items.ENDER_CHEST), e("craft", "제작대", Items.CRAFTING_TABLE),
+        e("enderchest", "엔더 상자", Items.ENDER_CHEST), e("craft", "제작대", Items.CRAFTING_TABLE),
         e("wardrobe", "옷장 (Wardrobe)", Items.LEATHER_CHESTPLATE), e("pets", "펫", Items.BONE),
         e("storage", "Storage", Items.CHEST), e("sbmenu", "스카이블록 메뉴", Items.NETHER_STAR),
     };

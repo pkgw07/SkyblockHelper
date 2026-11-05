@@ -18,7 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * 채팅 관련
- *  - 상자 화면(엔더 체스트 · 거래 · 은행 · 제작 등)을 열어도 최근 채팅을 왼쪽 아래에 보여 준다
+ *  - 상자 화면(엔더 상자 · 거래 · 은행 · 제작 등)을 열어도 최근 채팅을 왼쪽 아래에 보여 준다
  *  - 플레이어 채팅 끝에 [파티 초대] 를 붙여 누르면 /p invite 이름
  *  - /r 을 마지막으로 귓속말한 상대에게 (/msg 이름)
  */
@@ -93,7 +93,8 @@ public final class ChatLog {
         }
         int max = 10;
         if (rows.size() > max) rows = rows.subList(rows.size() - max, rows.size());
-        int y = screenH - 4 - rows.size() * 9;
+        // 원래 채팅 자리쯤 (핫바 위), 화면 아래에 붙지 않게
+        int y = screenH - 44 - rows.size() * 9;
         for (Object[] r : rows) {
             float a = (float) r[1];
             g.fill(2, y - 1, 2 + w, y + 8, Ui.alpha(0x90000000, a));

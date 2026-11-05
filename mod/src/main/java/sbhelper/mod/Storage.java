@@ -32,8 +32,8 @@ import java.util.regex.Pattern;
 
 /**
  * Storage 미리보기.
- *  - 엔더 체스트 페이지 · 백팩을 열 때마다 안의 아이템을 기억해 둔다 (config/skyblockhelper/storage-플레이어.nbt)
- *  - Storage 화면이나 페이지 · 백팩 화면을 열면 전부를 한 화면에 어둡게 펼친다
+ *  - 엔더 상자 페이지 · 가방을 열 때마다 안의 아이템을 기억해 둔다 (config/skyblockhelper/storage-플레이어.nbt)
+ *  - Storage 화면이나 페이지 · 가방 화면을 열면 전부를 한 화면에 어둡게 펼친다
  *  - 다른 페이지를 누르면 원래 화면의 그 칸을 한 번 눌러 주거나 (/ec N, /backpack N) 그 페이지를 연다.
  *    열린 페이지는 원래 밝기로, 진짜 칸이라 아이템을 넣고 뺄 수 있다.
  */
@@ -59,6 +59,9 @@ public final class Storage {
     }
 
     private static AbstractContainerScreen<?> layoutFor;
+    /** 아이템 검색 (오른쪽 아래 칸): 찾는 아이템이 든 칸만 보인다. 페이지를 옮겨도 유지 */
+    private static String query = "";
+    private static net.minecraft.client.gui.components.EditBox searchBox;
     private static final List<Box> boxes = new ArrayList<>();
     private static List<Integer> liveRows = List.of();
     private static int areaTop, areaBottom, invX, invY, maxScroll;
@@ -87,7 +90,7 @@ public final class Storage {
 
     private static String label(String key) {
         String[] p = key.split(":");
-        return (p[0].equals("ender") ? "엔더 체스트 " : "백팩 ") + p[1];
+        return (p[0].equals("ender") ? "엔더 상자 " : "가방 ") + p[1];
     }
 
     private static int order(String key) {
@@ -161,6 +164,50 @@ public final class Storage {
         return out;
     }
 
+    // ---------- 검색 ----------
+
+    private static boolean searching() { return !query.isBlank(); }
+
+    /** 이름이나 설명에 검색어가 들어 있는지 */
+    private static boolean matches(ItemStack st) {
+        if (!searching()) return true;
+        if (st == null || st.isEmpty()) return false;
+        String q = query.trim().toLowerCase(java.util.Locale.ROOT);
+        if (ItemText.name(st).toLowerCase(java.util.Locale.ROOT).contains(q)) return true;
+        for (String l : ItemText.lore(st)) if (l.toLowerCase(java.util.Locale.ROOT).contains(q)) return true;
+        return false;
+    }
+
+    /** Storage 미리보기 화면이 열릴 때 오른쪽 아래에 검색 칸 */
+    public static void initSearch(AbstractContainerScreen<?> cs) {
+        searchBox = null;
+        if (!active(cs)) return;
+        Minecraft mc = Minecraft.getInstance();
+        var b = new net.minecraft.client.gui.components.EditBox(mc.font, cs.width - 138, cs.height - 22, 130, 16, net.minecraft.network.chat.Component.literal("아이템 검색"));
+        b.setHint(net.minecraft.network.chat.Component.literal("아이템 검색…"));
+        b.setMaxLength(40);
+        b.setValue(query);
+        b.setResponder(v -> query = v);
+        net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(cs).add(b);
+        searchBox = b;
+    }
+
+    /** 검색 칸에 쓰는 중이면 E · 숫자 키 같은 상자 단축키보다 먼저 받는다 */
+    public static boolean keyPressed(AbstractContainerScreen<?> cs, net.minecraft.client.input.KeyEvent e) {
+        var b = searchBox;
+        if (b == null || !b.isFocused() || !net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(cs).contains(b)) return false;
+        if (e.key() == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) { b.setFocused(false); return true; }
+        b.keyPressed(e);
+        return true;
+    }
+
+    private static boolean pageHasMatch(String key) {
+        Page p = pages.get(key);
+        if (p == null) return false;
+        for (ItemStack st : p.items) if (matches(st)) return true;
+        return false;
+    }
+
     // ---------- 그리기 ----------
 
     /** 원래 상자 배경 위에 전체 미리보기를 그리고, 진짜 칸을 그 자리로 옮긴다 */
@@ -191,11 +238,21 @@ public final class Storage {
             if (!b.active() && p != null) {
                 for (int i = 0; i < p.items.size(); i++) {
                     ItemStack st = p.items.get(i);
-                    if (st.isEmpty()) continue;
+                    if (st.isEmpty() || !matches(st)) continue;
                     int sx = b.x() + 5 + (i % 9) * S + 1, sy = b.y() + HEAD + (i / 9) * S + 1;
+                    if (searching()) g.fill(sx - 1, sy - 1, sx + 17, sy + 17, 0x60FF9F1C);
                     g.item(st, sx, sy);
                     g.itemDecorations(font, st, sx, sy);
                 }
+            }
+        }
+        // 열린 페이지: 검색에 맞는 진짜 칸 강조
+        if (searching()) {
+            ContainerScreenAccessor acc0 = (ContainerScreenAccessor) cs;
+            for (Slot sl : cs.getMenu().slots) {
+                if (sl.container instanceof Inventory || !matches(sl.getItem()) || sl.x <= OFF / 2) continue;
+                int sx = acc0.sbh$leftPos() + sl.x, sy = acc0.sbh$topPos() + sl.y;
+                g.fill(sx - 1, sy - 1, sx + 17, sy + 17, 0x60FF9F1C);
             }
         }
         g.disableScissor();
@@ -210,7 +267,7 @@ public final class Storage {
         for (Box b : boxes) {
             if (b.y() + b.h() < areaTop || b.y() > areaBottom) continue;
             boolean hov = !b.active() && Ui.inside(mx, my, b.x(), b.y(), b.x() + b.w(), b.y() + b.h()) && my >= areaTop && my <= areaBottom;
-            if (!b.active()) g.fill(b.x() + 5, b.y() + HEAD, b.x() + 5 + 9 * S, b.y() + HEAD + Math.max(1, b.rows()) * S, hov ? 0x60000000 : 0xA0000000);
+            if (!b.active() && !searching()) g.fill(b.x() + 5, b.y() + HEAD, b.x() + 5 + 9 * S, b.y() + HEAD + Math.max(1, b.rows()) * S, hov ? 0x60000000 : 0xA0000000);
             g.text(font, label(b.key()), b.x() + 6, b.y() + 4, b.active() ? Hud.GOLD : hov ? 0xFFFFFFFF : 0xFFB8BCC4, true);
             String right = b.active() ? "열림" : b.known() ? (hov ? "눌러서 열기" : "") : "한 번 열어 주세요";
             if (!right.isEmpty()) g.text(font, right, b.x() + b.w() - 6 - font.width(right), b.y() + 4, b.active() ? Hud.ACCENT : 0xFF8A8F99, true);
@@ -222,7 +279,8 @@ public final class Storage {
             g.fill(W - 5, areaTop, W - 3, areaBottom, 0x20FFFFFF);
             g.fill(W - 5, barY, W - 3, barY + barH, 0x90FFFFFF);
         }
-        if (boxes.isEmpty()) g.centeredText(font, "Storage 를 한 번 열면 엔더 체스트 · 백팩 목록이 생겨요", W / 2, areaTop + 20, 0xFFB8BCC4);
+        if (boxes.isEmpty()) g.centeredText(font, searching() ? "'" + query.trim() + "' 이(가) 든 엔더 상자 · 가방이 없어요"
+            : "Storage 를 한 번 열면 엔더 상자 · 가방 목록이 생겨요", W / 2, areaTop + 20, 0xFFB8BCC4);
 
         placeSlots(cs, cur);
     }
@@ -248,6 +306,8 @@ public final class Storage {
         if (keys.isEmpty()) keys.addAll(pages.keySet());
         if (cur != null && !keys.contains(cur)) keys.add(cur);
         keys.sort(Comparator.comparingInt(Storage::order));
+        // 검색 중이면 찾는 아이템이 든 페이지만 (열린 페이지는 그대로)
+        if (searching()) keys.removeIf(k -> !k.equals(cur) && !pageHasMatch(k));
 
         int cols = Math.max(1, Math.min(3, Math.min(Math.max(1, keys.size()), (W - 16 + GAP) / (PAGE_W + GAP))));
         int gridW = cols * PAGE_W + (cols - 1) * GAP;
@@ -310,7 +370,7 @@ public final class Storage {
                 int ri = liveRows.indexOf(i / 9);
                 if (ri >= 0) {
                     int sy = open.y() + HEAD + ri * S + 1;
-                    if (sy >= areaTop && sy + 16 <= areaBottom) { x = open.x() + 5 + (i % 9) * S + 1; y = sy; }
+                    if (sy >= areaTop && sy + 16 <= areaBottom && (!searching() || matches(s.getItem()))) { x = open.x() + 5 + (i % 9) * S + 1; y = sy; }
                 }
             }
             ((SlotAccessor) s).sbh$setX(x == OFF ? OFF : x - left);
@@ -327,7 +387,7 @@ public final class Storage {
             if (gx < 0 || gy < 0 || gx >= 9 * S || gy >= b.rows() * S) continue;
             Page p = pages.get(b.key());
             int idx = (gy / S) * 9 + gx / S;
-            if (p != null && idx < p.items.size() && !p.items.get(idx).isEmpty())
+            if (p != null && idx < p.items.size() && !p.items.get(idx).isEmpty() && matches(p.items.get(idx)))
                 g.setTooltipForNextFrame(Minecraft.getInstance().font, p.items.get(idx), mx, my);
         }
     }

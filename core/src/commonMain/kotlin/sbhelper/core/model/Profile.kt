@@ -94,6 +94,13 @@ data class ProfileSummary(
     /** 샤드 ID → 가진 개수 (member.shards.owned) */
     val shardsOwned: Map<String, Long> = emptyMap(),
     val timeTowerLastCharge: Long? = null,
+    /** HotM 프리셋(슬롯 번호 1~5) → 노드 레벨. 슬롯 1 = skill_tree.nodes.mining, 슬롯 N = mining_N */
+    val hotmPresets: Map<Int, Map<String, Int>> = emptyMap(),
+    /** 지금 쓰는 HotM 슬롯 (skill_tree.selected_skill_tree_slot.mining, 없으면 1) */
+    val hotmSlot: Int = 1,
+    /** HotF 프리셋 (foraging, foraging_N) · 지금 슬롯 */
+    val hotfPresets: Map<Int, Map<String, Int>> = emptyMap(),
+    val hotfSlot: Int = 1,
     /** 크림슨 아일 Matriarch 에게서 Heavy Pearl 을 마지막으로 받은 시각(ms) — nether_island_player_data.matriarch.last_attempt */
     val matriarchLastAttempt: Long? = null,
 ) {
@@ -186,6 +193,10 @@ object ProfileParser {
                 member.num("mining_core", "experience"),
             ).maxOrNull(),
             quickForgeLevel = quickForge(hotmNodes(member)),
+            hotmPresets = presets(member, "mining"),
+            hotmSlot = selectedSlot(member, "mining"),
+            hotfPresets = presets(member, "foraging"),
+            hotfSlot = selectedSlot(member, "foraging"),
             forge = forge,
             sacks = member.obj("inventory", "sacks_counts")?.mapNotNull { (k, v) ->
                 v.num()?.toLong()?.takeIf { it > 0 }?.let { k to it }
@@ -201,7 +212,7 @@ object ProfileParser {
             masterCompletions = completions(member, "master_catacombs"),
             inventories = inventories(member),
             hotmNodes = hotmNodes(member),
-            hotfNodes = treeNodes(member.obj("skill_tree", "nodes", "foraging")),
+            hotfNodes = presets(member, "foraging").let { it[selectedSlot(member, "foraging")] ?: it[1] }.orEmpty(),
             member = member,
             wardrobe = wardrobe(member),
             foragingCapBonus = member.num("player_data", "experience", "SKILL_FORAGING_extra_level_cap")?.toInt(),
@@ -233,17 +244,36 @@ object ProfileParser {
         )
     }
 
-    /** HotM 노드: 새 구조(skill_tree.nodes.mining) 와 옛 구조(mining_core.nodes) 를 합친다 (큰 값) */
+    /**
+     * HotM 노드: 지금 쓰는 프리셋(슬롯)의 트리.
+     * 새 구조는 슬롯마다 따로 (skill_tree.nodes.mining, mining_2 … mining_5) 이고 고른 슬롯은 selected_skill_tree_slot.mining.
+     * 새 구조가 없을 때만 옛 구조(mining_core.nodes)를 쓴다 (옛 값이 남아 있어도 섞지 않음).
+     */
     fun hotmNodes(member: JsonObject): Map<String, Int> {
-        val out = HashMap<String, Int>()
-        listOfNotNull(member.obj("skill_tree", "nodes", "mining"), member.obj("mining_core", "nodes")).forEach { o ->
-            o.forEach { (k, v) ->
-                val n = (v as? JsonPrimitive)?.let { it.doubleOrNull?.toInt() ?: it.booleanOrNull?.let { b -> if (b) 1 else 0 } }
-                if (n != null && !k.startsWith("toggle_")) out[k] = maxOf(out[k] ?: 0, n)
+        val presets = presets(member, "mining")
+        if (presets.isNotEmpty()) return presets[selectedSlot(member, "mining")] ?: presets[1] ?: emptyMap()
+        return treeNodes(member.obj("mining_core", "nodes"))
+    }
+
+    /** 트리 프리셋: base(슬롯 1), base_N(슬롯 N) → 노드 레벨 */
+    fun presets(member: JsonObject, base: String): Map<Int, Map<String, Int>> {
+        val nodes = member.obj("skill_tree", "nodes") ?: return emptyMap()
+        val out = sortedMapOf<Int, Map<String, Int>>()
+        nodes.forEach { (k, v) ->
+            val slot = when {
+                k == base -> 1
+                k.startsWith(base + "_") -> k.removePrefix(base + "_").toIntOrNull() ?: return@forEach
+                else -> return@forEach
             }
+            val tree = treeNodes(v as? JsonObject)
+            if (tree.isNotEmpty() || slot == 1) out[slot] = tree
         }
         return out
     }
+
+    /** 고른 슬롯 (1부터, 키 이름의 _N 과 같은 번호). 없거나 0 이면 1 */
+    fun selectedSlot(member: JsonObject, base: String): Int =
+        member.num("skill_tree", "selected_skill_tree_slot", base)?.toInt()?.takeIf { it >= 1 } ?: 1
 
     /**
      * 옷장: 공식 API 는 예전 inventory.wardrobe_contents 대신 loadout 에 넣는다 (2026-11 실제 프로필로 확인).

@@ -219,7 +219,7 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x, y, half, "value", "상자 가치", "열어 본 상자 안 아이템의 총가치", null, c.containerValue, () -> c.containerValue = !c.containerValue, a);
         toggle(g, mx, my, x + half + 6, y, half, "highlight", "부족한 재료 강조", "제작 플래너에 모자란 재료 칸을 초록색으로", null,
             c.highlightMissing, () -> c.highlightMissing = !c.highlightMissing, a);
-        toggle(g, mx, my, x, y + 24, half, "storage", "Storage 미리보기", "Storage 를 열면 엔더 체스트 · 백팩을 한 화면에. 눌러서 열기", null,
+        toggle(g, mx, my, x, y + 24, half, "storage", "Storage 미리보기", "Storage 를 열면 엔더 상자 · 가방을 한 화면에. 눌러서 열기", null,
             c.storagePreview, () -> c.storagePreview = !c.storagePreview, a);
         toggle(g, mx, my, x + half + 6, y + 24, half, "pets", "펫 레벨 배경색", "Pets 화면에서 레벨에 따라 칸 색", null, c.petColors, () -> c.petColors = !c.petColors, a);
         toggle(g, mx, my, x, y + 48, half, "petpct", "펫 만렙 %", "펫 이름 옆 · Pets 칸에 만렙까지 몇 % (1렙 0%, 만렙 100%)", null,
@@ -257,9 +257,9 @@ public final class SettingsScreen extends Screen {
     private void chat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {
         Config c = Config.get();
         int half = (w - 6) / 2;
-        toggle(g, mx, my, x, y, half, "chatscreen", "상자 화면 채팅", "엔더 체스트 · 거래 · 은행 · 제작 화면에서도 최근 채팅", null,
+        toggle(g, mx, my, x, y, half, "chatscreen", "상자 화면 채팅", "엔더 상자 · 거래 · 은행 · 제작 화면에서도 최근 채팅", null,
             c.chatInScreens, () -> c.chatInScreens = !c.chatInScreens, a);
-        toggle(g, mx, my, x + half + 6, y, half, "shortcuts", "바로가기 메뉴", "상자 화면 옆: 엔더 체스트 · 제작대 · 옷장 · 펫 · Storage · 메뉴", null,
+        toggle(g, mx, my, x + half + 6, y, half, "shortcuts", "바로가기 메뉴", "상자 화면 옆: 엔더 상자 · 제작대 · 옷장 · 펫 · Storage · 메뉴", null,
             c.shortcuts, () -> c.shortcuts = !c.shortcuts, a);
         toggle(g, mx, my, x, y + 24, half, "pinvite", "채팅 파티 초대", "플레이어 채팅 끝의 [파티 초대] 를 누르면 /p invite", null,
             c.chatPartyInvite, () -> c.chatPartyInvite = !c.chatPartyInvite, a);
@@ -270,7 +270,9 @@ public final class SettingsScreen extends Screen {
         toggle(g, mx, my, x + half + 6, y + 48, half, "names", "이름 자동완성", "/p · /msg · /invite 등에서 탭 목록 플레이어 이름", null,
             c.nameComplete, () -> c.nameComplete = !c.nameComplete, a);
         segment(g, mx, my, x, y + 74, w, "바로가기 위치", Shortcuts.POSITIONS, c.shortcutPos, v -> c.shortcutPos = v, a);
-        text(g, Hud.fit(this.font, "자유: 상자 화면에서 Ctrl 을 누른 채 바를 끌어서 옮겨요", w), x + 2, y + 100, Ui.alpha(0xFF6F7580, a));
+        toggle(g, mx, my, x, y + 98, half, "cursor", "마우스 위치 유지", "상자 화면을 옮겨 다닐 때 마우스가 가운데로 가지 않게", null,
+            c.keepCursor, () -> c.keepCursor = !c.keepCursor, a);
+        text(g, Hud.fit(this.font, "자유: Ctrl 을 누른 채 바를 끌어서 옮겨요", half), x + half + 10, y + 104, Ui.alpha(0xFF6F7580, a));
     }
 
     private void combat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {

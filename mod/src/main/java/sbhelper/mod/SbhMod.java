@@ -107,9 +107,13 @@ public final class SbhMod implements ClientModInitializer {
                     Auction.foreground(cs, g);
                     Storage.foreground(cs, g, mx, my);
                 });
-                ScreenEvents.remove(screen).register(s -> Storage.save());
+                ScreenEvents.remove(screen).register(s -> {
+                    Storage.save();
+                    Cursor.save(client.mouseHandler.xpos(), client.mouseHandler.ypos());
+                });
                 Auction.addSearchBox(cs);
                 Enchant.init(cs);
+                Storage.initSearch(cs);
             }
             if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen sign) {
                 Signs.init(sign);

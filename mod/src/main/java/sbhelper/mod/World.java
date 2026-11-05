@@ -43,6 +43,8 @@ public final class World {
     public static final String[] LINE_NAMES = {"기본", "흰색", "빨강", "초록", "파랑", "노랑", "주황", "분홍", "무지개"};
     private static final int RAINBOW = 8;
     private static int lineVertex = 0;
+    /** 지금 그리는 낚싯줄이 내 것인지 (FishingLineMixin 이 줄을 그리는 동안만 켬) */
+    public static volatile boolean lineMine = false;
     private static long lineFrame = 0;
     private static final int LIMIT = 164;
 
@@ -74,6 +76,7 @@ public final class World {
     /** 낚싯줄 색. 무지개는 시간에 따라 흐르고, 줄을 따라 색이 이어진다 */
     public static int lineColor(int original) {
         int i = Config.get().fishingLineColor;
+        if (!lineMine) return original;
         if (i == RAINBOW) {
             long now = System.currentTimeMillis();
             if (now != lineFrame) { lineFrame = now; lineVertex = 0; }
