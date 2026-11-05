@@ -1,0 +1,48 @@
+name: Mod test
+
+# 진짜 게임(26.2)을 화면 없이(xvfb) 띄워서 모드 화면을 열고 사진을 찍는다.
+# 사진은 ci-screenshots 브랜치에 올린다 (매번 덮어씀).
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  client-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install xvfb
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb mesa-utils libgl1-mesa-dri
+      - name: Run client game test
+        shell: bash
+        run: |
+          set -o pipefail
+          cd mod
+          xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClientGameTest --no-daemon --stacktrace 2>&1 | tee ../test.log
+      - name: Show errors
+        if: always()
+        shell: bash
+        run: |
+          grep -nE "Mixin|mixin apply|ERROR|Exception|Caused by|FAILED|skyblockhelper" test.log | grep -v "^.*DEBUG" | head -150 || true
+      - name: Publish screenshots
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          mkdir -p shots
+          find mod -name '*.png' -path '*screenshots*' -exec cp {} shots/ \; || true
+          ls -la shots
+          [ -n "$(ls shots)" ] || exit 0
+          cd shots
+          git init -q && git checkout -q -b ci-screenshots
+          git add . && git -c user.name=ci -c user.email=ci@users.noreply.github.com commit -qm "screenshots ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" ci-screenshots

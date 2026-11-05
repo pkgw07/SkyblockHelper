@@ -48,7 +48,7 @@ public final class Hud {
         Config c = Config.get();
         if (!c.hud || mc.player == null) return;
         if (c.onlyInSkyblock && !SkyBlock.inSkyblock) return;
-        if (!Link.connected) return;
+        if (!Link.connected && !SkyBlock.TEST) return;
         if (c.planHud) drawAt(g, mc.font, planLines(), c.planX, c.planY, c.planRight, c.planBottom, c.planScale, c.planWidth);
         if (c.timerHud) drawAt(g, mc.font, timerLines(), c.timerX, c.timerY, c.timerRight, c.timerBottom, c.timerScale, c.timerWidth);
     }

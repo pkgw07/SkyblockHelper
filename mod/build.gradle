@@ -12,6 +12,16 @@ dependencies {
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 }
 
+// 자동 테스트: 진짜 게임을 띄워 화면을 열고 사진을 찍는다 (./gradlew runClientGameTest, CI 에서 xvfb)
+fabricApi {
+	configureTests {
+		createSourceSet = true
+		modId = "skyblockhelper-test"
+		enableGameTests = false
+		eula = true
+	}
+}
+
 processResources {
 	def version = project.version
 	inputs.property "version", version

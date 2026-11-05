@@ -29,6 +29,8 @@ import java.util.TreeMap;
 public final class SkyBlock {
     /** 스코어보드 제목에 SKYBLOCK 이 있으면 스카이블록 안 */
     public static volatile boolean inSkyblock = false;
+    /** 자동 테스트(싱글플레이 세계)에서는 스카이블록 안으로 친다 */
+    public static volatile boolean TEST = System.getProperty("sbh.test") != null;
     public static volatile String area = "";
     private static String lastLoc = "";
     private static String lastInv = "";
@@ -55,7 +57,7 @@ public final class SkyBlock {
 
     /** 매 틱: 2초마다 위치·인벤토리, 0.5초마다 열린 상자 */
     public static void tick(Minecraft mc) {
-        if (mc.player == null || mc.level == null) { inSkyblock = false; return; }
+        if (mc.player == null || mc.level == null) { inSkyblock = TEST; return; }
         tick++;
         if (tick % 40 == 0) { readScoreboard(mc); syncInventory(mc); }
         if (tick % 10 == 0) syncContainer(mc);
@@ -77,7 +79,7 @@ public final class SkyBlock {
                 if (line.startsWith("Purse:") || line.startsWith("Piggy:")) purse = line.substring(line.indexOf(':') + 1).trim();
             }
         }
-        inSkyblock = in;
+        inSkyblock = in || TEST;
         area = ar;
         String loc = in + "|" + ar + "|" + purse;
         if (!loc.equals(lastLoc)) {

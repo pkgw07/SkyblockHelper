@@ -334,6 +334,9 @@ public final class SettingsScreen extends Screen {
         if (ARGB.alpha(color) >= 8) g.text(this.font, s, x, y, color, true);
     }
 
+    /** 자동 테스트용: 다음에 열 때 이 탭으로 */
+    public static void selectTab(int i) { tab = Math.max(0, Math.min(TABS.length - 1, i)); }
+
     private void setTab(int i) {
         if (i == tab) return;
         tabDir = i > tab ? 1 : -1;

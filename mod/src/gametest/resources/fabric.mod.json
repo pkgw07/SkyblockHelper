@@ -1,0 +1,11 @@
+{
+	"schemaVersion": 1,
+	"id": "skyblockhelper-test",
+	"version": "1.0.0",
+	"name": "SkyblockHelper test",
+	"environment": "client",
+	"entrypoints": {
+		"fabric-client-gametest": ["sbhelper.test.SbhClientTest"]
+	},
+	"depends": { "skyblockhelper": "*" }
+}
