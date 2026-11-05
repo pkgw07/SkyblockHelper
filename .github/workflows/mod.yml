@@ -8,6 +8,10 @@ on:
         description: "javap 로 게임 클래스 목록 출력 (개발용)"
         type: string
         default: ""
+      code_grep:
+        description: "javap -c 결과에서 찾을 정규식 (개발용, 비우면 안 함)"
+        type: string
+        default: ""
   push:
     branches: ["claude/skyblock-helper"]
     paths: ["mod/**", ".github/workflows/mod.yml"]
@@ -37,7 +41,18 @@ jobs:
           jar=$(find ~/.gradle mod/.gradle -name 'minecraft-*.jar' -size +5M 2>/dev/null | grep -iv sources | head -5)
           fab=$(find ~/.gradle/caches -path '*fabric*' -name '*.jar' 2>/dev/null | grep -iv sources | tr '\n' ':')
           cp="$(echo "$jar" | tr '\n' ':')$fab"
-          for c in ${{ inputs.api_dump }}; do echo "=== $c"; javap -p -cp "$cp" "$c" 2>&1 | grep -v lambda || true; done > api-dump.txt
+          for c in ${{ inputs.api_dump }}; do
+            echo "=== $c"
+            if [ -n "${{ inputs.code_grep }}" ]; then
+              javap -c -p -cp "$cp" "$c" 2>&1 | grep -E "^  [a-z].*\(|${{ inputs.code_grep }}" || true
+            else
+              javap -p -cp "$cp" "$c" 2>&1 | grep -v lambda || true
+            fi
+          done > api-dump.txt
+          if [ -n "${{ inputs.code_grep }}" ]; then
+            echo "=== jar entries"
+            for j in $(echo "$cp" | tr ':' ' '); do unzip -l "$j" 2>/dev/null | awk '{print $4}' | grep -E "${{ inputs.code_grep }}" | head -40; done >> api-dump.txt
+          fi
           cat api-dump.txt
       - uses: actions/upload-artifact@v4
         if: inputs.api_dump != ''
