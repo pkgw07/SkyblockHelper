@@ -38,6 +38,7 @@ jobs:
         if: inputs.api_dump != ''
         shell: bash
         run: |
+          set +e +o pipefail
           jar=$(find ~/.gradle mod/.gradle -name 'minecraft-*.jar' -size +5M 2>/dev/null | grep -iv sources | head -5)
           fab=$(find ~/.gradle/caches -path '*fabric*' -name '*.jar' 2>/dev/null | grep -iv sources | tr '\n' ':')
           cp="$(echo "$jar" | tr '\n' ':')$fab"
