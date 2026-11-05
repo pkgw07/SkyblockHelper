@@ -298,7 +298,7 @@ public final class SettingsScreen extends Screen {
         button(g, mx, my, x, y + 26, half, 18, "copyEntity", "보고 있던 엔티티 복사", false, () -> { Ui.click(); Copy.entity(); }, a);
         button(g, mx, my, x + half + 6, y + 26, half, 18, "storageClear", "Storage 기억 지우기", false, () -> { Ui.click(); Storage.clear(); }, a);
         button(g, mx, my, x, y + 50, half, 18, "island", "섬 분석 (미니언 · 상자 · 호퍼)", false, () -> { Ui.click(); World.island(); }, a);
-        button(g, mx, my, x + half + 6, y + 50, half, 18, "matri", "Matriarch 24시간 시작", false, () -> {
+        button(g, mx, my, x + half + 6, y + 50, half, 18, "matri", "Heavy Pearl 24시간 시작", false, () -> {
             Ui.click(); c.matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L; Config.save();
         }, a);
         toggle(g, mx, my, x, y + 72, half, "music", "장소별 음악", "music 폴더에 지역이름.ogg (예: Hub.ogg) 를 넣으면 그 지역에서 재생", null,

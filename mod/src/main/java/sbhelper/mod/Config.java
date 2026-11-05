@@ -71,6 +71,9 @@ public final class Config {
     public boolean dojoHelper = true;
     public boolean kuudraTimer = true;
     public long matriarchAt = 0;
+    /** Kat 펫 업그레이드: 끝나는 시각 · 시작 시각 · 펫 이름 */
+    public long katAt = 0, katStart = 0;
+    public String katPet = "";
     /** 3단계 (1.3.0) */
     public boolean areaMusic = true;
     public float musicVolume = 0.5f;

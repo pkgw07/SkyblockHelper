@@ -30,7 +30,8 @@ public final class Hud {
         kind("fetchur", "Fetchur", Items.COMPASS);
         kind("experiment", "실험대", Items.ENCHANTING_TABLE);
         kind("mayor", "새 시장", Items.NAME_TAG);
-        kind("matriarch", "Matriarch", Items.HEART_OF_THE_SEA);
+        kind("matriarch", "Heavy Pearl", Items.HEART_OF_THE_SEA);
+        kind("kat", "Kat", Items.BONE);
     }
     private static final ItemStack OTHER = new ItemStack(Items.PAPER);
 

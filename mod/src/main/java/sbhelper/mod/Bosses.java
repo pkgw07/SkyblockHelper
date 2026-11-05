@@ -22,7 +22,8 @@ import java.util.regex.Pattern;
  *  - Ashfang: 전투 시간 · 체력, 근처 중력 구(Gravity) 위치 표시
  *  - Dojo (Discipline): 좀비 투구에 맞는 칼을 머리 위에
  *  - Kuudra: 들어간 뒤 지난 시간
- *  - Matriarch: Heavy Pearl 을 받으면 24시간 타이머
+ *  - Heavy Pearl (Matriarch): Heavy Pearl 을 받으면 24시간 타이머
+ *  - Kat: Kat(Pet Sitter) 화면에서 펫 업그레이드 남은 시간을 읽어 타이머
  */
 public final class Bosses {
     private static final Pattern PILLAR = Pattern.compile("(\\d+)s\\s+(\\d+)\\s*hits?", Pattern.CASE_INSENSITIVE);
@@ -93,7 +94,9 @@ public final class Bosses {
     /** 채팅: Matriarch 에게서 Heavy Pearl 을 받으면 24시간 타이머 */
     public static void chat(String plain) {
         Config c = Config.get();
-        if (plain.contains("Heavy Pearl") && !plain.contains(":")) {
+        String low = plain.toLowerCase(Locale.ROOT);
+        if (plain.contains("Heavy Pearl") && !plain.contains(":") && !low.contains("bazaar") && !low.contains("auction") && !low.contains("bought") && !low.contains("sold")
+            && (low.contains("found") || low.contains("collected") || low.contains("received") || low.contains("got") || low.contains("matriarch"))) {
             c.matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
             Config.save();
         }
@@ -103,8 +106,37 @@ public final class Bosses {
     public static List<Link.Timer> localTimers() {
         List<Link.Timer> out = new ArrayList<>();
         Config c = Config.get();
-        if (c.matriarchAt > 0) out.add(new Link.Timer("matriarch", "Matriarch (Heavy Pearl)", c.matriarchAt, false, c.matriarchAt - 24 * 3_600_000L));
+        if (c.matriarchAt > 0) out.add(new Link.Timer("matriarch", "Heavy Pearl (Matriarch)", c.matriarchAt, false, c.matriarchAt - 24 * 3_600_000L));
+        if (c.katAt > 0) out.add(new Link.Timer("kat", "Kat " + (c.katPet.isEmpty() ? "펫 업그레이드" : c.katPet), c.katAt, false, c.katStart));
         return out;
+    }
+
+    private static final Pattern KAT_TIME = Pattern.compile("(?i)(time remaining|ready in|remaining|upgrade(?:s|d)? in|ends? in|will be ready)");
+
+    /** 0.5초마다 열린 상자 화면: Kat(Pet Sitter) 이면 업그레이드 중인 펫의 남은 시간을 읽는다 */
+    public static void screen(net.minecraft.client.gui.screens.inventory.AbstractContainerScreen<?> cs) {
+        if (!SkyBlock.inSkyblock) return;
+        String title = SkyBlock.strip(cs.getTitle().getString());
+        if (!title.contains("Pet Sitter") && !title.contains("Kat")) return;
+        long best = -1;
+        String pet = "";
+        for (net.minecraft.world.inventory.Slot slot : cs.getMenu().slots) {
+            if (slot.container instanceof net.minecraft.world.entity.player.Inventory || slot.getItem().isEmpty()) continue;
+            for (String line : ItemText.lore(slot.getItem())) {
+                if (!KAT_TIME.matcher(line).find()) continue;
+                long ms = Tooltips.duration(line);
+                if (ms > best) { best = ms; pet = ItemText.name(slot.getItem()); }
+            }
+        }
+        if (best < 60_000L) return;
+        Config c = Config.get();
+        long at = System.currentTimeMillis() + best;
+        if (Math.abs(at - c.katAt) > 120_000L || !pet.equals(c.katPet)) {
+            if (c.katAt <= System.currentTimeMillis() || !pet.equals(c.katPet)) c.katStart = System.currentTimeMillis();
+            c.katAt = at;
+            c.katPet = pet.replaceAll("\\[Lvl \\d+\\] ", "");
+            Config.save();
+        }
     }
 
     /** 화면 가운데 위: 불기둥 경고, Ashfang · Kuudra 정보 */

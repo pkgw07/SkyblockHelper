@@ -45,7 +45,7 @@ public final class SbhMod implements ClientModInitializer {
             SkyBlock.tick(mc);
             World.tick(mc);
             if (screenTick % 40 == 0) Music.tick();
-            if (++screenTick % 10 == 0 && mc.gui.screen() instanceof AbstractContainerScreen<?> shown) Storage.tick(shown);
+            if (++screenTick % 10 == 0 && mc.gui.screen() instanceof AbstractContainerScreen<?> shown) { Storage.tick(shown); Bosses.screen(shown); }
             while (toggleHud.consumeClick()) {
                 Config c = Config.get();
                 c.hud = !c.hud;
@@ -136,6 +136,12 @@ public final class SbhMod implements ClientModInitializer {
                 .then(ClientCommands.literal("stalk").then(ClientCommands.argument("name", com.mojang.brigadier.arguments.StringArgumentType.word())
                     .executes(c -> { Stalk.ask(com.mojang.brigadier.arguments.StringArgumentType.getString(c, "name")); return Command.SINGLE_SUCCESS; })))
                 .then(ClientCommands.literal("island").executes(c -> { World.island(); return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("heavypearl").executes(c -> {
+                    Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
+                    Config.save();
+                    c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §fHeavy Pearl 타이머를 24시간으로 맞췄어요"));
+                    return Command.SINGLE_SUCCESS;
+                }))
                 .then(ClientCommands.literal("matriarch").executes(c -> {
                     Config.get().matriarchAt = System.currentTimeMillis() + 24 * 3_600_000L;
                     Config.save();
