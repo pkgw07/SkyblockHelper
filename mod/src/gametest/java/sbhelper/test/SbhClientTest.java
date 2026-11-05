@@ -78,6 +78,25 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.getInput().setCursorPos(pos[0], pos[1]);
             ctx.waitTicks(5);
             ctx.takeScreenshot("08-auction-tooltip");
+            // 큰 화면 (1920x1080, GUI 크기 3): Storage 가로 3개, 펫 %, 업데이트 창
+            ctx.setScreen(() -> null);
+            ctx.runOnClient(mc -> mc.options.guiScale().set(3));
+            ctx.getInput().resizeWindow(1920, 1080);
+            ctx.waitTicks(10);
+            ctx.setScreen(() -> page(6, "Ender Chest (3/3)", 4));
+            ctx.waitTicks(15);
+            ctx.setScreen(() -> page(3, "Small Backpack (Slot #2)", 9));
+            ctx.waitTicks(15);
+            ctx.setScreen(SbhClientTest::storageMenu);
+            ctx.waitTicks(15);
+            ctx.takeScreenshot("09-storage-wide");
+            ctx.setScreen(SbhClientTest::pets);
+            ctx.waitTicks(10);
+            ctx.takeScreenshot("10-pets-wide");
+            sbhelper.mod.Updater.latest = "9.9.9";
+            ctx.setScreen(() -> new sbhelper.mod.UpdateScreen(null));
+            ctx.waitTicks(15);
+            ctx.takeScreenshot("11-update");
             ctx.setScreen(() -> null);
             ctx.waitTicks(5);
         }
@@ -143,7 +162,7 @@ public class SbhClientTest implements FabricClientGameTest {
         items.set(4, named(Items.CHEST, 1, "Storage"));
         for (int i = 1; i <= 3; i++) items.set(8 + i, named(item("purple_stained_glass_pane"), 1, "Ender Chest Page " + i, "Click to open!"));
         items.set(27, named(Items.PLAYER_HEAD, 1, "Backpack Slot 1", "Medium Backpack"));
-        items.set(28, named(item("brown_stained_glass_pane"), 1, "Empty Backpack Slot 2"));
+        items.set(28, named(Items.PLAYER_HEAD, 1, "Backpack Slot 2", "Small Backpack"));
         return chest(6, "Storage", items);
     }
 
