@@ -96,6 +96,26 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.setScreen(() -> new sbhelper.mod.PlannerScreen(null));
             ctx.waitTicks(15);
             ctx.takeScreenshot("12-planner");
+            // 3단계: 경매장 검색 · 로그 검색 · 마법 부여 도우미
+            long now2 = System.currentTimeMillis();
+            Link.auctionHits = List.of(
+                new Link.AuctionHit("a1", "Hyperion", "LEGENDARY", 812_000_000, true, now2 + 3 * 3_600_000L),
+                new Link.AuctionHit("a2", "Hyperion", "LEGENDARY", 829_500_000, true, now2 + 26 * 3_600_000L),
+                new Link.AuctionHit("a3", "Hyperion", "MYTHIC", 905_000_000, false, now2 + 40 * 60_000L));
+            Link.auctionUpdated = now2 - 5 * 60_000L;
+            ctx.setScreen(() -> new sbhelper.mod.AuctionSearchScreen(null));
+            ctx.waitTicks(5);
+            ctx.getInput().typeChars("hyp");
+            ctx.waitTicks(15);
+            ctx.takeScreenshot("13-ah-search");
+            ctx.setScreen(() -> new sbhelper.mod.LogScreen(null));
+            ctx.waitTicks(5);
+            ctx.getInput().typeChars("sbh-test");
+            ctx.waitTicks(30);
+            ctx.takeScreenshot("14-log-search");
+            ctx.setScreen(SbhClientTest::enchant);
+            ctx.waitTicks(10);
+            ctx.takeScreenshot("15-enchant");
             sbhelper.mod.Updater.latest = "9.9.9";
             ctx.setScreen(() -> new sbhelper.mod.UpdateScreen(null));
             ctx.waitTicks(15);
@@ -186,6 +206,15 @@ public class SbhClientTest implements FabricClientGameTest {
         int[] lv = {1, 15, 37, 58, 76, 99, 100, 200};
         for (int i = 0; i < lv.length; i++) items.set(10 + i, named(Items.BONE, 1, "[Lvl " + lv[i] + "] Pet " + (i + 1)));
         return chest(6, "Pets (1/1)", items);
+    }
+
+    private static ContainerScreen enchant() {
+        List<ItemStack> items = new ArrayList<>();
+        for (int i = 0; i < 54; i++) items.add(i < 9 || i >= 45 || i % 9 == 0 || i % 9 == 8 ? filler() : ItemStack.EMPTY);
+        String[] names = {"Sharpness", "Smite", "Bane of Arthropods", "Critical", "First Strike", "Giant Killer", "Execute", "Lethality", "Ender Slayer", "Cubism"};
+        for (int i = 0; i < names.length; i++) items.set(12 + (i / 5) * 9 + i % 5, named(Items.ENCHANTED_BOOK, 1, names[i], "Cost: " + (i + 1) * 10 + " Exp Levels"));
+        items.set(19, named(Items.DIAMOND_SWORD, 1, "Aspect of the End"));
+        return chest(6, "Enchant Item", items);
     }
 
     private static ContainerScreen auctions() {
