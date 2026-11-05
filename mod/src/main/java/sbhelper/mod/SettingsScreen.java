@@ -269,6 +269,8 @@ public final class SettingsScreen extends Screen {
             c.replyLast, () -> c.replyLast = !c.replyLast, a);
         toggle(g, mx, my, x + half + 6, y + 48, half, "names", "이름 자동완성", "/p · /msg · /invite 등에서 탭 목록 플레이어 이름", null,
             c.nameComplete, () -> c.nameComplete = !c.nameComplete, a);
+        segment(g, mx, my, x, y + 74, w, "바로가기 위치", Shortcuts.POSITIONS, c.shortcutPos, v -> c.shortcutPos = v, a);
+        text(g, Hud.fit(this.font, "자유: 상자 화면에서 Ctrl 을 누른 채 바를 끌어서 옮겨요", w), x + 2, y + 100, Ui.alpha(0xFF6F7580, a));
     }
 
     private void combat(GuiGraphicsExtractor g, int mx, int my, int x, int y, int w, float a) {

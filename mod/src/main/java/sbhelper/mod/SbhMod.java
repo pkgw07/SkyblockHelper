@@ -97,14 +97,15 @@ public final class SbhMod implements ClientModInitializer {
                     Storage.background(cs, g, mx, my);
                     ContainerOverlay.background(cs, g);
                     Auction.background(cs, g);
+                    // 아이템 설명(툴팁)을 가리지 않게 배경 단계에서 그린다
+                    Shortcuts.draw(cs, g, mx, my);
+                    Enchant.draw(cs, g, mx, my);
+                    if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
                 });
                 ScreenEvents.afterExtract(screen).register((s, g, mx, my, d) -> {
                     ContainerOverlay.foreground(cs, g);
                     Auction.foreground(cs, g);
                     Storage.foreground(cs, g, mx, my);
-                    Shortcuts.draw(cs, g, mx, my);
-                    Enchant.draw(cs, g, mx, my);
-                    if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
                 });
                 ScreenEvents.remove(screen).register(s -> Storage.save());
                 Auction.addSearchBox(cs);

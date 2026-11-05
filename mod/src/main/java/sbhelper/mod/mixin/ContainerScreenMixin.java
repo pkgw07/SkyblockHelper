@@ -17,6 +17,16 @@ public abstract class ContainerScreenMixin {
         if (ScreenInput.mouseClicked((AbstractContainerScreen<?>) (Object) this, e)) cir.setReturnValue(true);
     }
 
+    @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
+    private void sbh$mouseDragged(MouseButtonEvent e, double dx, double dy, CallbackInfoReturnable<Boolean> cir) {
+        if (ScreenInput.mouseDragged((AbstractContainerScreen<?>) (Object) this, e)) cir.setReturnValue(true);
+    }
+
+    @Inject(method = "mouseReleased", at = @At("HEAD"), cancellable = true)
+    private void sbh$mouseReleased(MouseButtonEvent e, CallbackInfoReturnable<Boolean> cir) {
+        if (ScreenInput.mouseReleased((AbstractContainerScreen<?>) (Object) this, e)) cir.setReturnValue(true);
+    }
+
     @Inject(method = "mouseScrolled", at = @At("HEAD"), cancellable = true)
     private void sbh$mouseScrolled(double mx, double my, double sx, double sy, CallbackInfoReturnable<Boolean> cir) {
         if (ScreenInput.mouseScrolled((AbstractContainerScreen<?>) (Object) this, mx, my, sy)) cir.setReturnValue(true);

@@ -15,6 +15,10 @@ public final class ScreenInput {
         return e.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && Auction.middleClick(cs);
     }
 
+    public static boolean mouseDragged(AbstractContainerScreen<?> cs, MouseButtonEvent e) { return Shortcuts.drag(cs, e.x(), e.y()); }
+
+    public static boolean mouseReleased(AbstractContainerScreen<?> cs, MouseButtonEvent e) { return Shortcuts.release(); }
+
     public static boolean mouseScrolled(AbstractContainerScreen<?> cs, double mx, double my, double sy) {
         return Storage.mouseScrolled(cs, sy);
     }

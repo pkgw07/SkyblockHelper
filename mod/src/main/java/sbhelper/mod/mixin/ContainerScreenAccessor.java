@@ -11,6 +11,7 @@ public interface ContainerScreenAccessor {
     @Accessor("leftPos") int sbh$leftPos();
     @Accessor("topPos") int sbh$topPos();
     @Accessor("imageWidth") int sbh$imageWidth();
+    @Accessor("imageHeight") int sbh$imageHeight();
     @Accessor("titleLabelX") int sbh$titleLabelX();
     @Accessor("titleLabelY") int sbh$titleLabelY();
     @Accessor("titleLabelX") void sbh$setTitleLabelX(int x);

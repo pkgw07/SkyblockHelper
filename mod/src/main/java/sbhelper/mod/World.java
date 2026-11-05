@@ -39,8 +39,11 @@ import java.util.Set;
 public final class World {
     private static volatile boolean dragonNear = false;
     /** 낚싯줄 색 고르기 (0 = 원래 색) */
-    public static final int[] LINE_COLORS = {0, 0xFFFFFFFF, 0xFFFF5555, 0xFF55FF55, 0xFF5599FF, 0xFFFFFF55, 0xFFFF9F1C, 0xFFFF55FF};
-    public static final String[] LINE_NAMES = {"기본", "흰색", "빨강", "초록", "파랑", "노랑", "주황", "분홍"};
+    public static final int[] LINE_COLORS = {0, 0xFFFFFFFF, 0xFFFF5555, 0xFF55FF55, 0xFF5599FF, 0xFFFFFF55, 0xFFFF9F1C, 0xFFFF55FF, 1};
+    public static final String[] LINE_NAMES = {"기본", "흰색", "빨강", "초록", "파랑", "노랑", "주황", "분홍", "무지개"};
+    private static final int RAINBOW = 8;
+    private static int lineVertex = 0;
+    private static long lineFrame = 0;
     private static final int LIMIT = 164;
 
     public static void tick(Minecraft mc) {
@@ -68,8 +71,15 @@ public final class World {
         return Config.get().dragonScrollLock && dragonNear && mc.gui.screen() == null;
     }
 
+    /** 낚싯줄 색. 무지개는 시간에 따라 흐르고, 줄을 따라 색이 이어진다 */
     public static int lineColor(int original) {
         int i = Config.get().fishingLineColor;
+        if (i == RAINBOW) {
+            long now = System.currentTimeMillis();
+            if (now != lineFrame) { lineFrame = now; lineVertex = 0; }
+            float hue = ((now % 3000) / 3000f + (lineVertex++) * 0.02f) % 1f;
+            return 0xFF000000 | (java.awt.Color.HSBtoRGB(hue, 0.85f, 1f) & 0xFFFFFF);
+        }
         return i > 0 && i < LINE_COLORS.length ? LINE_COLORS[i] : original;
     }
 
