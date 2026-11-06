@@ -90,6 +90,10 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.setScreen(SbhClientTest::storageMenu);
             ctx.waitTicks(15);
             ctx.takeScreenshot("09-storage-wide");
+            ctx.runOnClient(mc -> sbhelper.mod.Storage.search("diamond"));
+            ctx.waitTicks(5);
+            ctx.takeScreenshot("09b-storage-search");
+            ctx.runOnClient(mc -> sbhelper.mod.Storage.search(""));
             ctx.setScreen(SbhClientTest::pets);
             ctx.waitTicks(10);
             ctx.takeScreenshot("10-pets-wide");

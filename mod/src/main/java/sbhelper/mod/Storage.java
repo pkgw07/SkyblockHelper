@@ -168,6 +168,9 @@ public final class Storage {
 
     private static boolean searching() { return !query.isBlank(); }
 
+    /** 검색어 바꾸기 (자동 테스트용) */
+    public static void search(String q) { query = q == null ? "" : q; if (searchBox != null) searchBox.setValue(query); }
+
     /** 이름이나 설명에 검색어가 들어 있는지 */
     private static boolean matches(ItemStack st) {
         if (!searching()) return true;
@@ -183,7 +186,7 @@ public final class Storage {
         searchBox = null;
         if (!active(cs)) return;
         Minecraft mc = Minecraft.getInstance();
-        var b = new net.minecraft.client.gui.components.EditBox(mc.font, cs.width - 138, cs.height - 22, 130, 16, net.minecraft.network.chat.Component.literal("아이템 검색"));
+        var b = new net.minecraft.client.gui.components.EditBox(mc.font, cs.width - 138, cs.height - 22, 110, 16, net.minecraft.network.chat.Component.literal("아이템 검색"));
         b.setHint(net.minecraft.network.chat.Component.literal("아이템 검색…"));
         b.setMaxLength(40);
         b.setValue(query);
@@ -225,6 +228,9 @@ public final class Storage {
 
         int W = cs.width, H = cs.height;
         g.fill(0, 0, W, H, 0xFF0C0E13);
+        // 검색 칸: 내 인벤토리 묶음의 오른쪽 위 (상자 칸 바로 아래)
+        var sb = searchBox;
+        if (sb != null) { sb.setX(invX + 9 * S + 6 - sb.getWidth()); sb.setY(invY - 6 - sb.getHeight() - 3); }
 
         // 1층: 상자 · 칸 · 기억한 아이템
         g.enableScissor(0, areaTop - 2, W, areaBottom + 2);
@@ -326,16 +332,18 @@ public final class Storage {
         }
         int gridH = keys.isEmpty() ? 30 : y + rowH;
         int invH = 4 * S + 4;
-        int total = gridH + 16 + invH;
+        // 상자 칸과 내 인벤토리 사이: 검색 칸이 들어갈 자리
+        int gap = 34;
+        int total = gridH + gap + invH;
         if (total <= H - 16) {
             // 다 들어가면 묶음째 가운데
             areaTop = (H - total) / 2;
             areaBottom = areaTop + gridH;
-            invY = areaBottom + 16;
+            invY = areaBottom + gap;
         } else {
             invY = H - invH - 10;
             areaTop = 8;
-            areaBottom = invY - 16;
+            areaBottom = invY - gap;
         }
         invX = (W - 9 * S) / 2;
         maxScroll = Math.max(0, gridH - (areaBottom - areaTop));
