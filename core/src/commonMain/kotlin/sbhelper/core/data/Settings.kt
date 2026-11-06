@@ -123,6 +123,8 @@ data class DeviceSettings(
     /** 제작 플래너: 자루 / 인벤토리 재료를 가진 것으로 셀지 (다시 켜도 유지) */
     val plannerUseSacks: Boolean = true,
     val plannerUseInventory: Boolean = true,
+    /** 제작 플래너 · 미니언 계산 재료를 Enchanted 형태로 묶어서 보여 줄지 (끄면 기본 재료 그대로) */
+    val materialsEnchanted: Boolean = false,
     /** 0 왼쪽 위, 1 오른쪽 위, 2 왼쪽 아래, 3 오른쪽 아래 */
     val overlayCorner: Int = 1,
     /** 배경 불투명도 % (화면에는 투명도 = 100 - 이 값 으로 보여 줌) */

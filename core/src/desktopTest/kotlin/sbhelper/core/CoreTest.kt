@@ -372,6 +372,42 @@ class CoreTest {
     }
 
     @Test
+    fun minionUpgradePathAndCompressor() {
+        val acacia = GameData.Minion(name = "Acacia", actions = 2, items = listOf(GameData.MinionItem("LOG_2", 4.0)), tiers = listOf(
+            GameData.MinionTier(48.0, cost = listOf(listOf(kotlinx.serialization.json.JsonPrimitive("LOG_2"), kotlinx.serialization.json.JsonPrimitive(80)))),
+            GameData.MinionTier(48.0, cost = listOf(listOf(kotlinx.serialization.json.JsonPrimitive("LOG_2"), kotlinx.serialization.json.JsonPrimitive(160)))),
+            GameData.MinionTier(45.0, cost = listOf(listOf(kotlinx.serialization.json.JsonPrimitive("ENCHANTED_ACACIA_LOG"), kotlinx.serialization.json.JsonPrimitive(8)))),
+        ))
+        val data = GameData(minions = listOf(acacia), crafting = mapOf(
+            "ENCHANTED_ACACIA_LOG" to listOf(GameData.CraftRecipe(mapOf("LOG_2" to 160.0))),
+            "ENCHANTED_DIAMOND" to listOf(GameData.CraftRecipe(mapOf("DIAMOND_BLOCK" to 160.0), 9), GameData.CraftRecipe(mapOf("DIAMOND" to 160.0))),
+            "ENCHANTED_DIAMOND_BLOCK" to listOf(GameData.CraftRecipe(mapOf("ENCHANTED_DIAMOND" to 160.0))),
+            "DIAMOND_BLOCK" to listOf(GameData.CraftRecipe(mapOf("DIAMOND" to 9.0))),
+        ))
+        val path = sbhelper.core.calc.MinionUpgrade.plan(data, acacia, 1, 3, sbhelper.core.calc.MinionSetup(), 1)
+        assertEquals(2, path.steps.size)
+        assertEquals(mapOf("LOG_2" to 160.0, "ENCHANTED_ACACIA_LOG" to 8.0), path.asIs)
+        assertEquals(160.0 + 8 * 160.0, path.raw["LOG_2"])
+        // 1단계: 48초 × 2행동 = 96초에 4개 → 하루 3600개
+        val perDay1 = 86_400.0 / 96 * 4
+        assertEquals((160.0 + 1280.0) / perDay1, path.daysStay!!, 1e-9)
+        // 바로 올리면: II 재료는 I 속도로, III 재료는 II 속도로 (II 도 48초라 같음)
+        assertEquals(160.0 / perDay1 + 1280.0 / perDay1, path.daysRush!!, 1e-9)
+        // Enchanted Acacia Log 2개(= 320) + 원목 100개를 가지고 있으면 그만큼 빼고
+        val owned = sbhelper.core.calc.MinionUpgrade.plan(data, acacia, 1, 3, sbhelper.core.calc.MinionSetup(), 1,
+            mapOf("ENCHANTED_ACACIA_LOG" to 2L, "LOG_2" to 100L))
+        assertEquals(420.0, owned.have["LOG_2"])
+        assertEquals((1440.0 - 420.0) / perDay1, owned.daysStay!!, 1e-9)
+        // II: 160 은 가진 것으로, III: 1280 - 260 남은 것
+        assertEquals(0.0, owned.steps[0].days!!, 1e-9)
+        assertEquals((1280.0 - 260.0) / perDay1, owned.daysRush!!, 1e-9)
+        val comp = sbhelper.core.calc.Compressor(data)
+        assertEquals(listOf("ENCHANTED_DIAMOND" to 160.0, "ENCHANTED_DIAMOND_BLOCK" to 25_600.0), comp.chain("DIAMOND"))
+        assertEquals(listOf("ENCHANTED_DIAMOND_BLOCK" to 1.0, "ENCHANTED_DIAMOND" to 12.0, "DIAMOND" to 40.0), comp.split("DIAMOND", 25_600.0 + 12 * 160 + 40))
+        assertEquals(listOf("COBBLESTONE" to 10.0), comp.split("COBBLESTONE", 10.0))
+    }
+
+    @Test
     fun hotmPresetUsesSelectedSlot() {
         // 진단으로 확인한 구조: skill_tree.nodes.mining(슬롯1), mining_2(슬롯2) …, selected_skill_tree_slot.mining
         fun member(selected: String) = SbJson.parseToJsonElement("""{"skill_tree":{

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import sbhelper.core.AppState
+import sbhelper.ui.AppController
 import sbhelper.core.calc.MinionProfit
 import sbhelper.core.calc.MinionSetup
 import sbhelper.core.calc.SellTo
@@ -62,7 +63,7 @@ private val ROMAN = listOf("I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
+fun MinionCalcView(controller: AppController, state: AppState, p: ProfileSummary?, wide: Boolean) {
     val data = state.gameData
     if (data.minions.isEmpty()) {
         Panel(Modifier.fillMaxWidth()) { Text("미니언 데이터를 불러오는 중이에요.", style = SbText.body(13, Sb.TextFaint)) }
@@ -186,8 +187,11 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
                 }
             }
         },
-        cell(1f) { mod -> NextTierPanel(state, p, m, tier, cur, c, mod) },
+        cell(1f) { mod -> NextTierPanel(controller, state, p, m, tier, cur, c, mod) },
     )
+
+    // ---------------- XI · XII 까지 업그레이드
+    UpgradePanel(controller, state, p, m, tier, setup, c, wide)
 
     // ---------------- 단계별 비교
     Panel(Modifier.fillMaxWidth(), caption = "All tiers", title = "단계별 하루 아이템 · 수익" + if (c > 1) " (×$c)" else "", accent = Sb.Aqua) {
@@ -218,7 +222,7 @@ fun MinionCalcView(state: AppState, p: ProfileSummary?, wide: Boolean) {
 /** 다음 단계 재료: 필요 / 가진 것(자루) / 이 미니언으로 며칠 */
 @Composable
 private fun NextTierPanel(
-    state: AppState, p: ProfileSummary?, m: GameData.Minion, tier: Int, cur: sbhelper.core.calc.MinionTierResult, count: Int, mod: Modifier,
+    controller: AppController, state: AppState, p: ProfileSummary?, m: GameData.Minion, tier: Int, cur: sbhelper.core.calc.MinionTierResult, count: Int, mod: Modifier,
 ) {
     val stock = remember(p?.sacks, p?.inventories) {
         sbhelper.core.calc.CraftStock.merge(p?.sacks.orEmpty(), p?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty())
@@ -238,13 +242,18 @@ private fun NextTierPanel(
             }
             Spacer(Modifier.height(8.dp))
         }
+        val enchanted = state.device.materialsEnchanted
+        val comp = remember(state.gameData) { sbhelper.core.calc.Compressor(state.gameData) }
         plan.needs.forEach { n ->
+            val shown = shownMaterial(comp, n.id, n.need, enchanted)
             Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    ItemIcon(state, n.id, 22.dp)
+                    ItemIcon(state, shown.id, 22.dp)
                     Spacer(Modifier.width(8.dp))
-                    Text(state.itemName(n.id), style = SbText.body(13), modifier = Modifier.weight(1f), maxLines = 1)
-                    Text("${formatNumber(n.have.toLong())} / ${formatNumber(n.need.toLong())}", style = SbText.pixel(12, if (n.missing <= 0) Sb.Green else Sb.Text))
+                    Text(state.itemName(shown.id), style = SbText.body(13), modifier = Modifier.weight(1f), maxLines = 1)
+                    Text(if (shown.ratio == 1.0) "${formatNumber(n.have.toLong())} / ${formatNumber(n.need.toLong())}"
+                        else "${amountText(n.have / shown.ratio)} / ${amountText(n.need / shown.ratio)}",
+                        style = SbText.pixel(12, if (n.missing <= 0) Sb.Green else Sb.Text))
                     Text(formatPercent(if (n.need > 0) (n.have / n.need).coerceIn(0.0, 1.0) else 1.0, 0),
                         style = SbText.pixel(12, if (n.missing <= 0) Sb.Green else Sb.Gold, bold = true),
                         modifier = Modifier.padding(start = 8.dp).widthIn(min = 40.dp), textAlign = TextAlign.End)
@@ -265,6 +274,107 @@ private fun NextTierPanel(
             style = SbText.body(12, Sb.Gold), modifier = Modifier.padding(top = 6.dp))
         Spacer(Modifier.height(6.dp))
         Text("가진 양은 자루·인벤토리·엔더 상자·백팩·금고 기준, 제작 재료는 기본 재료로 나눠서 셌어요.", style = SbText.body(11, Sb.TextFaint))
+        Spacer(Modifier.height(8.dp))
+        MaterialFormToggle(enchanted) { on -> controller.repo.updateDevice { it.copy(materialsEnchanted = on) } }
+    }
+}
+
+/**
+ * 지금 단계 → XI · XII 단계까지: 필요한 재료 전체, 코인,
+ * 지금 단계 그대로 모으면 며칠 / 단계마다 모이는 대로 바로 올리면 며칠
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun UpgradePanel(
+    controller: AppController, state: AppState, p: ProfileSummary?, m: GameData.Minion, tier: Int, setup: MinionSetup, count: Int, wide: Boolean,
+) {
+    val max = m.tiers.size
+    val targets = listOf(11, 12).filter { it in (tier + 1)..max }.ifEmpty { if (tier < max) listOf(max) else emptyList() }
+    var pick by rememberSaveable(m.name) { mutableIntStateOf(0) }
+    val target = targets.getOrNull(pick.coerceIn(0, (targets.size - 1).coerceAtLeast(0)))
+    val title = if (target == null) "업그레이드 계산" else "${ROMAN.getOrElse(tier - 1) { "$tier" }} → ${ROMAN.getOrElse(target - 1) { "$target" }} 업그레이드"
+    Panel(Modifier.fillMaxWidth(), caption = "Upgrade path", title = title, accent = Sb.Purple) {
+        if (target == null) {
+            Text("이미 최고 단계예요.", style = SbText.body(13, Sb.TextFaint)); return@Panel
+        }
+        val stock = remember(p?.sacks, p?.inventories) {
+            sbhelper.core.calc.CraftStock.merge(p?.sacks.orEmpty(), p?.inventories?.let { sbhelper.core.calc.CraftStock.inventory(it) }.orEmpty())
+        }
+        val path = remember(m, tier, target, setup, count, stock, state.gameData) {
+            sbhelper.core.calc.MinionUpgrade.plan(state.gameData, m, tier, target, setup, count, stock)
+        }
+        val enchanted = state.device.materialsEnchanted
+        val comp = remember(state.gameData) { sbhelper.core.calc.Compressor(state.gameData) }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (targets.size > 1) Segmented(targets.map { "${ROMAN.getOrElse(it - 1) { "$it" }}까지" }, pick.coerceIn(0, targets.size - 1), { pick = it })
+            MaterialFormToggle(enchanted) { on -> controller.repo.updateDevice { it.copy(materialsEnchanted = on) } }
+        }
+        Spacer(Modifier.height(12.dp))
+        val who = "이 미니언" + if (count > 1) " ${count}개" else ""
+        fun days(d: Double?) = when {
+            d == null -> "-"
+            d <= 0 -> "다 모았어요"
+            else -> "약 " + daysText(d)
+        }
+        val tiles: List<@Composable (Modifier) -> Unit> = listOf(
+            { mod -> StatTile("지금 단계 그대로 모으면", days(path.daysStay), mod, color = Sb.Pink,
+                sub = "$who 를 ${ROMAN.getOrElse(tier - 1) { "$tier" }} 단계로 두고 전부 모을 때") },
+            { mod -> StatTile("바로바로 올리면", days(path.daysRush), mod, color = Sb.Green,
+                sub = "재료가 모일 때마다 바로 다음 단계로 올릴 때") },
+            { mod -> StatTile("코인", if (path.coins > 0) formatCoins(path.coins.toDouble()) else "없음", mod, color = Sb.Gold,
+                sub = "${path.steps.size}단계 업그레이드" + if (count > 1) " (미니언 1개 기준 재료)" else "") },
+        )
+        if (wide) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) { tiles.forEach { it(Modifier.weight(1f)) } }
+        else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { tiles.forEach { it(Modifier.fillMaxWidth()) } }
+        if (path.external.isNotEmpty()) Text("이 미니언이 만들지 않는 재료(빨간 표시)는 따로 구해야 해서 시간 계산에서 뺐어요.",
+            style = SbText.body(11, Sb.TextFaint), modifier = Modifier.padding(top = 8.dp))
+
+        Spacer(Modifier.height(10.dp))
+        Label("필요한 재료 전체")
+        path.raw.forEach { (id, need) ->
+            val have = path.have[id] ?: 0.0
+            val shown = shownMaterial(comp, id, need, enchanted)
+            val done = have >= need - 1e-6
+            val ext = id in path.external
+            Column(Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ItemIcon(state, shown.id, 24.dp)
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(state.itemName(shown.id), style = SbText.body(13, if (ext && !done) Sb.Red else Sb.Text), maxLines = 1)
+                        if (shown.parts.size > 1 || shown.id != id) Text(partsText(state, shown.parts), style = SbText.body(11, Sb.TextFaint))
+                    }
+                    Text(if (shown.ratio == 1.0) "${formatNumber(have.toLong())} / ${formatNumber(kotlin.math.ceil(need).toLong())}"
+                        else "${amountText(have / shown.ratio)} / ${amountText(need / shown.ratio)}",
+                        style = SbText.pixel(12, if (done) Sb.Green else Sb.Text))
+                    Text(formatPercent(if (need > 0) (have / need).coerceIn(0.0, 1.0) else 1.0, 0),
+                        style = SbText.pixel(12, if (done) Sb.Green else Sb.Gold, bold = true),
+                        modifier = Modifier.padding(start = 8.dp).widthIn(min = 40.dp), textAlign = TextAlign.End)
+                }
+                XpBar(if (need > 0) have / need else 1.0, Modifier.fillMaxWidth().padding(top = 3.dp), if (done) Sb.Green else Sb.Purple, 4.dp)
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Label("단계별 (바로바로 올릴 때)")
+        var total = 0.0
+        path.steps.forEach { st ->
+            total += st.days ?: 0.0
+            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(ROMAN.getOrElse(st.tier - 1) { "${st.tier}" }, style = SbText.pixel(12, Sb.Yellow), modifier = Modifier.width(40.dp))
+                Text(st.raw.entries.joinToString(" · ") { (id, n) -> partsText(state, shownMaterial(comp, id, n, enchanted).parts) } +
+                    if (st.coins > 0) " · ${formatCoins(st.coins.toDouble())} 코인" else "",
+                    style = SbText.body(12, Sb.TextDim), modifier = Modifier.weight(1f), maxLines = 2)
+                Spacer(Modifier.width(8.dp))
+                Text(days(st.days), style = SbText.pixel(12, Sb.Text), modifier = Modifier.widthIn(min = 72.dp), textAlign = TextAlign.End)
+                Text("누적 " + (if (total <= 0) "-" else daysText(total)), style = SbText.pixel(12, Sb.TextFaint),
+                    modifier = Modifier.widthIn(min = 84.dp), textAlign = TextAlign.End)
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        Text("단계 재료는 기본 재료로 나눠서 셌고, 바로 전 단계 속도로 모은다고 계산했어요. 가진 재료(자루·인벤토리 등)는 먼저 썼어요." +
+            if (count > 1) " 미니언 ${count}개가 같이 모으지만 재료는 한 개를 올리는 양이에요." else "",
+            style = SbText.body(11, Sb.TextFaint))
     }
 }
 

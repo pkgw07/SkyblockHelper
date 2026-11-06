@@ -232,7 +232,7 @@ fun CraftPlannerView(controller: AppController, state: AppState, wide: Boolean) 
     PlanSummary(plan, progress, wide, qfLevel, forgeCut, state.selectedProfile != null)
     Responsive(
         wide,
-        cell(1f) { m -> RawMaterials(state, raw, m) },
+        cell(1f) { m -> RawMaterials(controller, state, raw, m) },
         cell(1f) { m ->
             Panel(m, caption = "Recipe Tree", title = "제작 순서", accent = Sb.Aqua,
                 trailing = {
@@ -287,17 +287,27 @@ private fun PlanSummary(plan: CraftPlan, progress: Double, wide: Boolean, qfLeve
 }
 
 @Composable
-private fun RawMaterials(state: AppState, raw: List<sbhelper.core.calc.RawNeed>, modifier: Modifier) {
+private fun RawMaterials(controller: AppController, state: AppState, raw: List<sbhelper.core.calc.RawNeed>, modifier: Modifier) {
+    val enchanted = state.device.materialsEnchanted
+    val comp = remember(state.gameData) { sbhelper.core.calc.Compressor(state.gameData) }
     Panel(modifier, caption = "Materials", title = "필요한 기본 재료", accent = Sb.Green) {
         Text("가진 중간 재료(예: Enchanted Coal)도 기본 재료로 바꿔 세요.", style = SbText.body(12, Sb.TextFaint))
+        Spacer(Modifier.height(8.dp))
+        MaterialFormToggle(enchanted) { on -> controller.repo.updateDevice { it.copy(materialsEnchanted = on) } }
         Spacer(Modifier.height(4.dp))
         raw.forEach { r ->
+            val shown = shownMaterial(comp, r.itemId, r.needed, enchanted)
             Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    sbhelper.ui.components.ItemIcon(state, r.itemId, 26.dp)
+                    sbhelper.ui.components.ItemIcon(state, shown.id, 26.dp)
                     Spacer(Modifier.width(10.dp))
-                    RarityName(state.itemName(r.itemId), state.itemTier(r.itemId), Modifier.weight(1f), size = 13)
-                    Text("${formatNumber(r.have.toLong())} / ${formatNumber(kotlin.math.ceil(r.needed).toLong())}",
+                    Column(Modifier.weight(1f)) {
+                        RarityName(state.itemName(shown.id), state.itemTier(shown.id), Modifier, size = 13)
+                        if (shown.parts.size > 1 || shown.id != r.itemId)
+                            Text(partsText(state, shown.parts), style = SbText.body(11, Sb.TextFaint))
+                    }
+                    Text(if (shown.ratio == 1.0) "${formatNumber(r.have.toLong())} / ${formatNumber(kotlin.math.ceil(r.needed).toLong())}"
+                        else "${amountText(r.have / shown.ratio)} / ${amountText(r.needed / shown.ratio)}",
                         style = SbText.pixel(12, if (r.missing <= 0) Sb.Green else Sb.Text))
                     // 이 재료를 몇 % 모았는지 (예: 1,000 / 10,000 → 10%)
                     val pct = if (r.needed > 0) (r.have / r.needed).coerceIn(0.0, 1.0) else 1.0
