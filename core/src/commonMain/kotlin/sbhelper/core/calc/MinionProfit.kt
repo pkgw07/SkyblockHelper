@@ -215,7 +215,7 @@ object MinionUpgrade {
         // 가진 재료: 기본 재료 + Enchanted 형태로 가진 것을 풀어서
         val comp = Compressor(data)
         val have = raw.keys.associateWith { id ->
-            val forms = comp.chain(id).sumOf { (f, ratio) -> (stock[f] ?: 0L) * ratio }
+            val forms = (comp.chain(id) + comp.first(id)).distinctBy { it.first }.sumOf { (f, ratio) -> (stock[f] ?: 0L) * ratio }
             ((stock[id] ?: 0L) + forms).coerceAtMost(raw.getValue(id))
         }.filterValues { it > 0 }
         fun left(need: Map<String, Double>, pool: MutableMap<String, Double>): Map<String, Double> = need.mapValues { (id, n) ->
@@ -277,9 +277,34 @@ class Compressor(private val data: GameData) {
         best
     }
 
+    private val firstCache = HashMap<String, List<Pair<String, Double>>>()
+
+    /**
+     * raw → 바로 다음 Enchanted 형태까지만 (예: Diamond → Enchanted Diamond, Enchanted Diamond Block 은 빼고).
+     * 가장 적은 단계로 닿는 Enchanted 아이템, 같으면 덜 압축되는 쪽. 없으면 빈 목록
+     */
+    fun first(raw: String): List<Pair<String, Double>> = firstCache.getOrPut(raw) {
+        var level = listOf(emptyList<Pair<String, Double>>() to (raw to 1.0))
+        repeat(4) {
+            val next = level.flatMap { (path, cur) ->
+                single[cur.first].orEmpty().filter { (p, _) -> p != raw && path.none { it.first == p } }
+                    .map { (p, per) -> (path + (p to cur.second * per)) to (p to cur.second * per) }
+            }
+            val hit = next.filter { it.second.first.startsWith("ENCHANTED_") }
+            if (hit.isNotEmpty()) return@getOrPut hit.minBy { it.second.second }.first
+            if (next.isEmpty()) return@getOrPut emptyList()
+            level = next
+        }
+        emptyList()
+    }
+
+    /** 바로 다음 Enchanted 형태로 나눠서 (예: 12 Enchanted Diamond + 40 Diamond) */
+    fun splitFirst(raw: String, amount: Double): List<Pair<String, Double>> = splitBy(raw, amount, first(raw))
+
     /** 기본 재료 양을 큰 형태부터 나눠서: [(아이템, 개수)] (예: 1 Enchanted Diamond Block + 12 Enchanted Diamond + 40 Diamond) */
-    fun split(raw: String, amount: Double): List<Pair<String, Double>> {
-        val c = chain(raw)
+    fun split(raw: String, amount: Double): List<Pair<String, Double>> = splitBy(raw, amount, chain(raw))
+
+    private fun splitBy(raw: String, amount: Double, c: List<Pair<String, Double>>): List<Pair<String, Double>> {
         if (c.isEmpty() || amount <= 0) return listOf(raw to amount)
         var left = amount
         val out = mutableListOf<Pair<String, Double>>()

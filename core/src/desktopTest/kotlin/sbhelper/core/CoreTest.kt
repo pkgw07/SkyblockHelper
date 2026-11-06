@@ -405,6 +405,9 @@ class CoreTest {
         assertEquals(listOf("ENCHANTED_DIAMOND" to 160.0, "ENCHANTED_DIAMOND_BLOCK" to 25_600.0), comp.chain("DIAMOND"))
         assertEquals(listOf("ENCHANTED_DIAMOND_BLOCK" to 1.0, "ENCHANTED_DIAMOND" to 12.0, "DIAMOND" to 40.0), comp.split("DIAMOND", 25_600.0 + 12 * 160 + 40))
         assertEquals(listOf("COBBLESTONE" to 10.0), comp.split("COBBLESTONE", 10.0))
+        // 바로 다음 단계만: Enchanted Diamond Block 은 빼고
+        assertEquals(listOf("ENCHANTED_DIAMOND" to 160.0), comp.first("DIAMOND"))
+        assertEquals(listOf("ENCHANTED_DIAMOND" to 172.0, "DIAMOND" to 40.0), comp.splitFirst("DIAMOND", 25_600.0 + 12 * 160 + 40))
     }
 
     @Test

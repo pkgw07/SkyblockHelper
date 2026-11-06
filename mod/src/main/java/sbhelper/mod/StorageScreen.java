@@ -341,6 +341,8 @@ public final class StorageScreen extends Screen {
 
     @Override
     public void removed() {
+        // 다른 페이지로 옮겨 갈 때 마우스가 가운데로 가지 않게 지금 위치를 기억 (상자 화면과 같은 방식)
+        if (live && this.minecraft != null) Cursor.save(this.minecraft.mouseHandler.xpos(), this.minecraft.mouseHandler.ypos());
         Storage.closing(this, rawTitle, menu);
         if (current == this) current = null;
     }
