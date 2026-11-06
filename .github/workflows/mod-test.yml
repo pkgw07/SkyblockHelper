@@ -27,6 +27,10 @@ jobs:
           set -o pipefail
           cd mod
           xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew runClientGameTest --no-daemon --stacktrace 2>&1 | tee ../test.log
+          # 게임이 켜져도 리소스 로딩 · mixin 오류가 있으면 실패로 (실제 게임에서 까만 화면이 되는 경우)
+          if grep -nE "Mixin transformation of sbhelper|IllegalClassLoadError|Caught error loading resourcepacks|InvalidInjectionException|InvalidMixinException|MixinApplyError" ../test.log; then
+            echo "::error title=Mod test::mixin or resource loading error"; exit 1
+          fi
       - name: Show errors
         if: always()
         shell: bash
