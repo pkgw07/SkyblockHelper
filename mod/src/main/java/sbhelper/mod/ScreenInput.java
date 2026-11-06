@@ -13,9 +13,6 @@ public final class ScreenInput {
     }
 
     private static boolean clicked(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
-        if (Storage.mouseClicked(cs, e)) return true;
-        // 미리보기 화면에서 진짜 칸 · 검색 칸이 아닌 곳을 누르면 아무 일도 없게 (뒤에 가려진 것이 눌리지 않게)
-        if (Storage.blocksClick(cs, e)) return true;
         if (e.button() == 0 && Shortcuts.click(cs, e.x(), e.y())) return true;
         if (e.button() == 0 && Enchant.click(cs, e.x(), e.y())) return true;
         return e.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && Auction.middleClick(cs);
@@ -26,7 +23,7 @@ public final class ScreenInput {
     public static boolean mouseReleased(AbstractContainerScreen<?> cs, MouseButtonEvent e) { return Shortcuts.release(); }
 
     public static boolean mouseScrolled(AbstractContainerScreen<?> cs, double mx, double my, double sy) {
-        return Storage.mouseScrolled(cs, sy);
+        return false;
     }
 
     public static boolean keyPressed(AbstractContainerScreen<?> cs, KeyEvent e) {
@@ -36,7 +33,6 @@ public final class ScreenInput {
     private static boolean key(AbstractContainerScreen<?> cs, KeyEvent e) {
         if (Auction.keyPressed(cs, e)) return true;
         if (Enchant.keyPressed(cs, e)) return true;
-        if (Storage.keyPressed(cs, e)) return true;
         boolean ctrl = (e.modifiers() & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SUPER)) != 0;
         // Ctrl+P: 마우스 아래 아이템을 제작 플래너 목표로
         if (ctrl && e.key() == GLFW.GLFW_KEY_P) {
@@ -66,11 +62,10 @@ public final class ScreenInput {
         Safe.run("screen-fg", () -> {
             ContainerOverlay.foreground(cs, g);
             Auction.foreground(cs, g);
-            Storage.foreground(cs, g, mx, my);
         });
     }
 
-    public static boolean coversScreen(AbstractContainerScreen<?> cs) { return Safe.get("covers", () -> Storage.active(cs), false); }
+    public static boolean coversScreen(AbstractContainerScreen<?> cs) { return false; }
 
     private ScreenInput() {}
 }

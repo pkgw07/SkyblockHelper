@@ -47,7 +47,7 @@ public final class SbhMod implements ClientModInitializer {
             if (screenTick % 40 == 0) Music.tick();
             ++screenTick;
             if (mc.gui.screen() instanceof AbstractContainerScreen<?> shown) {
-                Storage.tick(shown);
+                Storage.snapshot(shown, SkyBlock.strip(shown.getTitle().getString()).trim(), shown.getMenu());
                 if (screenTick % 10 == 0) Bosses.screen(shown);
             }
             while (toggleHud.consumeClick()) {
@@ -93,11 +93,13 @@ public final class SbhMod implements ClientModInitializer {
         ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> Safe.run("tooltip", () -> Tooltips.add(stack, lines)));
 
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> Safe.run("screen-init", () -> {
-            // Storage 미리보기가 아닌 화면이 열리면 숨겼던 다른 모드 버튼을 꼭 되돌린다
-            if (!(screen instanceof AbstractContainerScreen<?> c0) || !Storage.active(c0)) Storage.restoreWidgets();
+            // Storage · 엔더 상자 · 가방 상자 화면이면 이 모드 전용 Storage 화면으로 바꿔 띄운다 (다른 모드 버튼이 겹치지 않게)
+            if (screen instanceof AbstractContainerScreen<?> c0 && Storage.active(c0)) {
+                client.execute(() -> { if (client.gui.screen() == c0) client.gui.setScreen(new StorageScreen(c0.getMenu(), c0.getTitle())); });
+                return;
+            }
             if (screen instanceof AbstractContainerScreen<?> cs) {
                 ScreenEvents.afterBackground(screen).register((s, g, mx, my, d) -> Safe.run("screen-bg", () -> {
-                    Storage.background(cs, g, mx, my);
                     ContainerOverlay.background(cs, g);
                     Auction.background(cs, g);
                     // 아이템 설명(툴팁)을 가리지 않게 배경 단계에서 그린다
@@ -106,12 +108,10 @@ public final class SbhMod implements ClientModInitializer {
                     if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
                 }));
                 ScreenEvents.remove(screen).register(s -> Safe.run("screen-remove", () -> {
-                    Storage.closing(cs);
                     Cursor.save(client.mouseHandler.xpos(), client.mouseHandler.ypos());
                 }));
                 Auction.addSearchBox(cs);
                 Enchant.init(cs);
-                Storage.initSearch(cs);
             }
             if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen sign) {
                 Signs.init(sign);
