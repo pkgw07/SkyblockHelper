@@ -240,6 +240,12 @@ public final class Storage {
         // 검색 칸: 내 인벤토리 묶음의 오른쪽 위 (상자 칸 바로 아래)
         var sb = searchBox;
         if (sb != null) { sb.setX(invX + 9 * S + 6 - sb.getWidth()); sb.setY(invY - 6 - sb.getHeight() - 3); }
+        // 다른 모드가 이 화면에 붙인 버튼은 미리보기 뒤에 가려져 있으니 숨기고 눌리지 않게 (내 검색 칸만 남김)
+        for (var w : net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(cs)) {
+            if (w == sb) continue;
+            w.visible = false;
+            w.active = false;
+        }
 
         // 1층: 상자 · 칸 · 기억한 아이템
         g.enableScissor(0, areaTop - 2, W, areaBottom + 2);
@@ -434,6 +440,16 @@ public final class Storage {
         }
         String[] p = key.split(":");
         mc.getConnection().sendCommand((p[0].equals("ender") ? "enderchest " : "backpack ") + p[1]);
+    }
+
+    /** 미리보기 위의 빈 곳 클릭은 여기서 끝낸다 (진짜 칸 · 검색 칸은 원래대로) */
+    public static boolean blocksClick(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
+        if (!active(cs) || layoutFor != cs) return false;
+        var sb = searchBox;
+        if (sb != null && Ui.inside(e.x(), e.y(), sb.getX(), sb.getY(), sb.getX() + sb.getWidth(), sb.getY() + sb.getHeight())) return false;
+        if (((ContainerScreenAccessor) cs).sbh$hoveredSlot() != null) return false;
+        // 들고 있는 아이템을 버리는 바깥 클릭은 hasClickedOutside 에서 이미 막는다. 여기서는 빈 곳 클릭만 삼킨다
+        return true;
     }
 
     public static boolean mouseScrolled(AbstractContainerScreen<?> cs, double sy) {

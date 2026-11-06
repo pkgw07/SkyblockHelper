@@ -14,6 +14,8 @@ public final class ScreenInput {
 
     private static boolean clicked(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
         if (Storage.mouseClicked(cs, e)) return true;
+        // 미리보기 화면에서 진짜 칸 · 검색 칸이 아닌 곳을 누르면 아무 일도 없게 (뒤에 가려진 것이 눌리지 않게)
+        if (Storage.blocksClick(cs, e)) return true;
         if (e.button() == 0 && Shortcuts.click(cs, e.x(), e.y())) return true;
         if (e.button() == 0 && Enchant.click(cs, e.x(), e.y())) return true;
         return e.button() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && Auction.middleClick(cs);
