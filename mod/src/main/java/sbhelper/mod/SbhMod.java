@@ -134,6 +134,15 @@ public final class SbhMod implements ClientModInitializer {
                 .then(ClientCommands.literal("stalk").then(ClientCommands.argument("name", com.mojang.brigadier.arguments.StringArgumentType.word())
                     .executes(c -> { Stalk.ask(com.mojang.brigadier.arguments.StringArgumentType.getString(c, "name")); return Command.SINGLE_SUCCESS; })))
                 .then(ClientCommands.literal("island").executes(c -> { World.island(); return Command.SINGLE_SUCCESS; }))
+                .then(ClientCommands.literal("kat").then(ClientCommands.argument("time", com.mojang.brigadier.arguments.StringArgumentType.greedyString())
+                    .executes(c -> {
+                        String time = com.mojang.brigadier.arguments.StringArgumentType.getString(c, "time");
+                        boolean ok = Bosses.setKatManually(time);
+                        c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §f" + (ok
+                            ? "Kat 타이머를 " + Fmt.left(Tooltips.duration(time)) + " 뒤로 맞췄어요"
+                            : "시간을 못 읽었어요. 예: /sbh kat 2d 4h 또는 /sbh kat 12h 30m")));
+                        return Command.SINGLE_SUCCESS;
+                    })))
                 .then(ClientCommands.literal("heavypearl").executes(c -> {
                     Bosses.setHeavyPearl(System.currentTimeMillis());
                     c.getSource().sendFeedback(Component.literal("§6[SkyblockHelper] §fHeavy Pearl 타이머를 24시간으로 맞췄어요"));

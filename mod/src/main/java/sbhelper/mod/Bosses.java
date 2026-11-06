@@ -120,6 +120,22 @@ public final class Bosses {
         Link.send(m);
     }
 
+    /** /sbh kat 2d 4h: Kat 타이머를 직접 맞추기 (자동으로 안 잡힐 때) */
+    public static boolean setKatManually(String text) {
+        long ms = Tooltips.duration(text);
+        if (ms < 60_000L) return false;
+        long now = System.currentTimeMillis();
+        Config c = Config.get();
+        Config.PetTimer t = new Config.PetTimer();
+        t.label = "Kat · 펫 업그레이드";
+        t.at = now + ms;
+        t.start = now;
+        c.petTimers.put("pet:Kat", t);
+        Config.save();
+        sendTimer("pet:Kat", "kat", t.label, t.at, t.start);
+        return true;
+    }
+
     /** 프로그램과 다시 연결되면 게임에서 본 타이머를 다시 보낸다 */
     public static void resend() {
         Config c = Config.get();
@@ -141,7 +157,7 @@ public final class Bosses {
         return out;
     }
 
-    private static final Pattern KAT_TIME = Pattern.compile("(?i)(time remaining|ready in|remaining|upgrad|training|leveling|levelling|will be ready|complete[sd]? in|done in)");
+    private static final Pattern KAT_TIME = Pattern.compile("(?i)(time remaining|ready in|remaining|upgrad|training|leveling|levelling|will be ready|complete[sd]? in|done in|ends? in|time left|left:|in:|ready:|until)");
 
     /**
      * 0.5초마다 열린 상자 화면: Kat(Pet Sitter) 나 펫 레벨링 NPC 처럼 펫을 맡기는 화면이면
@@ -154,21 +170,25 @@ public final class Bosses {
         if (low.contains("auction") || low.contains("bazaar") || low.contains("bids") || low.contains("trade")) return;
         long best = -1;
         String pet = "";
+        // Kat(Pet Sitter) 화면이면 아무 칸의 남은 시간이라도, 다른 화면이면 펫 아이템의 남은 시간만
+        boolean katScreen = title.contains("Pet Sitter") || title.contains("Kat") || low.contains("pet care") || low.contains("sitter");
         for (net.minecraft.world.inventory.Slot slot : cs.getMenu().slots) {
             if (slot.container instanceof net.minecraft.world.entity.player.Inventory || slot.getItem().isEmpty()) continue;
             String name = ItemText.name(slot.getItem());
-            boolean isPet = Pets.level(slot.getItem()) > 0 || name.contains("Pet") || title.contains("Pet Sitter") || title.contains("Kat");
-            if (!isPet) continue;
-            for (String line : ItemText.lore(slot.getItem())) {
-                if (!KAT_TIME.matcher(line).find()) continue;
+            boolean isPet = Pets.level(slot.getItem()) > 0 || name.contains("Pet");
+            if (!isPet && !katScreen) continue;
+            java.util.List<String> lines = new java.util.ArrayList<>(ItemText.lore(slot.getItem()));
+            lines.add(name);
+            for (String line : lines) {
+                if (!katScreen && !KAT_TIME.matcher(line).find()) continue;
                 long ms = Tooltips.duration(line);
-                if (ms > best) { best = ms; pet = name; }
+                if (ms > best) { best = ms; pet = isPet ? name : pet; }
             }
         }
         if (best < 60_000L) return;
-        String npc = title.contains("Pet Sitter") || title.contains("Kat") ? "Kat" : title.replaceAll("\\s*\\(.*\\)$", "");
+        String npc = katScreen ? "Kat" : title.replaceAll("\\s*\\(.*\\)$", "");
         String key = "pet:" + npc;
-        String label = npc + " · " + pet.replaceAll("\\[Lvl \\d+\\] ", "");
+        String label = npc + " · " + (pet.isEmpty() ? "펫 업그레이드" : pet.replaceAll("\\[Lvl \\d+\\] ", ""));
         long now = System.currentTimeMillis(), at = now + best;
         Config c = Config.get();
         Config.PetTimer old = c.petTimers.get(key);
