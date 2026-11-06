@@ -17,11 +17,16 @@ import sbhelper.mod.mixin.ContainerScreenAccessor;
  */
 public final class Shortcuts {
     private record Entry(String command, String name, ItemStack icon) {}
-    private static final Entry[] ENTRIES = {
-        e("enderchest", "엔더 상자", Items.ENDER_CHEST), e("craft", "제작대", Items.CRAFTING_TABLE),
-        e("wardrobe", "옷장 (Wardrobe)", Items.LEATHER_CHESTPLATE), e("pets", "펫", Items.BONE),
-        e("storage", "Storage (엔더 상자 · 가방 목록)", Items.CHEST), e("sbmenu", "스카이블록 메뉴", Items.NETHER_STAR),
-    };
+    /** 아이템 그림은 게임 데이터가 다 불러와진 뒤에 만든다 (게임 시작 직후에 만들면 오류) */
+    private static Entry[] entriesCache;
+    private static Entry[] entries() {
+        if (entriesCache == null) entriesCache = new Entry[]{
+            e("enderchest", "엔더 상자", Items.ENDER_CHEST), e("craft", "제작대", Items.CRAFTING_TABLE),
+            e("wardrobe", "옷장 (Wardrobe)", Items.LEATHER_CHESTPLATE), e("pets", "펫", Items.BONE),
+            e("storage", "Storage (엔더 상자 · 가방 목록)", Items.CHEST), e("sbmenu", "스카이블록 메뉴", Items.NETHER_STAR),
+        };
+        return entriesCache;
+    }
     public static final String[] POSITIONS = {"오른쪽", "왼쪽", "위", "아래", "자유"};
     private static final int SIZE = 20, GAP = 2;
     private static boolean dragging = false;
@@ -40,7 +45,7 @@ public final class Shortcuts {
         return c.shortcutPos == 0 || c.shortcutPos == 1 || (c.shortcutPos == 4 && c.shortcutVertical);
     }
 
-    private static int length() { return ENTRIES.length * (SIZE + GAP) - GAP; }
+    private static int length() { return entries().length * (SIZE + GAP) - GAP; }
 
     /** 바의 왼쪽 위 (화면 밖으로 나가지 않게) */
     private static int[] origin(AbstractContainerScreen<?> cs) {
@@ -75,14 +80,14 @@ public final class Shortcuts {
     public static void draw(AbstractContainerScreen<?> cs, GuiGraphicsExtractor g, int mx, int my) {
         if (!shown(cs)) return;
         int[] o = origin(cs);
-        for (int i = 0; i < ENTRIES.length; i++) {
+        for (int i = 0; i < entries().length; i++) {
             int[] p = cell(o, i);
             boolean hov = Ui.inside(mx, my, p[0], p[1], p[0] + SIZE, p[1] + SIZE);
             int border = dragging ? Hud.ACCENT : hov ? Hud.ACCENT : 0x40FFFFFF;
             Ui.card(g, p[0], p[1], p[0] + SIZE, p[1] + SIZE, hov ? 0xF0303644 : 0xE0181C24, border);
-            g.item(ENTRIES[i].icon(), p[0] + 2, p[1] + 2);
+            g.item(entries()[i].icon(), p[0] + 2, p[1] + 2);
             if (hov && !dragging) g.setTooltipForNextFrame(Minecraft.getInstance().font,
-                Component.literal(ENTRIES[i].name() + "  §7/" + ENTRIES[i].command() + (Config.get().shortcutPos == 4 ? "  §8Ctrl+끌기로 옮기기" : "")), mx, my);
+                Component.literal(entries()[i].name() + "  §7/" + entries()[i].command() + (Config.get().shortcutPos == 4 ? "  §8Ctrl+끌기로 옮기기" : "")), mx, my);
         }
     }
 
@@ -104,16 +109,16 @@ public final class Shortcuts {
             dragOffY = (int) my - o[1];
             return true;
         }
-        for (int i = 0; i < ENTRIES.length; i++) {
+        for (int i = 0; i < entries().length; i++) {
             int[] p = cell(o, i);
             if (!Ui.inside(mx, my, p[0], p[1], p[0] + SIZE, p[1] + SIZE)) continue;
             Ui.click();
-            if (ENTRIES[i].command().equals("storage")) {
+            if (entries()[i].command().equals("storage")) {
                 // /storage 는 엔더 상자 1번이 열려서: 스카이블록 메뉴를 열고 그 안의 Storage 칸을 한 번 눌러 준다
                 wantStorage = System.currentTimeMillis();
                 Minecraft.getInstance().getConnection().sendCommand("sbmenu");
             } else {
-                Minecraft.getInstance().getConnection().sendCommand(ENTRIES[i].command());
+                Minecraft.getInstance().getConnection().sendCommand(entries()[i].command());
             }
             return true;
         }

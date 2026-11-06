@@ -194,6 +194,8 @@ public final class Storage {
     public static void initSearch(AbstractContainerScreen<?> cs) {
         searchBox = null;
         if (!active(cs)) return;
+        // 페이지를 옮겨 다닐 때만 검색어 유지, 상자를 닫았다 다시 열면 비운다
+        if (System.currentTimeMillis() - storageClosedAt > 1500) query = "";
         Minecraft mc = Minecraft.getInstance();
         var b = new net.minecraft.client.gui.components.EditBox(mc.font, cs.width - 138, cs.height - 22, 110, 16, net.minecraft.network.chat.Component.literal("아이템 검색"));
         b.setHint(net.minecraft.network.chat.Component.literal("아이템 검색…"));
@@ -495,7 +497,10 @@ public final class Storage {
     }
 
     /** 상자 화면이 닫힐 때: 충분히 열려 있었으면 마지막 모습을 한 번 더 기억 */
+    private static long storageClosedAt = 0;
+
     public static void closing(AbstractContainerScreen<?> cs) {
+        if (active(cs)) storageClosedAt = System.currentTimeMillis();
         if (cs == seenScreen && System.currentTimeMillis() - seenAt >= 400) tick(cs);
         save();
     }
