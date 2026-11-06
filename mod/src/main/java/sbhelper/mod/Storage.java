@@ -111,7 +111,7 @@ public final class Storage {
         // 하이픽셀은 화면을 연 뒤 칸을 조금씩 채워 보낸다. 다 채워지기 전(열고 0.8초 안)에는 기억하지 않는다
         long now = System.currentTimeMillis();
         if (cs != seenScreen) { seenScreen = cs; seenAt = now; }
-        if (now - seenAt < 800) return;
+        if (now - seenAt < 400) return;
         String t = title(cs);
         if (isMenu(t)) {
             LinkedHashMap<String, Integer> found = new LinkedHashMap<>();
@@ -476,6 +476,12 @@ public final class Storage {
             }
             menu.remove("");
         } catch (Exception ignored) {}
+    }
+
+    /** 상자 화면이 닫힐 때: 충분히 열려 있었으면 마지막 모습을 한 번 더 기억 */
+    public static void closing(AbstractContainerScreen<?> cs) {
+        if (cs == seenScreen && System.currentTimeMillis() - seenAt >= 400) tick(cs);
+        save();
     }
 
     /** 상자를 닫을 때 바뀐 게 있으면 저장 */

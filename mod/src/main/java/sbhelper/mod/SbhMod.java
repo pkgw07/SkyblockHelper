@@ -45,7 +45,11 @@ public final class SbhMod implements ClientModInitializer {
             SkyBlock.tick(mc);
             World.tick(mc);
             if (screenTick % 40 == 0) Music.tick();
-            if (++screenTick % 10 == 0 && mc.gui.screen() instanceof AbstractContainerScreen<?> shown) { Storage.tick(shown); Bosses.screen(shown); }
+            ++screenTick;
+            if (mc.gui.screen() instanceof AbstractContainerScreen<?> shown) {
+                Storage.tick(shown);
+                if (screenTick % 10 == 0) Bosses.screen(shown);
+            }
             while (toggleHud.consumeClick()) {
                 Config c = Config.get();
                 c.hud = !c.hud;
@@ -104,7 +108,7 @@ public final class SbhMod implements ClientModInitializer {
                     Storage.foreground(cs, g, mx, my);
                 }));
                 ScreenEvents.remove(screen).register(s -> Safe.run("screen-remove", () -> {
-                    Storage.save();
+                    Storage.closing(cs);
                     Cursor.save(client.mouseHandler.xpos(), client.mouseHandler.ypos());
                 }));
                 Auction.addSearchBox(cs);
