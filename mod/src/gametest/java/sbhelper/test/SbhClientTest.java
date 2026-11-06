@@ -39,7 +39,7 @@ public class SbhClientTest implements FabricClientGameTest {
             for (int i = 0; i < 9; i++) {
                 SettingsScreen.selectTab(i);
                 ctx.setScreen(() -> new SettingsScreen(null));
-                ctx.waitTicks(15);
+                ctx.waitTicks(25);
                 ctx.takeScreenshot("02-settings-" + i);
             }
             ctx.setScreen(() -> new HudEditScreen(null));
@@ -48,16 +48,16 @@ public class SbhClientTest implements FabricClientGameTest {
 
             // Storage 미리보기: 페이지를 차례로 열어 기억시킨 뒤 Storage 화면
             ctx.setScreen(() -> page(6, "Ender Chest (1/3)", 0));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.setScreen(() -> page(6, "Ender Chest (2/3)", 7));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.setScreen(() -> page(4, "Medium Backpack (Slot #1)", 3));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.setScreen(SbhClientTest::storageMenu);
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.takeScreenshot("04-storage");
             ctx.setScreen(() -> page(6, "Ender Chest (2/3)", 7));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.takeScreenshot("05-storage-page");
 
             ctx.setScreen(SbhClientTest::pets);
@@ -84,11 +84,11 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.getInput().resizeWindow(1920, 1080);
             ctx.waitTicks(10);
             ctx.setScreen(() -> page(6, "Ender Chest (3/3)", 4));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.setScreen(() -> page(3, "Small Backpack (Slot #2)", 9));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.setScreen(SbhClientTest::storageMenu);
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.takeScreenshot("09-storage-wide");
             ctx.runOnClient(mc -> sbhelper.mod.Storage.search("diamond"));
             ctx.waitTicks(5);
@@ -98,7 +98,7 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.waitTicks(10);
             ctx.takeScreenshot("10-pets-wide");
             ctx.setScreen(() -> new sbhelper.mod.PlannerScreen(null));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.takeScreenshot("12-planner");
             // 3단계: 경매장 검색 · 로그 검색 · 마법 부여 도우미
             long now2 = System.currentTimeMillis();
@@ -110,7 +110,7 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.setScreen(() -> new sbhelper.mod.AuctionSearchScreen(null));
             ctx.waitTicks(5);
             ctx.getInput().typeChars("hyp");
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             Link.auctionHits = List.of(
                 new Link.AuctionHit("a1", "Hyperion", "LEGENDARY", 812_000_000, true, now2 + 3 * 3_600_000L),
                 new Link.AuctionHit("a2", "Hyperion", "LEGENDARY", 829_500_000, true, now2 + 26 * 3_600_000L),
@@ -127,7 +127,7 @@ public class SbhClientTest implements FabricClientGameTest {
             ctx.takeScreenshot("15-enchant");
             sbhelper.mod.Updater.latest = "9.9.9";
             ctx.setScreen(() -> new sbhelper.mod.UpdateScreen(null));
-            ctx.waitTicks(15);
+            ctx.waitTicks(25);
             ctx.takeScreenshot("11-update");
             ctx.setScreen(() -> null);
             ctx.waitTicks(5);

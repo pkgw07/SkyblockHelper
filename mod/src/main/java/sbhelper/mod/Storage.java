@@ -59,6 +59,8 @@ public final class Storage {
     }
 
     private static AbstractContainerScreen<?> layoutFor;
+    private static AbstractContainerScreen<?> seenScreen;
+    private static long seenAt = 0;
     /** 아이템 검색 (오른쪽 아래 칸): 찾는 아이템이 든 칸만 보인다. 페이지를 옮겨도 유지 */
     private static String query = "";
     private static net.minecraft.client.gui.components.EditBox searchBox;
@@ -106,6 +108,10 @@ public final class Storage {
     public static void tick(AbstractContainerScreen<?> cs) {
         if (!SkyBlock.inSkyblock) return;
         load();
+        // 하이픽셀은 화면을 연 뒤 칸을 조금씩 채워 보낸다. 다 채워지기 전(열고 0.8초 안)에는 기억하지 않는다
+        long now = System.currentTimeMillis();
+        if (cs != seenScreen) { seenScreen = cs; seenAt = now; }
+        if (now - seenAt < 800) return;
         String t = title(cs);
         if (isMenu(t)) {
             LinkedHashMap<String, Integer> found = new LinkedHashMap<>();
@@ -118,7 +124,10 @@ public final class Storage {
                 m = MENU_BACKPACK.matcher(name);
                 if (m.find()) found.put("backpack:" + m.group(1), s.index);
             }
-            if (!found.isEmpty() && !found.equals(menu)) { menu.clear(); menu.putAll(found); dirty = true; }
+            // 본 페이지 목록은 줄이지 않고 더하기만 한다 (화면이 덜 채워졌을 때 페이지가 사라지지 않게)
+            for (var e : found.entrySet()) {
+                if (!e.getValue().equals(menu.get(e.getKey()))) { menu.put(e.getKey(), e.getValue()); dirty = true; }
+            }
             return;
         }
         String key = keyOf(t);
