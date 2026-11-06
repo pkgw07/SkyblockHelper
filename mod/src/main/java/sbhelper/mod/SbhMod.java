@@ -41,7 +41,7 @@ public final class SbhMod implements ClientModInitializer {
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("skyblockhelper", "main"));
         toggleHud = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.skyblockhelper.hud", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, category));
 
-        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> Safe.run("tick", () -> {
             SkyBlock.tick(mc);
             World.tick(mc);
             if (screenTick % 40 == 0) Music.tick();
@@ -52,16 +52,12 @@ public final class SbhMod implements ClientModInitializer {
                 Config.save();
                 if (mc.player != null) mc.player.sendSystemMessage(Component.literal("§6[SkyblockHelper] §fHUD " + (c.hud ? "켜짐" : "꺼짐")));
             }
-            // 구버전이면 업데이트 창 (한 번만): 타이틀 화면, 아니면 서버에 들어와 5초 뒤 (다른 클라이언트는 타이틀 화면이 달라서)
+            // 구버전이면 업데이트 창 (한 번만): 세계 · 서버에 들어와 5초 뒤, 다른 화면이 열려 있지 않을 때만.
+            // 타이틀 화면에서는 띄우지 않는다 (다른 클라이언트의 첫 화면과 부딪히지 않게)
             worldTicks = mc.player == null ? 0 : worldTicks + 1;
-            if (!Updater.asked && Updater.available()) {
-                if (mc.gui.screen() instanceof net.minecraft.client.gui.screens.TitleScreen title) {
-                    Updater.asked = true;
-                    mc.gui.setScreen(new UpdateScreen(title));
-                } else if (mc.player != null && mc.gui.screen() == null && worldTicks > 100) {
-                    Updater.asked = true;
-                    mc.gui.setScreen(new UpdateScreen(null));
-                }
+            if (!Updater.asked && Updater.available() && mc.player != null && mc.gui.screen() == null && worldTicks > 100) {
+                Updater.asked = true;
+                mc.gui.setScreen(new UpdateScreen(null));
             }
             // 명령어로 연 편집 화면은 채팅 화면이 닫힌 다음 틱에 연다
             if (open == 1) { open = 0; mc.gui.setScreen(new SettingsScreen(null)); }
@@ -70,13 +66,13 @@ public final class SbhMod implements ClientModInitializer {
             if (open == 4) { open = 0; mc.gui.setScreen(new PlannerScreen(null)); }
             if (open == 5) { open = 0; mc.gui.setScreen(new AuctionSearchScreen(null)); }
             if (open == 6) { open = 0; mc.gui.setScreen(new LogScreen(null)); }
-        });
+        }));
 
         // 채팅: 기록 · [파티 초대] 버튼 · /r → 마지막 상대
-        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.GAME.register((message, overlay) -> { if (!overlay) ChatLog.received(message); });
-        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> overlay ? message : ChatLog.modify(message));
-        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.MODIFY_COMMAND.register(ChatLog::modifyCommand);
-        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.COMMAND.register(ChatLog::sentCommand);
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.GAME.register((message, overlay) -> { if (!overlay) Safe.run("chat", () -> ChatLog.received(message)); });
+        net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents.MODIFY_GAME.register((message, overlay) -> overlay ? message : Safe.get("chat-modify", () -> ChatLog.modify(message), message));
+        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.MODIFY_COMMAND.register(cmd -> Safe.get("command", () -> ChatLog.modifyCommand(cmd), cmd));
+        net.fabricmc.fabric.api.client.message.v1.ClientSendMessageEvents.COMMAND.register(cmd -> Safe.run("command", () -> ChatLog.sentCommand(cmd)));
         // Ctrl + 우클릭으로 플레이어 파티 초대 (진짜 플레이어만, NPC 제외)
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
             if (!level.isClientSide() || !Config.get().ctrlClickInvite || !SkyBlock.inSkyblock) return net.minecraft.world.InteractionResult.PASS;
@@ -88,12 +84,12 @@ public final class SbhMod implements ClientModInitializer {
             return net.minecraft.world.InteractionResult.FAIL;
         });
 
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("skyblockhelper", "hud"), Hud::extract);
-        ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> Tooltips.add(stack, lines));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("skyblockhelper", "hud"), (g, d) -> Safe.run("hud", () -> Hud.extract(g, d)));
+        ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> Safe.run("tooltip", () -> Tooltips.add(stack, lines)));
 
-        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> {
+        ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> Safe.run("screen-init", () -> {
             if (screen instanceof AbstractContainerScreen<?> cs) {
-                ScreenEvents.afterBackground(screen).register((s, g, mx, my, d) -> {
+                ScreenEvents.afterBackground(screen).register((s, g, mx, my, d) -> Safe.run("screen-bg", () -> {
                     Storage.background(cs, g, mx, my);
                     ContainerOverlay.background(cs, g);
                     Auction.background(cs, g);
@@ -101,25 +97,25 @@ public final class SbhMod implements ClientModInitializer {
                     Shortcuts.draw(cs, g, mx, my);
                     Enchant.draw(cs, g, mx, my);
                     if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
-                });
-                ScreenEvents.afterExtract(screen).register((s, g, mx, my, d) -> {
+                }));
+                ScreenEvents.afterExtract(screen).register((s, g, mx, my, d) -> Safe.run("screen-fg", () -> {
                     ContainerOverlay.foreground(cs, g);
                     Auction.foreground(cs, g);
                     Storage.foreground(cs, g, mx, my);
-                });
-                ScreenEvents.remove(screen).register(s -> {
+                }));
+                ScreenEvents.remove(screen).register(s -> Safe.run("screen-remove", () -> {
                     Storage.save();
                     Cursor.save(client.mouseHandler.xpos(), client.mouseHandler.ypos());
-                });
+                }));
                 Auction.addSearchBox(cs);
                 Enchant.init(cs);
                 Storage.initSearch(cs);
             }
             if (screen instanceof net.minecraft.client.gui.screens.inventory.AbstractSignEditScreen sign) {
                 Signs.init(sign);
-                ScreenEvents.remove(screen).register(s -> Signs.removed(sign));
+                ScreenEvents.remove(screen).register(s -> Safe.run("sign", () -> Signs.removed(sign)));
             }
-        });
+        }));
 
         // /sbh: 설정 창 · /sbh hud: HUD 위치·크기 · /sbh status: 연결 상태 · /sbh <기능>: 켜기/끄기
         ClientCommandRegistrationCallback.EVENT.register((dispatcher, ctx) -> {

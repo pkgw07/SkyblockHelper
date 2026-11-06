@@ -42,6 +42,8 @@ public final class UpdateScreen extends Screen {
 
     @Override
     public void extractBackground(GuiGraphicsExtractor g, int mx, int my, float d) {
+        // 세계 밖(메뉴)이면 게임의 원래 배경을 먼저 그린다 (까만 화면이 되지 않게)
+        if (this.minecraft.level == null) super.extractBackground(g, mx, my, d);
         float a = Ui.easeOut((System.currentTimeMillis() - openedAt) / 240f);
         g.fillGradient(0, 0, this.width, this.height, Ui.alpha(0x88000000, a), Ui.alpha(0xB0000000, a));
     }

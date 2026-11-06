@@ -9,6 +9,10 @@ import sbhelper.mod.mixin.ContainerScreenAccessor;
 /** 상자 화면 입력을 기능별로 나눠 준다 (mixin 에서 부름). true 면 원래 동작을 막는다 */
 public final class ScreenInput {
     public static boolean mouseClicked(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
+        return Safe.get("click", () -> clicked(cs, e), false);
+    }
+
+    private static boolean clicked(AbstractContainerScreen<?> cs, MouseButtonEvent e) {
         if (Storage.mouseClicked(cs, e)) return true;
         if (e.button() == 0 && Shortcuts.click(cs, e.x(), e.y())) return true;
         if (e.button() == 0 && Enchant.click(cs, e.x(), e.y())) return true;
@@ -24,6 +28,10 @@ public final class ScreenInput {
     }
 
     public static boolean keyPressed(AbstractContainerScreen<?> cs, KeyEvent e) {
+        return Safe.get("key", () -> key(cs, e), false);
+    }
+
+    private static boolean key(AbstractContainerScreen<?> cs, KeyEvent e) {
         if (Auction.keyPressed(cs, e)) return true;
         if (Enchant.keyPressed(cs, e)) return true;
         if (Storage.keyPressed(cs, e)) return true;
@@ -51,7 +59,7 @@ public final class ScreenInput {
         return false;
     }
 
-    public static boolean coversScreen(AbstractContainerScreen<?> cs) { return Storage.active(cs); }
+    public static boolean coversScreen(AbstractContainerScreen<?> cs) { return Safe.get("covers", () -> Storage.active(cs), false); }
 
     private ScreenInput() {}
 }
