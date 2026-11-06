@@ -242,9 +242,11 @@ public final class Storage {
         // 검색 칸: 내 인벤토리 묶음의 오른쪽 위 (상자 칸 바로 아래)
         var sb = searchBox;
         if (sb != null) { sb.setX(invX + 9 * S + 6 - sb.getWidth()); sb.setY(invY - 6 - sb.getHeight() - 3); }
-        // 다른 모드가 이 화면에 붙인 버튼은 미리보기 뒤에 가려져 있으니 숨기고 눌리지 않게 (내 검색 칸만 남김)
+        // 다른 모드가 이 화면에 붙인 버튼은 미리보기 뒤에 가려져 있으니 미리보기가 열린 동안만 숨긴다.
+        // 원래 상태를 기억했다가 화면을 닫으면 그대로 되돌린다 (여러 화면에서 같이 쓰는 버튼도 있어서)
         for (var w : net.fabricmc.fabric.api.client.screen.v1.Screens.getWidgets(cs)) {
             if (w == sb) continue;
+            if (!hiddenWidgets.containsKey(w)) hiddenWidgets.put(w, new boolean[]{w.visible, w.active});
             w.visible = false;
             w.active = false;
         }
@@ -498,8 +500,17 @@ public final class Storage {
 
     /** 상자 화면이 닫힐 때: 충분히 열려 있었으면 마지막 모습을 한 번 더 기억 */
     private static long storageClosedAt = 0;
+    /** 미리보기 동안 숨긴 다른 모드 버튼 → 원래 [보임, 눌림] */
+    private static final java.util.Map<net.minecraft.client.gui.components.AbstractWidget, boolean[]> hiddenWidgets = new java.util.IdentityHashMap<>();
+
+    /** 숨겼던 다른 모드 버튼을 원래대로 */
+    public static void restoreWidgets() {
+        hiddenWidgets.forEach((w, st) -> { w.visible = st[0]; w.active = st[1]; });
+        hiddenWidgets.clear();
+    }
 
     public static void closing(AbstractContainerScreen<?> cs) {
+        restoreWidgets();
         if (active(cs)) storageClosedAt = System.currentTimeMillis();
         if (cs == seenScreen && System.currentTimeMillis() - seenAt >= 400) tick(cs);
         save();

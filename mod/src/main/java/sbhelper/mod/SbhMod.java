@@ -93,6 +93,8 @@ public final class SbhMod implements ClientModInitializer {
         ItemTooltipCallback.EVENT.register((stack, context, flag, lines) -> Safe.run("tooltip", () -> Tooltips.add(stack, lines)));
 
         ScreenEvents.AFTER_INIT.register((client, screen, w, h) -> Safe.run("screen-init", () -> {
+            // Storage 미리보기가 아닌 화면이 열리면 숨겼던 다른 모드 버튼을 꼭 되돌린다
+            if (!(screen instanceof AbstractContainerScreen<?> c0) || !Storage.active(c0)) Storage.restoreWidgets();
             if (screen instanceof AbstractContainerScreen<?> cs) {
                 ScreenEvents.afterBackground(screen).register((s, g, mx, my, d) -> Safe.run("screen-bg", () -> {
                     Storage.background(cs, g, mx, my);
