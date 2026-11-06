@@ -49,6 +49,16 @@ public final class Pets {
         return (int) Math.floor(Math.min(1.0, (lv - 1) / (double) (max - 1)) * 100);
     }
 
+    /** [지금 경험치, 만렙까지 전체 경험치] (아이템에 경험치 기록이 있을 때만, 없으면 null) */
+    public static double[] xp(ItemStack stack) {
+        JsonObject i = info(stack);
+        if (i == null || !i.has("exp") || !i.has("tier")) return null;
+        int lv = Math.max(1, level(stack));
+        double max = maxLevel(stack, lv) == 200 ? MAX_XP_200 : MAX_XP.getOrDefault(i.get("tier").getAsString(), 0d);
+        if (max <= 0) return null;
+        return new double[]{Math.min(i.get("exp").getAsDouble(), max), max};
+    }
+
     /** 경험치 기준 (아이템에 경험치 기록이 있을 때만, 없으면 -1) */
     public static double xpPercent(ItemStack stack) {
         JsonObject i = info(stack);

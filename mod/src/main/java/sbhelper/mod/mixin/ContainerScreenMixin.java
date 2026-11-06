@@ -17,6 +17,12 @@ public abstract class ContainerScreenMixin {
         if (ScreenInput.mouseClicked((AbstractContainerScreen<?>) (Object) this, e)) cir.setReturnValue(true);
     }
 
+    /** 상자 화면 위 글자 · 상자 (가치, 펫 %, 가격 검색 이름, 기억한 아이템 툴팁): 아이템 설명(툴팁)보다 아래에 그린다 */
+    @Inject(method = "extractRenderState", at = @At("TAIL"))
+    private void sbh$foreground(net.minecraft.client.gui.GuiGraphicsExtractor g, int mx, int my, float delta, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        ScreenInput.foreground((AbstractContainerScreen<?>) (Object) this, g, mx, my);
+    }
+
     @Inject(method = "mouseDragged", at = @At("HEAD"), cancellable = true)
     private void sbh$mouseDragged(MouseButtonEvent e, double dx, double dy, CallbackInfoReturnable<Boolean> cir) {
         if (ScreenInput.mouseDragged((AbstractContainerScreen<?>) (Object) this, e)) cir.setReturnValue(true);

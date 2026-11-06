@@ -61,6 +61,15 @@ public final class ScreenInput {
         return false;
     }
 
+    /** 상자 화면 위 글자 · 상자 (툴팁보다 아래) */
+    public static void foreground(AbstractContainerScreen<?> cs, net.minecraft.client.gui.GuiGraphicsExtractor g, int mx, int my) {
+        Safe.run("screen-fg", () -> {
+            ContainerOverlay.foreground(cs, g);
+            Auction.foreground(cs, g);
+            Storage.foreground(cs, g, mx, my);
+        });
+    }
+
     public static boolean coversScreen(AbstractContainerScreen<?> cs) { return Safe.get("covers", () -> Storage.active(cs), false); }
 
     private ScreenInput() {}

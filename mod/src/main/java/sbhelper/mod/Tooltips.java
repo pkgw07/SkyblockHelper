@@ -111,8 +111,8 @@ public final class Tooltips {
         int pct = Pets.levelPercent(stack);
         if (pct < 0 || lines.isEmpty()) return;
         lines.set(0, lines.get(0).copy().append(Component.literal(" " + pct + "%").withStyle(pct >= 100 ? ChatFormatting.GOLD : ChatFormatting.GRAY)));
-        double xp = Pets.xpPercent(stack);
-        if (xp >= 0 && pct < 100) lines.add(1, Component.literal("만렙까지 경험치 " + String.format("%.1f", xp) + "%").withStyle(ChatFormatting.DARK_GRAY));
+        double[] xp = Pets.xp(stack);
+        if (xp != null && pct < 100) lines.add(1, Component.literal("만렙까지 경험치 " + Fmt.count(xp[0]) + " / " + Fmt.count(xp[1])).withStyle(ChatFormatting.DARK_GRAY));
     }
 
     /** 아이템에 남아 있는 얻은 시각 (ExtraAttributes timestamp) */

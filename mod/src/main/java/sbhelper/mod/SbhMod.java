@@ -70,6 +70,7 @@ public final class SbhMod implements ClientModInitializer {
             if (open == 4) { open = 0; mc.gui.setScreen(new PlannerScreen(null)); }
             if (open == 5) { open = 0; mc.gui.setScreen(new AuctionSearchScreen(null)); }
             if (open == 6) { open = 0; mc.gui.setScreen(new LogScreen(null)); }
+            Shortcuts.tick(mc);
         }));
 
         // 채팅: 기록 · [파티 초대] 버튼 · /r → 마지막 상대
@@ -101,11 +102,6 @@ public final class SbhMod implements ClientModInitializer {
                     Shortcuts.draw(cs, g, mx, my);
                     Enchant.draw(cs, g, mx, my);
                     if (SkyBlock.inSkyblock && !Storage.active(cs)) ChatLog.drawInScreen(g, cs.width, cs.height);
-                }));
-                ScreenEvents.afterExtract(screen).register((s, g, mx, my, d) -> Safe.run("screen-fg", () -> {
-                    ContainerOverlay.foreground(cs, g);
-                    Auction.foreground(cs, g);
-                    Storage.foreground(cs, g, mx, my);
                 }));
                 ScreenEvents.remove(screen).register(s -> Safe.run("screen-remove", () -> {
                     Storage.closing(cs);

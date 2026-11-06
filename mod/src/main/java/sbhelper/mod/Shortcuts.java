@@ -20,11 +20,13 @@ public final class Shortcuts {
     private static final Entry[] ENTRIES = {
         e("enderchest", "엔더 상자", Items.ENDER_CHEST), e("craft", "제작대", Items.CRAFTING_TABLE),
         e("wardrobe", "옷장 (Wardrobe)", Items.LEATHER_CHESTPLATE), e("pets", "펫", Items.BONE),
-        e("storage", "Storage", Items.CHEST), e("sbmenu", "스카이블록 메뉴", Items.NETHER_STAR),
+        e("storage", "Storage (엔더 상자 · 가방 목록)", Items.CHEST), e("sbmenu", "스카이블록 메뉴", Items.NETHER_STAR),
     };
     public static final String[] POSITIONS = {"오른쪽", "왼쪽", "위", "아래", "자유"};
     private static final int SIZE = 20, GAP = 2;
     private static boolean dragging = false;
+    /** Storage 바로가기를 누른 시각 (스카이블록 메뉴가 열리면 Storage 칸을 한 번 누름) */
+    private static long wantStorage = 0;
     private static int dragOffX, dragOffY;
 
     private static Entry e(String c, String n, Item i) { return new Entry(c, n, new ItemStack(i)); }
@@ -106,10 +108,31 @@ public final class Shortcuts {
             int[] p = cell(o, i);
             if (!Ui.inside(mx, my, p[0], p[1], p[0] + SIZE, p[1] + SIZE)) continue;
             Ui.click();
-            Minecraft.getInstance().getConnection().sendCommand(ENTRIES[i].command());
+            if (ENTRIES[i].command().equals("storage")) {
+                // /storage 는 엔더 상자 1번이 열려서: 스카이블록 메뉴를 열고 그 안의 Storage 칸을 한 번 눌러 준다
+                wantStorage = System.currentTimeMillis();
+                Minecraft.getInstance().getConnection().sendCommand("sbmenu");
+            } else {
+                Minecraft.getInstance().getConnection().sendCommand(ENTRIES[i].command());
+            }
             return true;
         }
         return false;
+    }
+
+    /** 매 틱: Storage 바로가기 후 스카이블록 메뉴가 열리면 그 안의 Storage 칸을 한 번 누른다 (3초 안에만) */
+    public static void tick(Minecraft mc) {
+        if (wantStorage == 0) return;
+        if (System.currentTimeMillis() - wantStorage > 3000) { wantStorage = 0; return; }
+        if (!(mc.gui.screen() instanceof AbstractContainerScreen<?> cs) || mc.gameMode == null || mc.player == null) return;
+        if (!SkyBlock.strip(cs.getTitle().getString()).contains("SkyBlock Menu")) return;
+        for (net.minecraft.world.inventory.Slot slot : cs.getMenu().slots) {
+            if (slot.container instanceof net.minecraft.world.entity.player.Inventory) continue;
+            if (!ItemText.name(slot.getItem()).equals("Storage")) continue;
+            wantStorage = 0;
+            mc.gameMode.handleContainerInput(cs.getMenu().containerId, slot.index, 0, net.minecraft.world.inventory.ContainerInput.PICKUP, mc.player);
+            return;
+        }
     }
 
     public static boolean drag(AbstractContainerScreen<?> cs, double mx, double my) {
